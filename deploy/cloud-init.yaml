@@ -1,0 +1,45 @@
+#cloud-config
+# Paste into Hetzner's "Cloud config" field when creating the server (TODO D.1 to D.3).
+# Replace the ssh key line with the content of ~/.ssh/id_ed25519.pub before pasting.
+# It creates the user "deploy", turns off root and password logins, opens only SSH, HTTP and
+# HTTPS, turns on automatic security updates, adds 2 GB of swap and installs Docker from
+# Docker's own apt repository.
+
+users:
+  - name: deploy
+    groups: [sudo]
+    shell: /bin/bash
+    sudo: "ALL=(ALL) NOPASSWD:ALL"
+    lock_passwd: true
+    ssh_authorized_keys:
+      - ssh-ed25519 REPLACE_WITH_YOUR_PUBLIC_KEY
+
+package_update: true
+package_upgrade: true
+packages: [ufw, unattended-upgrades, ca-certificates, curl, git]
+
+write_files:
+  - path: /etc/ssh/sshd_config.d/10-hardening.conf
+    content: |
+      PermitRootLogin no
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+
+runcmd:
+  - systemctl restart ssh
+  - ufw allow 22/tcp
+  - ufw allow 80/tcp
+  - ufw allow 443/tcp
+  - ufw allow 443/udp
+  - ufw --force enable
+  - dpkg-reconfigure -f noninteractive unattended-upgrades
+  - fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
+  - echo '/swapfile none swap sw 0 0' >> /etc/fstab
+  - install -m 0755 -d /etc/apt/keyrings
+  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+  - chmod a+r /etc/apt/keyrings/docker.asc
+  - echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable" > /etc/apt/sources.list.d/docker.list
+  - apt-get update
+  - apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  - usermod -aG docker deploy
+  - mkdir -p /srv/bauwerk && chown deploy:deploy /srv/bauwerk

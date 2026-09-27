@@ -61,6 +61,12 @@ function openingPath(b: Building, index: number, field: string): Op["path"] {
 }
 
 describe("REST", () => {
+  it("answers the health check while the database answers", async () => {
+    const res = await json("GET", "/health");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+  });
+
   it("creates, reads, lists and deletes a project", async () => {
     const created = await json("POST", "/projects", { building: house() });
     expect(created.status).toBe(201);

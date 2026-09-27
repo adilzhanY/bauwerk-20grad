@@ -1,5 +1,13 @@
-node_modules
-server/node_modules
+# Never in an image: dependencies are installed inside, secrets stay on the host.
+**/node_modules
+**/.venv
+**/.sam3
+**/__pycache__
+.env
+.env.*
+!.env.example
 dist
 coverage
 .git
+.lavish
+**/*.ifc.tmp

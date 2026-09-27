@@ -1,0 +1,15 @@
+# The LoD2 API. Node runs its TypeScript directly (type stripping, Node 22.18 and newer).
+FROM node:24-slim
+WORKDIR /lod2
+# It links lod2-core and lod2-ingest by file path, so all three come in.
+COPY lod2/lod2-core ./lod2-core
+COPY lod2/lod2-ingest ./lod2-ingest
+COPY lod2/lod2-api ./lod2-api
+RUN npm --prefix lod2-core ci --omit=dev \
+ && npm --prefix lod2-ingest ci --omit=dev \
+ && npm --prefix lod2-api ci --omit=dev
+WORKDIR /lod2/lod2-api
+ENV LOD2_API_HOST=0.0.0.0 LOD2_API_PORT=8788 LOG_LEVEL=warn NODE_ENV=production
+EXPOSE 8788
+USER node
+CMD ["node", "src/server.ts"]

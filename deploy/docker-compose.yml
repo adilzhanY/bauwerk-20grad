@@ -1,0 +1,107 @@
+# The hosted Bauwerk: one small server, four processes. Only "web" is reachable from outside;
+# the others talk on this compose network. Settings and secrets come from deploy/.env
+# (see deploy/.env.example); nothing secret is in this file.
+#
+#   docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
+name: bauwerk
+
+services:
+  postgis:
+    image: postgis/postgis:17-3.5
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: lod2
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
+      POSTGRES_DB: lod2
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./initdb:/docker-entrypoint-initdb.d:ro
+    # A 4 GB server that never ingests: much smaller than the desktop settings in lod2/.
+    command: >
+      postgres
+      -c shared_buffers=256MB
+      -c work_mem=16MB
+      -c maintenance_work_mem=128MB
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U lod2 -d lod2"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+  lod2-api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.lod2-api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://lod2:${POSTGRES_PASSWORD}@postgis:5432/lod2
+    depends_on:
+      postgis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:8788/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  server:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.server
+    restart: unless-stopped
+    environment:
+      # Local until the projects move to Supabase; then deploy/.env sets BAUWERK_DATABASE_URL.
+      DATABASE_URL: ${BAUWERK_DATABASE_URL:-postgres://lod2:${POSTGRES_PASSWORD}@postgis:5432/bauwerk}
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET:-}
+    depends_on:
+      postgis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:8789/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.web
+      args:
+        VITE_SUPABASE_URL: ${SUPABASE_URL:-}
+        VITE_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN:-:80}
+      VISION_URL: ${VISION_URL:-}
+      VISION_KEY: ${VISION_KEY:-}
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+      - "${HTTPS_PORT:-443}:443/udp"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - lod2-api
+      - server
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

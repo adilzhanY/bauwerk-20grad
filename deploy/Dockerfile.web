@@ -1,0 +1,21 @@
+# The built app, served by Caddy together with the reverse proxy to the API services.
+FROM node:24-slim AS build
+WORKDIR /repo
+COPY package.json package-lock.json ./
+# The app links lod2-core by file path; its sources must be there before the install.
+COPY lod2/lod2-core ./lod2/lod2-core
+RUN npm ci --legacy-peer-deps --ignore-scripts
+COPY index.html tsconfig.json tsconfig.app.json tsconfig.node.json vite.config.ts ./
+COPY public ./public
+COPY src ./src
+ARG VITE_SUPABASE_URL=""
+ARG VITE_SUPABASE_ANON_KEY=""
+ENV VITE_API_URL=/collab \
+    VITE_SERVER_PDF=false \
+    VITE_SUPABASE_URL=$VITE_SUPABASE_URL \
+    VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY
+RUN npx vite build
+
+FROM caddy:2
+COPY deploy/Caddyfile /etc/caddy/Caddyfile
+COPY --from=build /repo/dist /srv/app

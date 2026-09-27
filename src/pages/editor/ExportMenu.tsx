@@ -13,6 +13,12 @@ import { buildingFileName, downloadFile } from "@/ui/download";
  * The navy Export button at the top right and its menu: the printable report, the IFC model
  * for the consultant's calculation software, and the PDF from the server when it runs.
  */
+/**
+ * The server renders the PDF with a headless browser. The hosted server has none, so its
+ * build sets VITE_SERVER_PDF=false and the entry goes; the printable report stays.
+ */
+const serverPdf = syncEnabled && import.meta.env.VITE_SERVER_PDF !== "false";
+
 export function ExportMenu() {
   const t = useT();
   const menuId = useId();
@@ -110,7 +116,7 @@ export function ExportMenu() {
           <MenuItem icon={<FileBox size={15} />} onClick={run(exportIfc)}>
             {t("bar.exportIfc")}
           </MenuItem>
-          {syncEnabled && (
+          {serverPdf && (
             <MenuItem
               icon={<FileDown size={15} />}
               disabled={pdfBusy}
