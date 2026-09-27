@@ -5,6 +5,9 @@ import { useEditorStore } from "@/store/building";
 import { CustomButton } from "@/components/CustomButton";
 import { CustomDialog } from "@/components/CustomDialog";
 import { createProject, openProject, syncEnabled } from "@/sync/useSync";
+import { loginPath } from "@/app/router";
+import { useAuth } from "@/auth/store";
+import { accountsEnabled } from "@/auth/supabase";
 
 /** Loopback names: a link with one of these only opens on this computer. */
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
@@ -24,6 +27,11 @@ export function ShareButton() {
 
   const share = async () => {
     setFailed(false);
+    // Sharing needs an account; after signing in the user comes back here.
+    if (accountsEnabled && useAuth.getState().status !== "signedIn") {
+      window.location.assign(loginPath());
+      return;
+    }
     if (!projectId) {
       setBusy(true);
       const id = await createProject().catch(() => null);

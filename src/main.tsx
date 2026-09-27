@@ -1,5 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import { startAuth } from "@/auth/store";
 import "./index.css";
 import { App } from "./App";
 import { ErrorBoundary } from "./ui/ErrorBoundary";
@@ -19,6 +20,7 @@ const linkNotice = applyLinkImport(useEditorStore.getState().language, (building
 // A building arriving by link opens in the editor.
 if (linkNotice) useRouter.getState().navigate({ page: "editor" }, { replace: true });
 
+startAuth();
 createRoot(root).render(
   <StrictMode>
     <ErrorBoundary>

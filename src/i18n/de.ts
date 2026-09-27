@@ -781,6 +781,35 @@ export const de: Messages = {
   "building.notFound": "Gebäude nicht gefunden.",
   "building.loadFailed": "Das Gebäude konnte nicht geladen werden: {message}",
   "export.button": "Export",
+  "auth.title": "Ihr Konto",
+  "auth.intro":
+    "Melden Sie sich an, um Gebäude zu teilen und gemeinsam zu bearbeiten. Jede Person mit Konto kann einen geteilten Link öffnen.",
+  "auth.off":
+    "Diese Version von Bauwerk hat keine Konten. Der Editor arbeitet in diesem Browser; zum Teilen braucht es die gehostete Version.",
+  "auth.signIn": "Anmelden",
+  "auth.signUp": "Konto erstellen",
+  "auth.signOut": "Abmelden",
+  "auth.account": "Konto von {name}",
+  "auth.email": "E-Mail",
+  "auth.password": "Passwort",
+  "auth.username": "Benutzername",
+  "auth.usernameRule":
+    "3 bis 24 Buchstaben, Ziffern, _ oder -. Andere sehen ihn beim gemeinsamen Bearbeiten.",
+  "auth.showPassword": "Passwort zeigen",
+  "auth.hidePassword": "Passwort verbergen",
+  "auth.error.credentials": "E-Mail oder Passwort stimmt nicht.",
+  "auth.error.emailTaken":
+    "Mit dieser E-Mail gibt es schon ein Konto. Melden Sie sich stattdessen an.",
+  "auth.error.emailInvalid": "Diese E-Mail-Adresse sieht nicht richtig aus.",
+  "auth.error.weakPassword": "Das Passwort braucht mindestens 8 Zeichen.",
+  "auth.error.usernameTaken": "Dieser Benutzername ist vergeben. Versuchen Sie einen anderen.",
+  "auth.error.network":
+    "Keine Verbindung zum Server. Prüfen Sie das Netzwerk und versuchen Sie es erneut.",
+  "auth.error.tooMany": "Zu viele Versuche. Warten Sie eine Minute und versuchen Sie es erneut.",
+  "auth.error.confirmationOn":
+    "Das Konto wurde erstellt, aber der Server verlangt zuerst eine Bestätigung per E-Mail.",
+  "auth.error.off": "Konten gibt es in dieser Version nicht.",
+  "auth.error.other": "Das hat nicht geklappt. Versuchen Sie es gleich noch einmal.",
   "share.button": "Teilen",
   "share.title": "Dieses Gebäude teilen",
   "share.body":

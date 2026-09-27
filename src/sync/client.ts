@@ -48,8 +48,10 @@ export interface SyncConfig {
   color: string;
   /** One per editor tab. Random when left out. */
   clientId?: string;
+  /** The access token to connect with, asked for on every (re)connect; accounts off: none. */
+  token?: () => Promise<string | null>;
   /** Opens the socket. Tests pass a fake. */
-  connect?: (apiUrl: string) => SocketLike;
+  connect?: (apiUrl: string, token?: () => Promise<string | null>) => SocketLike;
 }
 
 type Store = ReturnType<typeof createEditorStore>;
@@ -90,9 +92,21 @@ export interface Rejection {
 }
 
 /** Opens a Socket.IO connection to the server under `apiUrl`, which may carry a path. */
-function openSocket(apiUrl: string): SocketLike {
+function openSocket(apiUrl: string, token?: () => Promise<string | null>): SocketLike {
   const url = new URL(apiUrl, window.location.href);
-  return io(url.origin, { path: `${url.pathname.replace(/\/$/, "")}/socket.io` });
+  return io(url.origin, {
+    path: `${url.pathname.replace(/\/$/, "")}/socket.io`,
+    // A function, so every reconnect sends the token as it is then, refreshed or not.
+    ...(token
+      ? {
+          auth: (cb: (data: object) => void) => {
+            void token().then((value) => {
+              cb(value ? { token: value } : {});
+            });
+          },
+        }
+      : {}),
+  });
 }
 
 export class SyncClient {
@@ -151,10 +165,14 @@ export class SyncClient {
 
   /** Connects, joins the project and starts watching the store. */
   start(): void {
-    const socket = (this.config.connect ?? openSocket)(this.config.apiUrl);
+    const socket = (this.config.connect ?? openSocket)(this.config.apiUrl, this.config.token);
     this.socket = socket;
     socket.on("connect", () => {
       this.join();
+    });
+    // The server turned the connection away: no valid token (signed out, or it expired).
+    socket.on("connect_error", (error: Error) => {
+      if (error.message === "signIn") this.setStatus("error");
     });
     socket.on("disconnect", () => {
       this.joined = false;

@@ -1,4 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { loginPath } from "@/app/router";
+import { useAuth } from "@/auth/store";
+import { accessToken, accountsEnabled, authHeaders } from "@/auth/supabase";
 import type { Building } from "@/geometry/types";
 import { useEditorStore } from "@/store/building";
 import type { HistoryPreview } from "@/store/building";
@@ -64,7 +67,7 @@ function projectUrl(path = ""): string | null {
 export async function fetchVersions(): Promise<VersionEntry[]> {
   const url = projectUrl("/versions");
   if (!url) return [];
-  const res = await fetch(url);
+  const res = await fetch(url, { headers: await authHeaders() });
   return res.ok ? ((await res.json()) as VersionEntry[]) : [];
 }
 
@@ -72,7 +75,7 @@ export async function fetchVersions(): Promise<VersionEntry[]> {
 export async function fetchVersion(version: number): Promise<Building | null> {
   const url = projectUrl(`/versions/${version}`);
   if (!url) return null;
-  const res = await fetch(url);
+  const res = await fetch(url, { headers: await authHeaders() });
   return res.ok ? ((await res.json()) as { building: Building }).building : null;
 }
 
@@ -104,7 +107,7 @@ export function restoreVersion(): void {
 export async function listProjects(): Promise<ProjectSummary[]> {
   const cfg = syncConfigFromEnv();
   if (!cfg) return [];
-  const res = await fetch(`${cfg.apiUrl}/projects`);
+  const res = await fetch(`${cfg.apiUrl}/projects`, { headers: await authHeaders() });
   return res.ok ? ((await res.json()) as ProjectSummary[]) : [];
 }
 
@@ -114,7 +117,7 @@ export async function createProject(): Promise<string | null> {
   const { actor } = actorIdentity();
   const res = await fetch(`${cfg.apiUrl}/projects`, {
     method: "POST",
-    headers: { "content-type": "application/json", "x-actor": actor },
+    headers: { "content-type": "application/json", "x-actor": actor, ...(await authHeaders()) },
     body: JSON.stringify({ building: useEditorStore.getState().building }),
   });
   if (!res.ok) return null;
@@ -135,8 +138,15 @@ export function useSync(): {
 } {
   const [status, setStatus] = useState<SyncStatus | "local">(syncEnabled ? "connecting" : "local");
   const [rejection, setRejection] = useState<Rejection | null>(null);
-  const [identity] = useState(actorIdentity);
+  const [tabIdentity] = useState(actorIdentity);
   const [urlProject, setUrlProject] = useState(projectIdFromUrl);
+  const authStatus = useAuth((s) => s.status);
+  const account = useAuth((s) => s.account);
+  // Signed in, people are their account: the name and colour everyone else sees too.
+  const identity = useMemo(
+    () => (account ? { actor: account.username, color: account.color } : tabIdentity),
+    [account, tabIdentity],
+  );
 
   useEffect(() => {
     const onPop = () => {
@@ -153,7 +163,17 @@ export function useSync(): {
   useEffect(() => {
     const cfg = syncConfigFromEnv();
     if (!cfg || !urlProject) return;
-    const client = new SyncClient(useEditorStore, { ...cfg, projectId: urlProject, ...identity });
+    if (accountsEnabled && authStatus !== "signedIn") {
+      // A shared link needs an account: sign in, then come back to it.
+      if (authStatus === "signedOut") window.location.assign(loginPath());
+      return;
+    }
+    const client = new SyncClient(useEditorStore, {
+      ...cfg,
+      projectId: urlProject,
+      ...identity,
+      ...(accountsEnabled ? { token: accessToken } : {}),
+    });
     const offStatus = client.onStatus(setStatus);
     const offReject = client.onReject(setRejection);
     active = client;
@@ -165,7 +185,7 @@ export function useSync(): {
       useEditorStore.getState().setHistoryPreview(null);
       client.stop();
     };
-  }, [urlProject, identity]);
+  }, [urlProject, identity, authStatus]);
 
   return {
     status,

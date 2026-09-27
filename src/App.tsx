@@ -6,6 +6,7 @@ import type { LinkNotice } from "@/lib/linkImport";
 import { BuildingPage } from "@/pages/building/BuildingPage";
 import { EditorPage } from "@/pages/EditorPage";
 import { StartPage } from "@/pages/StartPage";
+import { LoginPage } from "@/pages/LoginPage";
 import type { RenderSample } from "@/scene/FrameProbe";
 import { useEditorStore } from "@/store/building";
 import { BenchPage } from "@/ui/BenchPage";
@@ -59,6 +60,7 @@ export function App({ linkNotice = null }: { linkNotice?: LinkNotice | null } = 
       {route.page === "start" && <StartPage />}
       {route.page === "building" && <BuildingPage key={route.gid} gid={route.gid} />}
       {route.page === "editor" && <EditorPage linkNotice={linkNotice} />}
+      {route.page === "login" && <LoginPage />}
     </Shell>
   );
 }

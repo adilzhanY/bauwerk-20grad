@@ -10,6 +10,7 @@ import {
 import type { OnGatewayDisconnect, OnGatewayInit } from "@nestjs/websockets";
 import type { Server, Socket } from "socket.io";
 import { actorOf, batchOf } from "./projects.controller";
+import { colorFor } from "@/sync/colors";
 import { ProjectsService } from "./projects.service";
 import { AuthService, Unauthenticated } from "../auth/auth.service";
 import type { AuthUser } from "../auth/auth.service";
@@ -24,14 +25,6 @@ interface Member {
   selection: unknown;
   /** The signed in user, set by the connection middleware when accounts are on. */
   user?: AuthUser;
-}
-
-/** One colour per person on every device, from their user id. The same set as the client's. */
-const COLORS = ["#e76f51", "#f4a261", "#e9c46a", "#2a9d8f", "#6c8ef5", "#b084cc"];
-export function colorFor(userId: string): string {
-  let hash = 0;
-  for (const char of userId) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
-  return COLORS[hash % COLORS.length] ?? "#6c8ef5";
 }
 
 /** One entry of the presence list: every tab in the project room. */

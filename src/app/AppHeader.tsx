@@ -3,11 +3,9 @@ import type { ReactNode } from "react";
 import { cx } from "@/components/cx";
 import { useT } from "@/i18n/useT";
 import { useEditorStore } from "@/store/building";
+import { AccountButton } from "./AccountButton";
 import { Logo } from "./Logo";
 import { useRouter } from "./router";
-
-/** The initials in the avatar at the right of the bar. */
-const USER_INITIALS = "AY";
 
 /**
  * The white bar across the top of every page: the mark and the two places (search and editor)
@@ -74,14 +72,7 @@ export function AppHeader({
       >
         {language === "de" ? "DE" : "EN"}
       </button>
-      <span
-        role="img"
-        aria-label={t("shell.user")}
-        title={t("shell.user")}
-        className="flex h-9 w-9 items-center justify-center rounded-full bg-select-strong text-xs font-semibold text-white"
-      >
-        {USER_INITIALS}
-      </span>
+      <AccountButton />
     </header>
   );
 }
