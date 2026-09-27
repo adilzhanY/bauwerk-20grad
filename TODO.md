@@ -80,14 +80,14 @@ Order matters. R and D give a working hosted demo without accounts; E, F and G a
 
 - [ ] H.1 Rent one GPU instance with at least 8 GB of graphics memory by the hour (for example a community RTX 3090 or 4090 on RunPod or Vast.ai, usually under a dollar an hour). Start it only for the rehearsal and the presentation, and stop it afterwards.
 - [ ] H.2 Run `lod2/lod2-vision` there, with the Hugging Face token set on that instance only. The first start downloads the model (about 3.4 GB), so start it an hour before.
-- [ ] H.3 The vision service gets a shared secret: it refuses any request without the header `X-Vision-Key` carrying the value from its environment. Caddy adds the header when it forwards `/vision` (`header_up X-Vision-Key {$VISION_KEY}`, plus `header_up Host {upstream_hostport}` for the https upstream), so the key never reaches the browser and a stranger who finds the GPU address gets nothing.
+- [x] H.3 The vision service gets a shared secret: it refuses any request without the header `X-Vision-Key` carrying the value from its environment. Caddy adds the header when it forwards `/vision` (`header_up X-Vision-Key {$VISION_KEY}`, plus `header_up Host {upstream_hostport}` for the https upstream), so the key never reaches the browser and a stranger who finds the GPU address gets nothing. (`server.py`: the check, and `LOD2_VISION_HOST`; it refuses to listen beyond the machine without a key. Steps for the instance in `deploy/README.md`.)
 - [ ] H.4 `VISION_URL` and `VISION_KEY` in the server's `.env`, then `docker compose up -d caddy` recreates Caddy with them. Check: the photo editor on the hosted app shows "Detect openings" and detection works. With the instance stopped the button hides again, and the rest of the app is unaffected.
 
 ### I. Before the presentation
 
-- [ ] I.1 `DEMO.md` gets a hosted variant: the domain instead of `localhost`, the second person signing up as the first step, the GPU instance started an hour before.
+- [x] I.1 `DEMO.md` gets a hosted variant: the domain instead of `localhost`, the second person signing up as the first step, the GPU instance started an hour before.
 - [ ] I.2 A fallback ready: the local `npm run dev` on the laptop, and a two minute screen recording of the photo detection and of two people editing, in case the network fails.
-- [ ] I.3 `DECISIONS.md`: why two repositories, why the LoD2 data is not in Supabase, why the server and not the browser talks to the database, and what the demo leaves out (email confirmation, backups beyond the dump, monitoring).
+- [x] I.3 `DECISIONS.md`: why two repositories, why the LoD2 data is not in Supabase, why the server and not the browser talks to the database, and what the demo leaves out (email confirmation, backups beyond the dump, monitoring).
 
 ## Part 4: Third interview at 20° (office)
 

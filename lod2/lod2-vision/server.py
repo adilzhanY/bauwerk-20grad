@@ -14,6 +14,7 @@ Settings such as HF_TOKEN, HF_HOME and LOD2_VISION_PORT may come from the repo-r
 from __future__ import annotations
 
 import base64
+import hmac
 import io
 import os
 import sys
@@ -50,8 +51,16 @@ from PIL import Image, ImageOps  # noqa: E402
 
 from pipeline import Sam3, find_openings, find_wall  # noqa: E402
 
-HOST = "127.0.0.1"
+# Loopback on the development PC. On a rented GPU instance the provider's proxy has to reach
+# it: LOD2_VISION_HOST=0.0.0.0 there, and then VISION_KEY must be set (below).
+HOST = os.environ.get("LOD2_VISION_HOST", "127.0.0.1")
 PORT = int(os.environ.get("LOD2_VISION_PORT", "8790"))
+# The shared secret the hosted app's proxy sends as X-Vision-Key. Set, every request without
+# it is refused, so nobody who finds the address can use the GPU. Unset on the development PC.
+VISION_KEY = os.environ.get("VISION_KEY", "")
+if HOST != "127.0.0.1" and not VISION_KEY:
+    print("lod2-vision: listening beyond this computer needs VISION_KEY; refusing to start.", file=sys.stderr)
+    sys.exit(2)
 
 HF_HELP = (
     "Could not get SAM 3 from Hugging Face. Accept the licence at https://huggingface.co/facebook/sam3, "
@@ -90,6 +99,14 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="lod2-vision", lifespan=lifespan)
+
+
+@app.middleware("http")
+async def require_key(request: Request, call_next):
+    """With VISION_KEY set, only the hosted app's proxy, which adds the key, gets through."""
+    if VISION_KEY and not hmac.compare_digest(request.headers.get("x-vision-key", ""), VISION_KEY):
+        return JSONResponse(status_code=401, content={"detail": "Missing or wrong X-Vision-Key."})
+    return await call_next(request)
 
 
 @app.exception_handler(RequestValidationError)

@@ -79,3 +79,29 @@ Caddy retries by itself once they do.
 The same stack runs locally over plain HTTP. In `deploy/.env` set `DOMAIN=:80`,
 `HTTP_PORT=8088`, `HTTPS_PORT=8448`, start it as above, restore the dump as in step 6, and open
 `http://localhost:8088`. This is how the setup was tested before the first deploy.
+
+## SAM 3 on a rented graphics card (presentation day)
+
+The server has no graphics card. For the rehearsal and the presentation, rent one by the hour
+(for example a community RTX 3090 or 4090 on RunPod or Vast.ai), and stop it afterwards.
+
+1. Start an instance with CUDA 12.8 (a PyTorch template), at least 8 GB of graphics memory, and
+   expose HTTP port 8790. Note the https address the provider gives that port.
+2. On the instance, as in `lod2/lod2-vision/README.md`:
+   ```bash
+   # from your PC first: scp -r -P <port> lod2/lod2-vision root@<instance>:~/lod2-vision
+   cd ~/lod2-vision   # only this folder is needed; the private repository stays private
+   uv venv --python 3.12 .venv
+   uv pip install torch==2.10.0 torchvision --index-url https://download.pytorch.org/whl/cu128
+   git clone https://github.com/facebookresearch/sam3.git .sam3 && git -C .sam3 checkout 660a5e9
+   uv pip install ./.sam3 && uv pip install -r requirements.txt
+   export HF_TOKEN=<your token> VISION_KEY=$(openssl rand -hex 24) LOD2_VISION_HOST=0.0.0.0
+   .venv/bin/python server.py      # the first start downloads the model, about 3.4 GB
+   ```
+   Keep the printed `VISION_KEY`. Without it the service refuses to listen beyond the instance.
+3. On the server, in `deploy/.env`: `VISION_URL=https://<the provider's address>` and the same
+   `VISION_KEY`, then `docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d web`.
+4. Check: `curl -s https://<domain>/vision/health` answers, and the photo editor shows "Detect
+   openings". Stop the instance after the presentation; the button hides itself again.
+
+Start it an hour before: installing and the first model download take a while.

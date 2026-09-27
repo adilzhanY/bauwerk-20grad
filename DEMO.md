@@ -2,6 +2,15 @@
 
 The script for the third interview at 20°, in their office. About twelve minutes, then their questions. Two browser windows on your laptop, one on theirs. English UI, light theme. Every step names the click and the sentence to say. Rehearse it twice; the second run is the one that fits.
 
+## Hosted variant (the version on the server)
+
+Everything below works the same on `https://<domain>` instead of the laptop, with these changes:
+
+- An hour before: start the rented graphics card and check `https://<domain>/vision/health` (`deploy/README.md`, last section). Without it the demo works, but openings are drawn by hand.
+- Your laptop is signed in with your account. The second person opens the shared link, signs up on the page it leads to (email, password, username, no confirmation mail), and lands in the project.
+- Step 10 (Share) copies a link that works from anywhere, no `--host`, no office network needed.
+- Keep the laptop version (`npm run dev`) and the screen recording ready in case the network fails.
+
 ## Before the meeting
 
 - Stop the local language model if it runs: SAM 3 needs about 3.5 GB of graphics memory (see the vision line in the `npm run dev` output).
