@@ -106,7 +106,7 @@ export class ProjectsService {
 
   async list(): Promise<ProjectSummary[]> {
     const res = await this.pool.query<Row>(
-      "SELECT id, name, version, updated_at FROM projects ORDER BY updated_at DESC",
+      "SELECT id, name, version, updated_at FROM app.projects ORDER BY updated_at DESC",
     );
     return res.rows.map((r) => ({
       id: r.id,
@@ -118,7 +118,7 @@ export class ProjectsService {
 
   async get(id: string): Promise<ProjectRecord | null> {
     if (!isUuid(id)) return null;
-    const res = await this.pool.query<Row>("SELECT * FROM projects WHERE id = $1", [id]);
+    const res = await this.pool.query<Row>("SELECT * FROM app.projects WHERE id = $1", [id]);
     const row = res.rows[0];
     return row ? toRecord(row) : null;
   }
@@ -132,11 +132,11 @@ export class ProjectsService {
     try {
       await client.query("BEGIN");
       const res = await client.query<Row>(
-        "INSERT INTO projects (id, name, building, version) VALUES ($1, $2, $3, 1) RETURNING *",
+        "INSERT INTO app.projects (id, name, building, version) VALUES ($1, $2, $3, 1) RETURNING *",
         [id, building.name, JSON.stringify(building)],
       );
       await client.query(
-        "INSERT INTO project_events (project_id, version, actor, patch) VALUES ($1, 1, $2, $3)",
+        "INSERT INTO app.project_events (project_id, version, actor, patch) VALUES ($1, 1, $2, $3)",
         // The first building rides along, so any later version can be replayed from it.
         [id, actor, JSON.stringify({ type: "create", building })],
       );
@@ -165,14 +165,16 @@ export class ProjectsService {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
-      const res = await client.query<Row>("SELECT * FROM projects WHERE id = $1 FOR UPDATE", [id]);
+      const res = await client.query<Row>("SELECT * FROM app.projects WHERE id = $1 FOR UPDATE", [
+        id,
+      ]);
       const row = res.rows[0];
       if (!row) {
         await client.query("ROLLBACK");
         return { ok: false, reason: "notFound" };
       }
       const seen = await client.query<{ version: number }>(
-        "SELECT version FROM project_events WHERE project_id = $1 AND client_id = $2 AND seq = $3",
+        "SELECT version FROM app.project_events WHERE project_id = $1 AND client_id = $2 AND seq = $3",
         [id, batch.clientId, batch.seq],
       );
       const earlier = seen.rows[0];
@@ -190,13 +192,13 @@ export class ProjectsService {
       const applied = batch.ops.filter((op) => !dropped.includes(op));
       const version = row.version + 1;
       await client.query(
-        "UPDATE projects SET building = $1, name = $2, version = $3, updated_at = now() WHERE id = $4",
+        "UPDATE app.projects SET building = $1, name = $2, version = $3, updated_at = now() WHERE id = $4",
         // Stored exactly as merged, not as parsed: clients replay the same operations on the
         // same value and must arrive at the same building.
         [JSON.stringify(value), value.name, version, id],
       );
       await client.query(
-        `INSERT INTO project_events (project_id, version, actor, patch, client_id, seq)
+        `INSERT INTO app.project_events (project_id, version, actor, patch, client_id, seq)
          VALUES ($1, $2, $3, $4, $5, $6)`,
         [
           id,
@@ -229,7 +231,7 @@ export class ProjectsService {
   async lastSeq(id: string, clientId: string): Promise<number> {
     if (!isUuid(id)) return 0;
     const res = await this.pool.query<{ seq: number | null }>(
-      "SELECT max(seq) AS seq FROM project_events WHERE project_id = $1 AND client_id = $2",
+      "SELECT max(seq) AS seq FROM app.project_events WHERE project_id = $1 AND client_id = $2",
       [id, clientId],
     );
     return res.rows[0]?.seq ?? 0;
@@ -247,7 +249,7 @@ export class ProjectsService {
     }>(
       `SELECT version, actor, created_at, patch->>'type' AS kind,
               COALESCE(jsonb_array_length(patch->'ops'), 0) AS changes
-         FROM project_events WHERE project_id = $1
+         FROM app.project_events WHERE project_id = $1
         ORDER BY version DESC LIMIT $2`,
       [id, VERSION_LIST_LIMIT],
     );
@@ -277,7 +279,7 @@ export class ProjectsService {
     const res = await this.pool.query<{
       patch: { type?: string; building?: Building; ops?: Op[] };
     }>(
-      "SELECT patch FROM project_events WHERE project_id = $1 AND version <= $2 ORDER BY version",
+      "SELECT patch FROM app.project_events WHERE project_id = $1 AND version <= $2 ORDER BY version",
       [id, version],
     );
     let building: Building | null = null;
@@ -292,13 +294,13 @@ export class ProjectsService {
 
   async remove(id: string): Promise<boolean> {
     if (!isUuid(id)) return false;
-    const res = await this.pool.query("DELETE FROM projects WHERE id = $1", [id]);
+    const res = await this.pool.query("DELETE FROM app.projects WHERE id = $1", [id]);
     return (res.rowCount ?? 0) > 0;
   }
 
   async eventCount(id: string): Promise<number> {
     const res = await this.pool.query<{ n: string }>(
-      "SELECT count(*)::text AS n FROM project_events WHERE project_id = $1",
+      "SELECT count(*)::text AS n FROM app.project_events WHERE project_id = $1",
       [id],
     );
     return Number(res.rows[0]?.n ?? 0);

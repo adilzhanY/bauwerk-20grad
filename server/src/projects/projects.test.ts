@@ -34,7 +34,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   resetIds();
-  await pool.query("TRUNCATE project_events, projects");
+  await pool.query("TRUNCATE app.project_events, app.projects");
 });
 
 const house = (): Building => exampleHouse("en");
@@ -231,7 +231,7 @@ describe("batches", () => {
     expect(result).toMatchObject({ ok: true, dropped: 1 });
     expect((await service.get(id))?.building.wallThickness).toBe(0.36);
     const event = await pool.query<{ patch: { ops: Op[] } }>(
-      "SELECT patch FROM project_events WHERE project_id = $1 AND client_id = 'bob'",
+      "SELECT patch FROM app.project_events WHERE project_id = $1 AND client_id = 'bob'",
       [id],
     );
     expect(event.rows[0]?.patch.ops).toHaveLength(1);

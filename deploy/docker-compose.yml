@@ -60,6 +60,8 @@ services:
     environment:
       # Local until the projects move to Supabase; then deploy/.env sets BAUWERK_DATABASE_URL.
       DATABASE_URL: ${BAUWERK_DATABASE_URL:-postgres://lod2:${POSTGRES_PASSWORD}@postgis:5432/bauwerk}
+      # Supabase's database certificate authority (PEM text), so its certificate is verified.
+      DATABASE_CA_CERT: ${DATABASE_CA_CERT:-}
       SUPABASE_URL: ${SUPABASE_URL:-}
       SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET:-}
     depends_on:
