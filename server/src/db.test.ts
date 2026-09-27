@@ -1,4 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { readdirSync } from "node:fs";
 import { Pool } from "pg";
 import { ensureSchema } from "./db";
 
@@ -12,7 +13,7 @@ afterAll(async () => {
 /** Starts from an empty database: no app schema, no old public tables. */
 async function empty() {
   await pool.query(
-    "DROP SCHEMA IF EXISTS app CASCADE; DROP TABLE IF EXISTS public.project_events, public.projects",
+    "DROP SCHEMA IF EXISTS app CASCADE; DROP SCHEMA IF EXISTS auth CASCADE; DROP TABLE IF EXISTS public.project_events, public.projects",
   );
 }
 
@@ -33,11 +34,11 @@ describe("migrations", () => {
     const done = await pool.query<{ name: string }>(
       "SELECT name FROM app.schema_migrations ORDER BY name",
     );
-    expect(done.rows.map((r) => r.name)).toEqual([
-      "001_init.sql",
-      "002_ops.sql",
-      "003_app_schema.sql",
-    ]);
+    const files = readdirSync(new URL("../migrations/", import.meta.url))
+      .filter((f) => f.endsWith(".sql"))
+      .sort();
+    expect(files.length).toBeGreaterThanOrEqual(4);
+    expect(done.rows.map((r) => r.name)).toEqual(files);
     expect(await where("projects")).toEqual(["app"]);
     expect(await where("project_events")).toEqual(["app"]);
   });
@@ -77,5 +78,39 @@ describe("migrations", () => {
     );
     expect(tables.rows.length).toBeGreaterThanOrEqual(3);
     expect(tables.rows.every((t) => t.relrowsecurity)).toBe(true);
+  });
+
+  it("on Supabase, create the profile with every sign up and refuse one without a free name", async () => {
+    // A stand-in for Supabase's auth.users, with the two columns the migration uses.
+    await pool.query(
+      "CREATE SCHEMA auth; CREATE TABLE auth.users (id uuid PRIMARY KEY, raw_user_meta_data jsonb)",
+    );
+    try {
+      await ensureSchema(pool);
+      const signUp = (id: string, username: string | null) =>
+        pool.query("INSERT INTO auth.users (id, raw_user_meta_data) VALUES ($1, $2)", [
+          id,
+          JSON.stringify(username === null ? {} : { username }),
+        ]);
+      const ada = "22222222-2222-4222-8222-222222222222";
+      await signUp(ada, "Ada");
+      const profile = await pool.query("SELECT username FROM app.profiles WHERE id = $1", [ada]);
+      expect(profile.rows).toEqual([{ username: "Ada" }]);
+      // Taken in another case, missing, or not allowed: the sign up itself fails.
+      await expect(signUp("33333333-3333-4333-8333-333333333333", "ada")).rejects.toThrow();
+      await expect(signUp("44444444-4444-4444-8444-444444444444", null)).rejects.toThrow();
+      await expect(signUp("55555555-5555-4555-8555-555555555555", "a b")).rejects.toThrow();
+      expect((await pool.query("SELECT count(*)::int AS n FROM auth.users")).rows[0]).toEqual({
+        n: 1,
+      });
+      // A deleted account takes its profile with it.
+      await pool.query("DELETE FROM auth.users WHERE id = $1", [ada]);
+      expect((await pool.query("SELECT count(*)::int AS n FROM app.profiles")).rows[0]).toEqual({
+        n: 0,
+      });
+    } finally {
+      // The other test files run on a database without auth, as locally.
+      await empty();
+    }
   });
 });

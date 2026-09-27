@@ -2,6 +2,7 @@ import {
   Body,
   BadRequestException,
   Controller,
+  ForbiddenException,
   Delete,
   Get,
   Headers,
@@ -11,8 +12,11 @@ import {
   NotFoundException,
   Param,
   Post,
+  Req,
 } from "@nestjs/common";
 import { parseOps } from "@/sync/ops";
+import type { AuthedRequest } from "../auth/auth.guard";
+import type { AuthUser } from "../auth/auth.service";
 import { ProjectsService } from "./projects.service";
 import type { BatchResult, WriteResult } from "./projects.service";
 
@@ -52,45 +56,88 @@ export function batchResponse(result: BatchResult) {
 export const actorOf = (header: unknown) =>
   typeof header === "string" && header.trim() !== "" ? header.trim().slice(0, 64) : "anonymous";
 
+/** The user of a request (with accounts on), or undefined (accounts off). */
+const userOf = (request: AuthedRequest): AuthUser | undefined => request.user;
+
+/** The name recorded for a write: the username when signed in, else the client's header. */
+const nameOf = (request: AuthedRequest, header: string | undefined) =>
+  request.user?.username ?? actorOf(header);
+
 @Controller("projects")
 export class ProjectsController {
   constructor(@Inject(ProjectsService) private readonly projects: ProjectsService) {}
 
+  /** Throws 404 or 403 unless this request may use the project. */
+  private async allow(id: string, request: AuthedRequest, join = false) {
+    const access = await this.projects.access(id, userOf(request), join);
+    if (access === "notFound") throw new NotFoundException();
+    if (access === "forbidden") throw new ForbiddenException({ error: "notMember" });
+  }
+
   @Get()
-  list() {
-    return this.projects.list();
+  list(@Req() request: AuthedRequest) {
+    return this.projects.list(userOf(request));
   }
 
   @Get(":id")
-  async get(@Param("id") id: string) {
+  async get(@Param("id") id: string, @Req() request: AuthedRequest) {
+    await this.allow(id, request);
     const project = await this.projects.get(id);
     if (!project) throw new NotFoundException();
     return project;
   }
 
+  /** Opening a shared link: the signed in user becomes a member, then reads the project. */
+  @Post(":id/join")
+  @HttpCode(200)
+  async join(@Param("id") id: string, @Req() request: AuthedRequest) {
+    await this.allow(id, request, true);
+    return { ok: true };
+  }
+
   @Post()
-  async create(@Body() body: unknown, @Headers("x-actor") actor?: string) {
-    return unwrap(await this.projects.create(buildingOf(body), actorOf(actor)));
+  async create(
+    @Body() body: unknown,
+    @Req() request: AuthedRequest,
+    @Headers("x-actor") actor?: string,
+  ) {
+    return unwrap(
+      await this.projects.create(buildingOf(body), nameOf(request, actor), request.user?.id),
+    );
   }
 
   /** The same as the socket's "ops" message, for clients without a socket. */
   @Post(":id/ops")
   @HttpCode(200)
-  async ops(@Param("id") id: string, @Body() body: unknown, @Headers("x-actor") actor?: string) {
+  async ops(
+    @Param("id") id: string,
+    @Body() body: unknown,
+    @Req() request: AuthedRequest,
+    @Headers("x-actor") actor?: string,
+  ) {
     const batch = batchOf(body);
     if (!batch) throw new BadRequestException({ error: "invalidBatch" });
-    return batchResponse(await this.projects.applyBatch(id, batch, actorOf(actor)));
+    await this.allow(id, request);
+    return batchResponse(
+      await this.projects.applyBatch(id, batch, nameOf(request, actor), request.user?.id),
+    );
   }
 
   @Get(":id/versions")
-  async versions(@Param("id") id: string) {
+  async versions(@Param("id") id: string, @Req() request: AuthedRequest) {
+    await this.allow(id, request);
     const versions = await this.projects.versions(id);
     if (!versions) throw new NotFoundException();
     return versions;
   }
 
   @Get(":id/versions/:version")
-  async version(@Param("id") id: string, @Param("version") raw: string) {
+  async version(
+    @Param("id") id: string,
+    @Param("version") raw: string,
+    @Req() request: AuthedRequest,
+  ) {
+    await this.allow(id, request);
     const version = Number(raw);
     if (!Number.isInteger(version)) throw new NotFoundException();
     const result = await this.projects.buildingAt(id, version);
@@ -101,7 +148,9 @@ export class ProjectsController {
 
   @Delete(":id")
   @HttpCode(204)
-  async remove(@Param("id") id: string) {
-    if (!(await this.projects.remove(id))) throw new NotFoundException();
+  async remove(@Param("id") id: string, @Req() request: AuthedRequest) {
+    const result = await this.projects.remove(id, userOf(request));
+    if (result === "notFound") throw new NotFoundException();
+    if (result === "forbidden") throw new ForbiddenException({ error: "notOwner" });
   }
 }

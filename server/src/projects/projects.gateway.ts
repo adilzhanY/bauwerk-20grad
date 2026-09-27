@@ -11,6 +11,8 @@ import type { OnGatewayDisconnect, OnGatewayInit } from "@nestjs/websockets";
 import type { Server, Socket } from "socket.io";
 import { actorOf, batchOf } from "./projects.controller";
 import { ProjectsService } from "./projects.service";
+import { AuthService, Unauthenticated } from "../auth/auth.service";
+import type { AuthUser } from "../auth/auth.service";
 import type { ProjectOps } from "./projects.service";
 
 /** What the server keeps about one connected editor tab. */
@@ -20,6 +22,16 @@ interface Member {
   actor: string;
   color: string;
   selection: unknown;
+  /** The signed in user, set by the connection middleware when accounts are on. */
+  user?: AuthUser;
+}
+
+/** One colour per person on every device, from their user id. The same set as the client's. */
+const COLORS = ["#e76f51", "#f4a261", "#e9c46a", "#2a9d8f", "#6c8ef5", "#b084cc"];
+export function colorFor(userId: string): string {
+  let hash = 0;
+  for (const char of userId) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  return COLORS[hash % COLORS.length] ?? "#6c8ef5";
 }
 
 /** One entry of the presence list: every tab in the project room. */
@@ -93,13 +105,33 @@ const member = (socket: Socket) => socket.data as Partial<Member>;
 export class ProjectsGateway implements OnGatewayInit, OnGatewayDisconnect, OnModuleDestroy {
   @WebSocketServer() private readonly server!: Server;
 
-  constructor(@Inject(ProjectsService) private readonly projects: ProjectsService) {}
+  constructor(
+    @Inject(ProjectsService) private readonly projects: ProjectsService,
+    @Inject(AuthService) private readonly auth: AuthService,
+  ) {}
 
   private readonly onOps = (event: ProjectOps) => {
     this.server.to(room(event.projectId)).emit("ops", event);
   };
 
-  afterInit() {
+  afterInit(server: Server) {
+    // With accounts on, a connection without a valid token is turned away before any message.
+    server.use((socket, next) => {
+      if (!this.auth.enabled) {
+        next();
+        return;
+      }
+      const token = (socket.handshake.auth as { token?: unknown }).token;
+      this.auth
+        .verify(typeof token === "string" ? token : undefined)
+        .then((user) => {
+          (socket.data as Partial<Member>).user = user;
+          next();
+        })
+        .catch((error: unknown) => {
+          next(error instanceof Unauthenticated ? new Error("signIn") : new Error("authFailed"));
+        });
+    });
     this.projects.events.on("ops", this.onOps);
   }
 
@@ -124,12 +156,17 @@ export class ProjectsGateway implements OnGatewayInit, OnGatewayDisconnect, OnMo
       await socket.leave(room(previous));
       await this.sendPresence(previous);
     }
+    // Signed in, the name and colour are the account's, not what the client sent.
+    const user = member(socket).user;
+    const access = await this.projects.access(body.projectId, user, true);
+    if (access !== "ok") return { ok: false, reason: access };
     socket.data = {
       projectId: body.projectId,
       clientId: body.clientId,
-      actor: actorOf(body.actor),
-      color: body.color,
+      actor: user?.username ?? actorOf(body.actor),
+      color: user ? colorFor(user.id) : body.color,
       selection: null,
+      ...(user ? { user } : {}),
     } satisfies Member;
     // Join before reading, so no batch can fall between the snapshot and the room. A batch
     // that lands in between arrives twice, as part of the snapshot and as a message, and
@@ -148,7 +185,7 @@ export class ProjectsGateway implements OnGatewayInit, OnGatewayDisconnect, OnMo
     if (!projectId || !clientId || !actor) return { ok: false, reason: "notJoined" };
     const batch = batchOf(isRecord(body) ? { ...body, clientId } : null);
     if (!batch) return { ok: false, reason: "invalidBatch" };
-    const result = await this.projects.applyBatch(projectId, batch, actor);
+    const result = await this.projects.applyBatch(projectId, batch, actor, member(socket).user?.id);
     return result.ok
       ? { ok: true, version: result.version, duplicate: result.duplicate }
       : { ok: false, reason: result.reason, ...("error" in result ? { error: result.error } : {}) };

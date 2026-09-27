@@ -8,6 +8,7 @@ import type { Building } from "@/geometry/types";
 import { applyOps } from "@/sync/ops";
 import type { Op } from "@/sync/ops";
 import { DB } from "../db";
+import type { AuthUser } from "../auth/auth.service";
 
 export interface ProjectRecord {
   id: string;
@@ -22,6 +23,8 @@ export interface ProjectSummary {
   name: string;
   version: number;
   updatedAt: string;
+  /** The owner's username, with accounts on. */
+  owner?: string;
 }
 
 export type WriteResult =
@@ -104,16 +107,59 @@ export class ProjectsService {
 
   constructor(@Inject(DB) private readonly pool: Pool) {}
 
-  async list(): Promise<ProjectSummary[]> {
-    const res = await this.pool.query<Row>(
-      "SELECT id, name, version, updated_at FROM app.projects ORDER BY updated_at DESC",
-    );
+  /**
+   * The projects to offer: with accounts on, the ones this user is a member of, with the
+   * owner's name; with accounts off, all of them.
+   */
+  async list(user?: AuthUser): Promise<ProjectSummary[]> {
+    const res = user
+      ? await this.pool.query<Row & { owner: string | null }>(
+          `SELECT p.id, p.name, p.version, p.updated_at, o.username AS owner
+             FROM app.projects p
+             JOIN app.project_members m ON m.project_id = p.id AND m.user_id = $1
+             LEFT JOIN app.profiles o ON o.id = p.owner_id
+            ORDER BY p.updated_at DESC`,
+          [user.id],
+        )
+      : await this.pool.query<Row & { owner: string | null }>(
+          "SELECT id, name, version, updated_at, NULL AS owner FROM app.projects ORDER BY updated_at DESC",
+        );
     return res.rows.map((r) => ({
       id: r.id,
       name: r.name,
       version: r.version,
       updatedAt: r.updated_at.toISOString(),
+      ...(r.owner ? { owner: r.owner } : {}),
     }));
+  }
+
+  /**
+   * May this user use the project? With accounts off, anyone may. Signed in, a member may;
+   * with `join`, opening the project makes a signed in user a member first: the link is the
+   * invitation, and its random id cannot be guessed.
+   */
+  async access(
+    id: string,
+    user: AuthUser | undefined,
+    join: boolean,
+  ): Promise<"ok" | "notFound" | "forbidden"> {
+    if (!isUuid(id)) return "notFound";
+    const exists = await this.pool.query("SELECT 1 FROM app.projects WHERE id = $1", [id]);
+    if (exists.rowCount === 0) return "notFound";
+    if (!user) return "ok";
+    if (join) {
+      await this.pool.query(
+        `INSERT INTO app.project_members (project_id, user_id, role) VALUES ($1, $2, 'editor')
+         ON CONFLICT DO NOTHING`,
+        [id, user.id],
+      );
+      return "ok";
+    }
+    const member = await this.pool.query(
+      "SELECT 1 FROM app.project_members WHERE project_id = $1 AND user_id = $2",
+      [id, user.id],
+    );
+    return member.rowCount === 0 ? "forbidden" : "ok";
   }
 
   async get(id: string): Promise<ProjectRecord | null> {
@@ -123,7 +169,8 @@ export class ProjectsService {
     return row ? toRecord(row) : null;
   }
 
-  async create(input: unknown, actor: string): Promise<WriteResult> {
+  /** A new project from a building. Signed in, the creator owns it and is its first member. */
+  async create(input: unknown, actor: string, ownerId?: string): Promise<WriteResult> {
     const parsed = parseBuilding(input);
     if (!parsed.ok) return { ok: false, reason: "invalid", error: parsed.error };
     const building = parsed.building;
@@ -132,13 +179,21 @@ export class ProjectsService {
     try {
       await client.query("BEGIN");
       const res = await client.query<Row>(
-        "INSERT INTO app.projects (id, name, building, version) VALUES ($1, $2, $3, 1) RETURNING *",
-        [id, building.name, JSON.stringify(building)],
+        `INSERT INTO app.projects (id, name, building, version, owner_id)
+         VALUES ($1, $2, $3, 1, $4) RETURNING *`,
+        [id, building.name, JSON.stringify(building), ownerId ?? null],
       );
+      if (ownerId) {
+        await client.query(
+          "INSERT INTO app.project_members (project_id, user_id, role) VALUES ($1, $2, 'owner')",
+          [id, ownerId],
+        );
+      }
       await client.query(
-        "INSERT INTO app.project_events (project_id, version, actor, patch) VALUES ($1, 1, $2, $3)",
+        `INSERT INTO app.project_events (project_id, version, actor, actor_id, patch)
+         VALUES ($1, 1, $2, $3, $4)`,
         // The first building rides along, so any later version can be replayed from it.
-        [id, actor, JSON.stringify({ type: "create", building })],
+        [id, actor, ownerId ?? null, JSON.stringify({ type: "create", building })],
       );
       await client.query("COMMIT");
       const row = res.rows[0];
@@ -160,7 +215,12 @@ export class ProjectsService {
    * A batch seen before (same client and sequence number) is acknowledged again but not
    * applied twice.
    */
-  async applyBatch(id: string, batch: Batch, actor: string): Promise<BatchResult> {
+  async applyBatch(
+    id: string,
+    batch: Batch,
+    actor: string,
+    actorId?: string,
+  ): Promise<BatchResult> {
     if (!isUuid(id)) return { ok: false, reason: "notFound" };
     const client = await this.pool.connect();
     try {
@@ -198,12 +258,13 @@ export class ProjectsService {
         [JSON.stringify(value), value.name, version, id],
       );
       await client.query(
-        `INSERT INTO app.project_events (project_id, version, actor, patch, client_id, seq)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
+        `INSERT INTO app.project_events (project_id, version, actor, actor_id, patch, client_id, seq)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
         [
           id,
           version,
           actor,
+          actorId ?? null,
           JSON.stringify({ type: "ops", ops: applied }),
           batch.clientId,
           batch.seq,
@@ -292,10 +353,17 @@ export class ProjectsService {
     return building ? { ok: true, building } : { ok: false, reason: "notReplayable" };
   }
 
-  async remove(id: string): Promise<boolean> {
-    if (!isUuid(id)) return false;
-    const res = await this.pool.query("DELETE FROM app.projects WHERE id = $1", [id]);
-    return (res.rowCount ?? 0) > 0;
+  /** Deletes a project. Signed in, only its owner may. */
+  async remove(id: string, user?: AuthUser): Promise<"ok" | "notFound" | "forbidden"> {
+    if (!isUuid(id)) return "notFound";
+    const res = user
+      ? await this.pool.query("DELETE FROM app.projects WHERE id = $1 AND owner_id = $2", [
+          id,
+          user.id,
+        ])
+      : await this.pool.query("DELETE FROM app.projects WHERE id = $1", [id]);
+    if ((res.rowCount ?? 0) > 0) return "ok";
+    return (await this.get(id)) ? "forbidden" : "notFound";
   }
 
   async eventCount(id: string): Promise<number> {

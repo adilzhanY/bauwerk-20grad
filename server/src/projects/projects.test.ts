@@ -34,7 +34,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   resetIds();
-  await pool.query("TRUNCATE app.project_events, app.projects");
+  await pool.query("TRUNCATE app.project_members, app.project_events, app.projects, app.profiles");
 });
 
 const house = (): Building => exampleHouse("en");
