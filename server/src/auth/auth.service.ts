@@ -25,8 +25,12 @@ export const AUTH_CONFIG = Symbol("AUTH_CONFIG");
 export function authConfigFromEnv(env: NodeJS.ProcessEnv = process.env): AuthConfig {
   const url = env.SUPABASE_URL?.replace(/\/$/, "");
   if (!url) {
-    if (env.NODE_ENV === "production") {
-      throw new Error("SUPABASE_URL is not set: a production server never runs without accounts.");
+    // A production server runs without accounts only when told so in words (the first deploy,
+    // before Supabase exists), never because a setting was forgotten.
+    if (env.NODE_ENV === "production" && env.ACCOUNTS !== "off") {
+      throw new Error(
+        "SUPABASE_URL is not set. A production server runs without accounts only with ACCOUNTS=off.",
+      );
     }
     return { mode: "off" };
   }

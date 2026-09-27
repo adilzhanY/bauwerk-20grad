@@ -183,6 +183,7 @@ describe("authConfigFromEnv", () => {
   it("is off without Supabase in development, and refuses to run open in production", () => {
     expect(authConfigFromEnv({ NODE_ENV: "development" })).toEqual({ mode: "off" });
     expect(() => authConfigFromEnv({ NODE_ENV: "production" })).toThrow(/SUPABASE_URL/);
+    expect(authConfigFromEnv({ NODE_ENV: "production", ACCOUNTS: "off" })).toEqual({ mode: "off" });
     const on = authConfigFromEnv({
       SUPABASE_URL: "https://x.supabase.co/",
       SUPABASE_JWT_SECRET: "s",

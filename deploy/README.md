@@ -29,7 +29,8 @@ variable.
    git clone git@github.com:adilzhanY/bauwerk-20grad.git /srv/bauwerk
    ```
 4. **Settings.** `cp deploy/.env.example deploy/.env`, fill in `DOMAIN` and
-   `POSTGRES_PASSWORD` (`openssl rand -hex 24`), then `chmod 600 deploy/.env`.
+   `POSTGRES_PASSWORD` (`openssl rand -hex 24`), then `chmod 600 deploy/.env`. The example has
+   `ACCOUNTS=off` for this first deploy; remove it when Supabase is set up (`SUPABASE_URL`).
 5. **Start.**
    ```bash
    cd /srv/bauwerk
