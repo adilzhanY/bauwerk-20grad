@@ -18,11 +18,11 @@ Order matters. R and D give a working hosted demo without accounts; E, F and G a
 
 ### R. Split the repository
 
-- [ ] R.1 Check what would be committed: `git status`, and that `.env`, `.venv`, `.sam3`, `node_modules`, `dist`, `coverage` and `.lavish` are ignored. Search the tree for secrets (`HF_TOKEN=hf_`, anything starting `sb_secret_` or `eyJ`, private keys) before the first commit; none may be tracked.
-- [ ] R.2 Create the private repository on GitHub, empty, without README: `gh repo create adilzhanY/bauwerk-20grad --private` (plain `gh`: repository creation is not something to guess a wrapper's syntax for).
-- [ ] R.3 In this folder: rename the remote `origin` to `public` and add the private repository as `origin`. Create the branch `demo` from the current `main`, commit the working tree there in a few one line commits (fusion with lod2, sync, photo to 3D, share), and push it with `git push -u origin demo:main`. Nothing is pushed to `public`.
-- [ ] R.4 Guard against a push to the public repository by mistake: `git config remote.public.pushurl DISABLED`, so any push there fails. Portfolio fixes happen in a separate clone of the public repository.
-- [ ] R.5 Check: the public repository on GitHub still shows `8d2407b` as its newest commit and its Pages site is unchanged; a fresh clone of the private repository runs `npm run setup` and `npm run check` green.
+- [x] R.1 Check what would be committed: `git status`, and that `.env`, `.venv`, `.sam3`, `node_modules`, `dist`, `coverage` and `.lavish` are ignored. Search the tree for secrets (`HF_TOKEN=hf_`, anything starting `sb_secret_` or `eyJ`, private keys) before the first commit; none may be tracked.
+- [x] R.2 Create the private repository on GitHub, empty, without README: `gh repo create adilzhanY/bauwerk-20grad --private` (plain `gh`: repository creation is not something to guess a wrapper's syntax for).
+- [x] R.3 In this folder: rename the remote `origin` to `public` and add the private repository as `origin`. Create the branch `demo` from the current `main`, commit the working tree there in a few one line commits (fusion with lod2, sync, photo to 3D, share), and push it with `git push -u origin demo:main`. Nothing is pushed to `public`. (One commit, not several: the store, i18n and panel files hold changes of every feature at once, so commits split by folder would not build on their own.)
+- [x] R.4 Guard against a push to the public repository by mistake: `git config remote.public.pushurl DISABLED`, so any push there fails. Portfolio fixes happen in a separate clone of the public repository.
+- [x] R.5 Check: the public repository on GitHub still shows `8d2407b` as its newest commit and its Pages site is unchanged; a fresh clone of the private repository runs `npm run setup` and `npm run check` green. (The fresh clone failed first: `npm run setup` gives `lod2-core` its own zod, and the app wrapped lod2-core schemas with its own zod copy. Fixed by list schemas in lod2-core itself.)
 
 ### D. Server and domain, without accounts
 

@@ -135,6 +135,13 @@ export const SearchHitSchema = z.object({
   lat: z.number(),
 })
 
+/**
+ * The list answers, built here with this package's own zod: a schema made by one zod copy
+ * and wrapped by another fails to type-check when the app and this package each have their own.
+ */
+export const NeighboursSchema = z.array(NeighbourSchema)
+export const SearchHitsSchema = z.array(SearchHitSchema)
+
 export const CoverageStatsSchema = z.object({
   states: z.array(z.object({
     state: z.string(),

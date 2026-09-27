@@ -6,8 +6,8 @@
 import {
   BuildingDetailSchema,
   CoverageStatsSchema,
-  NeighbourSchema,
-  SearchHitSchema,
+  NeighboursSchema,
+  SearchHitsSchema,
   type BuildingDetail,
   type CoverageStats,
   type Neighbour,
@@ -48,12 +48,12 @@ export async function fetchNeighbours(
     `/buildings/${encodeURIComponent(buildingGid)}/neighbours?box=${boxM}`,
     signal,
   );
-  return z.array(NeighbourSchema).parse(body ?? []);
+  return NeighboursSchema.parse(body ?? []);
 }
 
 export async function search(q: string, signal?: AbortSignal): Promise<SearchHit[]> {
   const body = await getJson(`/search?q=${encodeURIComponent(q)}`, signal);
-  return z.array(SearchHitSchema).parse(body ?? []);
+  return SearchHitsSchema.parse(body ?? []);
 }
 
 export async function fetchStats(signal?: AbortSignal): Promise<CoverageStats> {
