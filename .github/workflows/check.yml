@@ -15,6 +15,12 @@ jobs:
           cache: npm
       - run: npm ci --legacy-peer-deps
       - run: npm run check
+        env:
+          # The random multi-user sessions of src/sync/convergence.test.ts.
+          CONVERGENCE_SEEDS: "1000"
+      # The IFC export read back by IfcOpenShell, which uv fetches.
+      - uses: astral-sh/setup-uv@v6
+      - run: npm run check:ifc
       - run: npm run build
 
   server:

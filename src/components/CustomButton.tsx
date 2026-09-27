@@ -11,7 +11,7 @@ interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variants: Record<ButtonVariant, string> = {
   default: "border-line bg-paper text-ink hover:border-line-strong hover:bg-panel-2",
-  primary: "border-ink bg-ink text-paper hover:opacity-90",
+  primary: "border-select bg-select text-white hover:border-select-strong hover:bg-select-strong",
   quiet: "border-transparent bg-transparent text-ink hover:bg-panel-2",
   danger: "border-line bg-paper text-mark hover:border-mark hover:bg-mark-soft",
 };
@@ -32,7 +32,7 @@ export function CustomButton({
       disabled={(disabled ?? false) || loading}
       aria-busy={loading || undefined}
       className={cx(
-        "inline-flex h-10 items-center gap-2 rounded-pill border px-3 text-sm font-medium transition-colors",
+        "inline-flex h-9 items-center gap-2 rounded-control border px-3 text-sm font-medium transition-colors",
         "disabled:cursor-not-allowed disabled:opacity-40",
         variants[variant],
         className,

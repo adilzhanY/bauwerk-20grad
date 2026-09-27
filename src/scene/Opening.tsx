@@ -13,6 +13,7 @@ import { useDragLock } from "./tools/useDragLock";
 import { snapOffset } from "@/geometry/openings";
 import { dot, sub } from "@/geometry/polygon";
 import { meshRaycast, noRaycast } from "./three";
+import { shareDrag } from "@/sync/presence";
 
 interface Props {
   storeyId: Id;
@@ -47,6 +48,10 @@ export function Opening({
   const remoteColor = useEditorStore(
     (s) => s.presence.find((p) => sameSelection(p.selection, target))?.color ?? null,
   );
+  // Someone else is dragging this opening: follow their drag live and keep hands off.
+  const remoteDrag = useEditorStore((s) =>
+    s.presence.find((p) => p.dragging?.id === opening.id && p.dragging.storeyId === storeyId),
+  );
   const select = useEditorStore((s) => s.select);
   const tool = useEditorStore((s) => s.tool);
   const updateOpening = useEditorStore((s) => s.updateOpening);
@@ -54,7 +59,7 @@ export function Opening({
   const lock = useDragLock();
   const [dragOffset, setDragOffset] = useState<number | null>(null);
 
-  const offset = dragOffset ?? opening.offset;
+  const offset = dragOffset ?? remoteDrag?.dragging?.offset ?? opening.offset;
   const u = offset + opening.width / 2;
   const depth = thickness / 2;
   const cx = wall.outerA.x + wall.direction.x * u - wall.normal.x * depth;
@@ -69,7 +74,7 @@ export function Opening({
     select(target);
   };
 
-  const draggable = active && (tool === "select" || tool === "opening");
+  const draggable = active && (tool === "select" || tool === "opening") && !remoteDrag;
 
   const offsetAt = (e: ThreeEvent<PointerEvent>): number | null => {
     const hit = pointOnVertical(e, wall.outerA, wall.normal);
@@ -85,12 +90,15 @@ export function Opening({
     lock(true);
     select(target);
     setDragOffset(opening.offset);
+    shareDrag({ storeyId, id: opening.id, offset: opening.offset });
   };
 
   const onPointerMove = (e: ThreeEvent<PointerEvent>) => {
     if (dragOffset === null) return;
     const next = offsetAt(e);
-    if (next !== null) setDragOffset(next);
+    if (next === null) return;
+    setDragOffset(next);
+    shareDrag({ storeyId, id: opening.id, offset: next });
   };
 
   const finishDrag = (e: ThreeEvent<PointerEvent>, commit: boolean) => {
@@ -104,11 +112,18 @@ export function Opening({
     if (commit && dragOffset !== opening.offset) {
       updateOpening(storeyId, opening.id, { offset: dragOffset });
     }
+    // After the commit, so the others get the move before the drag ends and never see the
+    // opening jump back for a moment.
+    shareDrag(null);
     setDragOffset(null);
   };
 
   const base = opening.kind === "door" ? colors.door : colors.window;
-  const color = !valid ? colors.warning : selected ? colors.accent : (remoteColor ?? base);
+  const color = !valid
+    ? colors.warning
+    : selected
+      ? colors.accent
+      : (remoteDrag?.color ?? remoteColor ?? base);
   const opacity = display === "ghost" ? ghostOpacity : opening.kind === "window" ? 0.55 : 1;
   if (display === "outline") return null;
 

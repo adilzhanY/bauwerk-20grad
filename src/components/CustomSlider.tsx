@@ -139,7 +139,7 @@ export function CustomSlider({
         onKeyUp={end}
         onBlur={end}
         className={cx(
-          "group relative h-10 w-full cursor-pointer touch-none rounded-pill select-none",
+          "group relative h-10 w-full cursor-pointer touch-none rounded-control select-none",
           disabled && "cursor-not-allowed opacity-40",
         )}
       >

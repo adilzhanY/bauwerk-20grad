@@ -252,6 +252,9 @@ export function SettingsSection() {
       setShowBridges: state.setShowBridges,
       walkthrough: state.walkthrough,
       setWalkthrough: state.setWalkthrough,
+      showMap: state.showMap,
+      setShowMap: state.setShowMap,
+      hasOrigin: state.building.origin !== undefined,
       theme: state.theme,
       setTheme: state.setTheme,
       buildingName: state.building.name,
@@ -276,6 +279,16 @@ export function SettingsSection() {
           checked={s.showGrid}
           onChange={s.setShowGrid}
         />
+        <CustomCheckbox
+          variant="switch"
+          label={t("settings.mapGround")}
+          checked={s.showMap && s.hasOrigin}
+          disabled={!s.hasOrigin}
+          onChange={s.setShowMap}
+        />
+        {!s.hasOrigin && (
+          <p className="-mt-1.5 text-xs text-muted">{t("settings.mapNeedsLocation")}</p>
+        )}
         <CustomCheckbox
           variant="switch"
           label={t("view.plan")}

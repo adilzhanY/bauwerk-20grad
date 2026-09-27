@@ -876,3 +876,33 @@ describe("scenarios", () => {
     expect(copy).not.toBe(id);
   });
 });
+
+describe("applyWallOpenings", () => {
+  it("puts a photo's openings on the wall as one undo step and leaves the wall selected", async () => {
+    const { planWallOpenings } = await import("@/geometry/photoWall");
+    const house = exampleAltbau("en");
+    store.getState().loadBuilding(house);
+    const before = store.getState().building;
+    const plan = planWallOpenings(
+      before,
+      0,
+      [{ kind: "window", x: 1, y: 1, width: 1.1, height: 1.5, score: 0.9 }],
+      () => ({ kind: "photo" }),
+    );
+    if (!plan) throw new Error("no plan");
+    const steps = store.getState().past.length;
+    store.getState().applyWallOpenings(plan.building, 0);
+    expect(store.getState().past.length).toBe(steps + 1);
+    expect(store.getState().selection).toMatchObject({ kind: "wall", wallIndex: 0 });
+    expect(
+      store
+        .getState()
+        // Interior openings number their walls separately and stay as they are.
+        .building.storeys.flatMap((s) =>
+          s.openings.filter((o) => !o.interior && o.wallIndex === 0),
+        ),
+    ).toHaveLength(1);
+    store.getState().undo();
+    expect(store.getState().building).toBe(before);
+  });
+});

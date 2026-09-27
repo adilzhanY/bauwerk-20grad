@@ -1,4 +1,5 @@
 import { bridgeDetailOf, emptyBridgeSummary, summarizeBridges } from "./bridges";
+import { sharedEdgeSet } from "./shared";
 import type { BridgeSummary } from "./bridges";
 import { bestInCategory, findConstruction } from "./constructions";
 import { buildRoof, roofOf } from "./roof";
@@ -82,6 +83,8 @@ export interface EnergySummary {
   storeys: StoreyEnvelope[];
   envelopeArea: number;
   wallNetArea: number;
+  /** Gross area of the walls against a heated neighbour. They lose no heat. */
+  sharedWallArea: number;
   windowArea: number;
   doorArea: number;
   windowToWallRatio: number;
@@ -212,6 +215,8 @@ export function computeEnergy(building: Building, options: EnergyOptions = {}): 
   const roofU = uOf(pick(building.roofConstructionId, "roof"));
 
   const footprintEdges = edges(building.footprint);
+  const shared = sharedEdgeSet(building);
+  let sharedWallArea = 0;
   const footprintArea = area(building.footprint);
   const storeys: StoreyEnvelope[] = [];
   const elements: ElementLoss[] = [];
@@ -238,6 +243,11 @@ export function computeEnergy(building: Building, options: EnergyOptions = {}): 
     heatedVolume += env.heatedVolume;
 
     for (const edge of footprintEdges) {
+      // A party wall against a heated neighbour: same temperature on both sides, no loss.
+      if (shared.has(edge.index)) {
+        sharedWallArea += edge.length * storey.height;
+        continue;
+      }
       const spans = heatedSpans(edge, storey.rooms, building.zones);
       const heatedLength = storey.rooms.length === 0 ? edge.length : spanLength(spans);
       const onWall = openingsOn(storey.openings, edge.index);
@@ -410,6 +420,7 @@ export function computeEnergy(building: Building, options: EnergyOptions = {}): 
     storeys,
     envelopeArea,
     wallNetArea: storeys.reduce((s, e) => s + e.wallNetArea, 0),
+    sharedWallArea,
     windowArea,
     doorArea: storeys.reduce((s, e) => s + e.doorArea, 0),
     windowToWallRatio: wallGross > 0 ? windowArea / wallGross : 0,

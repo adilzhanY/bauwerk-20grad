@@ -1,0 +1,25 @@
+# Install torch first, matching your CUDA, then the rest. See README.md.
+# torch==2.10.0 torchvision --index-url https://download.pytorch.org/whl/cu128
+numpy<2
+# sam3 imports pkg_resources, which setuptools 81 removed.
+setuptools<81
+Pillow
+opencv-python-headless
+einops
+pycocotools
+scipy
+psutil
+hydra-core
+omegaconf
+pandas
+scikit-image
+scikit-learn
+torchmetrics
+timm>=1.0.17
+ftfy==6.1.1
+regex
+iopath
+huggingface_hub
+fastapi
+uvicorn
+python-multipart

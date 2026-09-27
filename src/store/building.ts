@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { placeAfterSplit, sharedAfterRemove, sharedAfterSplit } from "@/geometry/shared";
 import { planToLatLon } from "@/geometry/geo";
 import { resizeRectangle } from "@/geometry/box";
 import {
@@ -25,6 +26,7 @@ import type {
   Vec2,
   Zone,
 } from "@/geometry/types";
+import type { DragPreview } from "@/sync/presence";
 import {
   DEFAULT_STOREY_HEIGHT,
   DEFAULT_WALL_THICKNESS,
@@ -68,6 +70,12 @@ export type Selection =
   | { kind: "heatPump"; id: Id }
   | { kind: "pipe"; storeyId: Id; id: Id };
 
+/**
+ * The camera views of the view switch: the free 3D view, straight down from the top, and the
+ * four elevations, each looking at the facade that faces that compass direction.
+ */
+export type CameraView = "3d" | "top" | "n" | "e" | "s" | "w";
+
 /** Display of storeys that are not being edited. */
 export interface OtherStoreys {
   above: "hidden" | "outline" | "ghost";
@@ -93,6 +101,18 @@ export interface EditorState {
   viewScenarioId: string | null;
   /** Other people editing the same project, from the sync layer. UI state. */
   presence: Presence[];
+  /** An old version shown read only, from the history panel. */
+  historyPreview: HistoryPreview | null;
+  /** The footprint edge whose facade is open in the photo editor, or null. */
+  photoWall: number | null;
+  /**
+   * Straightened facade photos by footprint edge, drawn on the walls in 3D. Only for this
+   * browser session: an image is not part of the building and is not shared.
+   */
+  facadePhotos: Record<number, FacadePhoto>;
+  showFacadePhotos: boolean;
+  /** 0 shows the facade photos fully, 100 hides them. Percent, for all photos. */
+  facadePhotoTransparency: number;
   /** Project id on the server when sync is active. UI state. */
   projectId: string | null;
   /** Orthographic top-down view of the active storey. UI state. */
@@ -119,6 +139,10 @@ export interface EditorState {
   /** OpenStreetMap tiles on the ground when a location is set. UI state. */
   showMap: boolean;
   mapOpacity: number;
+  /** The last view chosen in the view switch. `nonce` changes on every choice, so choosing the same view again moves the camera back to it. UI state. */
+  cameraView: { view: CameraView; nonce: number };
+  /** Storeys hidden with the eye in the layers panel. UI state. */
+  hiddenStoreys: Id[];
 }
 
 export interface FootprintProposal {
@@ -138,10 +162,30 @@ export interface Underlay {
   opacity: number;
 }
 
+/** A straightened facade photo: an object URL of the image and its size in pixels. */
+export interface FacadePhoto {
+  url: string;
+  width: number;
+  height: number;
+}
+
+/** An old version of a shared project on screen instead of the live building. */
+export interface HistoryPreview {
+  version: number;
+  actor: string;
+  createdAt: string;
+}
+
 export interface Presence {
+  /** One per editor tab, so two tabs of one person are two entries. */
+  clientId: string;
   actor: string;
   color: string;
   selection: Selection | null;
+  /** Their pointer on the ground, in plan metres. */
+  cursor?: Vec2 | null;
+  /** The opening they are dragging right now, where it is at this moment. */
+  dragging?: DragPreview | null;
 }
 
 export interface EditorActions {
@@ -162,6 +206,8 @@ export interface EditorActions {
   setOrigin: (origin: GeoOrigin | undefined) => void;
   setBridgeDetail: (detail: "good" | "poor") => void;
   setRoof: (patch: Partial<Roof>) => void;
+  /** Mark a footprint edge as a party wall against a heated neighbour, or clear it. */
+  setEdgeShared: (edgeIndex: number, shared: boolean) => void;
   addRadiator: (storeyId: Id, radiator: Omit<Radiator, "id">) => Id;
   updateRadiator: (storeyId: Id, id: Id, patch: Partial<Omit<Radiator, "id">>) => void;
   removeRadiator: (storeyId: Id, id: Id) => void;
@@ -209,6 +255,20 @@ export interface EditorActions {
   updateScenario: (id: Id, patch: Partial<Omit<Scenario, "id">>) => void;
   removeScenario: (id: Id) => void;
   setPresence: (presence: Presence[]) => void;
+  setHistoryPreview: (preview: HistoryPreview | null) => void;
+  setPhotoWall: (edge: number | null) => void;
+  /** Keeps (or with null forgets) the straightened photo of a facade. Frees the replaced one. */
+  setFacadePhoto: (edge: number, photo: FacadePhoto | null) => void;
+  setShowFacadePhotos: (on: boolean) => void;
+  setFacadePhotoTransparency: (percent: number) => void;
+  /**
+   * Takes the openings a photo measured on footprint edge `wallIndex`: `next` is the
+   * building with that wall's openings replaced (geometry/photoWall.ts). One undo step; the
+   * wall stays selected.
+   */
+  applyWallOpenings: (next: Building, wallIndex: number) => void;
+  /** Updates one other tab's presence, when it is known. */
+  patchPresence: (clientId: string, patch: Partial<Omit<Presence, "clientId">>) => void;
   setProjectId: (projectId: string | null) => void;
   duplicateStorey: (storeyId: Id) => void;
   setPlanView: (on: boolean) => void;
@@ -229,8 +289,19 @@ export interface EditorActions {
   ) => void;
   setWalkthrough: (on: boolean) => void;
   setMapOpacity: (opacity: number) => void;
+  setCameraView: (view: CameraView) => void;
+  toggleStoreyHidden: (storeyId: Id) => void;
   /** Replaces the building with server state. Not recorded in history and clears the redo stack. */
-  applyRemoteBuilding: (building: Building) => void;
+  /**
+   * Shows a building that came from the server, outside the undo history. `rebase` says
+   * what happens to the history: a function is applied to every undo and redo snapshot
+   * (the other person's edits, so undo only takes back your own); null empties both
+   * stacks (a project opened fresh); left out, only redo is emptied.
+   */
+  applyRemoteBuilding: (
+    building: Building,
+    rebase?: ((snapshot: Building) => Building) | null,
+  ) => void;
   setShowGrid: (show: boolean) => void;
   setTool: (tool: Tool) => void;
   setLanguage: (language: Language) => void;
@@ -327,6 +398,11 @@ export function createEditorStore(initial?: Partial<EditorState>) {
           renovatedView: false,
           viewScenarioId: null,
           presence: [],
+          historyPreview: null,
+          photoWall: null,
+          facadePhotos: {},
+          showFacadePhotos: true,
+          facadePhotoTransparency: 0,
           projectId: null,
           planView: false,
           showUValueBands: false,
@@ -334,12 +410,15 @@ export function createEditorStore(initial?: Partial<EditorState>) {
           measurement: null,
           proposal: null,
           theme: initial?.theme ?? "system",
-          showMap: true,
+          // The plain grid is the default ground; the map is an option in the settings.
+          showMap: false,
           showBridges: false,
           sun: { enabled: false, dayOfYear: 172, minutes: 14 * 60 },
           sectionCut: { enabled: false, axis: "horizontal", value: 1.5 },
           otherStoreys: { above: "outline", below: "ghost", roof: "outline", ghostOpacity: 0.15 },
           walkthrough: false,
+          cameraView: { view: "3d", nonce: 0 },
+          hiddenStoreys: [],
           mapOpacity: 0.85,
 
           setFootprintVertex: (index, position) => {
@@ -365,6 +444,40 @@ export function createEditorStore(initial?: Partial<EditorState>) {
               const next = [...fp.slice(0, edgeIndex + 1), mid, ...fp.slice(edgeIndex + 1)];
               if (!isSimplePolygon(next)) return;
               state.building.footprint = next;
+              // Edges after the split move up by one; openings and radiators on the split edge
+              // go to the half they sit on, and one that spans the new corner is removed.
+              const splitAt = Math.hypot(mid.x - a.x, mid.y - a.y);
+              for (const storey of state.building.storeys) {
+                storey.openings = storey.openings.flatMap((o) => {
+                  if (o.interior) return [o];
+                  const placed = placeAfterSplit(
+                    o.wallIndex,
+                    o.offset,
+                    o.width,
+                    edgeIndex,
+                    splitAt,
+                  );
+                  return placed ? [{ ...o, ...placed }] : [];
+                });
+                if (storey.radiators) {
+                  storey.radiators = storey.radiators.flatMap((r) => {
+                    const placed = placeAfterSplit(
+                      r.wallIndex,
+                      r.offset,
+                      r.width,
+                      edgeIndex,
+                      splitAt,
+                    );
+                    return placed ? [{ ...r, ...placed }] : [];
+                  });
+                }
+              }
+              if (state.building.sharedEdges) {
+                state.building.sharedEdges = sharedAfterSplit(
+                  state.building.sharedEdges,
+                  edgeIndex,
+                );
+              }
               state.selection = { kind: "vertex", index: edgeIndex + 1 };
               refreshAllRooms(state.building, state.language);
             });
@@ -386,6 +499,20 @@ export function createEditorStore(initial?: Partial<EditorState>) {
                       o.wallIndex !== index && o.wallIndex !== (index - 1 + fp.length) % fp.length,
                   )
                   .map((o) => (o.wallIndex > index ? { ...o, wallIndex: o.wallIndex - 1 } : o));
+                if (storey.radiators) {
+                  const merged = (i: number) =>
+                    i === index || i === (index - 1 + fp.length) % fp.length;
+                  storey.radiators = storey.radiators
+                    .filter((r) => !merged(r.wallIndex))
+                    .map((r) => (r.wallIndex > index ? { ...r, wallIndex: r.wallIndex - 1 } : r));
+                }
+              }
+              if (state.building.sharedEdges) {
+                state.building.sharedEdges = sharedAfterRemove(
+                  state.building.sharedEdges,
+                  index,
+                  fp.length,
+                );
               }
               if (state.selection?.kind === "vertex") state.selection = null;
               refreshAllRooms(state.building, state.language);
@@ -554,6 +681,17 @@ export function createEditorStore(initial?: Partial<EditorState>) {
             });
           },
 
+          setEdgeShared: (edgeIndex, shared) => {
+            set((state) => {
+              const count = state.building.footprint.length;
+              if (!Number.isInteger(edgeIndex) || edgeIndex < 0 || edgeIndex >= count) return;
+              const current = new Set(state.building.sharedEdges ?? []);
+              if (shared) current.add(edgeIndex);
+              else current.delete(edgeIndex);
+              state.building.sharedEdges = [...current].sort((a, b) => a - b);
+            });
+          },
+
           setRoof: (patch) => {
             set((state) => {
               state.building.roof = { ...roofOf(state.building), ...patch };
@@ -626,6 +764,8 @@ export function createEditorStore(initial?: Partial<EditorState>) {
               state.building.footprint = ensureCounterClockwise(footprint);
               if (origin) state.building.origin = { ...origin };
               for (const storey of state.building.storeys) storey.openings = [];
+              // A new outline has new walls; which of them touch a neighbour is unknown.
+              delete state.building.sharedEdges;
               state.selection = null;
               refreshAllRooms(state.building, state.language);
             });
@@ -975,6 +1115,22 @@ export function createEditorStore(initial?: Partial<EditorState>) {
             });
           },
 
+          setCameraView: (view) => {
+            set((state) => {
+              state.cameraView = { view, nonce: state.cameraView.nonce + 1 };
+              state.planView = false;
+              state.walkthrough = false;
+            });
+          },
+
+          toggleStoreyHidden: (storeyId) => {
+            set((state) => {
+              state.hiddenStoreys = state.hiddenStoreys.includes(storeyId)
+                ? state.hiddenStoreys.filter((id) => id !== storeyId)
+                : [...state.hiddenStoreys, storeyId];
+            });
+          },
+
           setMapOpacity: (opacity) => {
             set((state) => {
               state.mapOpacity = Math.min(1, Math.max(0.1, opacity));
@@ -1036,21 +1192,80 @@ export function createEditorStore(initial?: Partial<EditorState>) {
             });
           },
 
+          setFacadePhoto: (edge, photo) => {
+            const previous = get().facadePhotos[edge];
+            if (previous && previous.url !== photo?.url) URL.revokeObjectURL(previous.url);
+            set((state) => {
+              if (photo) state.facadePhotos[edge] = photo;
+              else {
+                state.facadePhotos = Object.fromEntries(
+                  Object.entries(state.facadePhotos).filter(([key]) => Number(key) !== edge),
+                );
+              }
+            });
+          },
+
+          setFacadePhotoTransparency: (percent) => {
+            set((state) => {
+              state.facadePhotoTransparency = Math.min(100, Math.max(0, percent));
+            });
+          },
+
+          setShowFacadePhotos: (on) => {
+            set((state) => {
+              state.showFacadePhotos = on;
+            });
+          },
+
+          setPhotoWall: (edge) => {
+            set((state) => {
+              state.photoWall = edge;
+            });
+          },
+
+          applyWallOpenings: (next, wallIndex) => {
+            set((state) => {
+              state.building = next;
+              const storeyId = state.activeStoreyId ?? next.storeys[0]?.id;
+              state.selection = storeyId ? { kind: "wall", storeyId, wallIndex } : null;
+              Object.assign(state, clampUiState(next, state));
+            });
+          },
+
+          setHistoryPreview: (preview) => {
+            set((state) => {
+              state.historyPreview = preview;
+            });
+          },
+
+          patchPresence: (clientId, patch) => {
+            set((state) => {
+              const entry = state.presence.find((p) => p.clientId === clientId);
+              if (entry) Object.assign(entry, patch);
+            });
+          },
+
           setProjectId: (projectId) => {
             set((state) => {
               state.projectId = projectId;
             });
           },
 
-          applyRemoteBuilding: (building) => {
-            // withoutHistory and future belong to the history slice wrapped around this initializer.
-            (get() as unknown as EditorStore).withoutHistory(() => {
+          applyRemoteBuilding: (building, rebase) => {
+            // withoutHistory, past and future belong to the history slice wrapped around this
+            // initializer. The snapshots are rebased outside the draft, as plain values.
+            const current = get() as unknown as EditorStore;
+            const past = rebase ? current.past.map(rebase) : rebase === null ? [] : current.past;
+            const future = rebase ? current.future.map(rebase) : [];
+            current.withoutHistory(() => {
               set((state) => {
                 const next = localizeBuilding(building, state.language);
                 const ui = clampUiState(next, state);
                 state.building = next;
                 Object.assign(state, ui);
-                (state as unknown as { future: Building[] }).future = [];
+                const history = state as unknown as { past: Building[]; future: Building[] };
+                history.past = past;
+                history.future = future;
               });
             });
           },

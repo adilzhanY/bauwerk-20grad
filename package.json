@@ -4,7 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "node scripts/dev.mjs",
+    "dev:app": "vite",
+    "setup": "npm install --legacy-peer-deps && npm --prefix lod2/lod2-core install && npm --prefix lod2/lod2-ingest install && npm --prefix lod2/lod2-api install",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "typecheck": "tsc -b",
@@ -12,18 +14,33 @@
     "format": "prettier --write .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check": "npm run typecheck && npm run lint && npm run test"
+    "check": "npm run typecheck && npm run lint && npm run test && npm run check:lod2",
+    "check:lod2": "npm --prefix lod2/lod2-core run typecheck && npm --prefix lod2/lod2-core run lint && npm --prefix lod2/lod2-core test && npm --prefix lod2/lod2-ingest run typecheck && npm --prefix lod2/lod2-ingest run lint && npm --prefix lod2/lod2-ingest test && npm --prefix lod2/lod2-api run typecheck && npm --prefix lod2/lod2-api run lint && npm --prefix lod2/lod2-api test",
+    "db": "docker compose -f lod2/docker-compose.yml up -d --wait",
+    "db:stop": "docker compose -f lod2/docker-compose.yml down",
+    "migrate": "npm --prefix lod2/lod2-ingest run --silent lod2 -- migrate",
+    "index": "npm --prefix lod2/lod2-ingest run --silent lod2 -- index --state BE",
+    "ingest": "npm --prefix lod2/lod2-ingest run --silent lod2 -- tiles --state BE --bbox-wgs84 13.375,52.481,13.392,52.492",
+    "status": "npm --prefix lod2/lod2-ingest run --silent lod2 -- status --state BE",
+    "bootstrap": "npm run db && npm run migrate && npm run index && npm run ingest",
+    "api": "npm --prefix lod2/lod2-api run dev",
+    "vision": "node lod2/scripts/vision.mjs",
+    "check:ifc": "IFC_CHECK=1 vitest run src/geometry/ifc.openshell.test.ts"
   },
   "dependencies": {
-    "@fontsource-variable/archivo": "^5.3.0",
-    "@fontsource-variable/manrope": "^5.3.0",
-    "@react-three/drei": "^9.122.0",
-    "@react-three/fiber": "^8.18.0",
+    "@fontsource-variable/geist": "^5.3.0",
+    "@fontsource-variable/geist-mono": "^5.3.0",
+    "@react-three/drei": "^10.7.8",
+    "@react-three/fiber": "^9.7.0",
     "immer": "^10.1.8",
+    "lod2-core": "file:lod2/lod2-core",
     "lucide-react": "^1.41.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
+    "maplibre-gl": "^5.24.0",
+    "react": "~19.2.8",
+    "react-dom": "~19.2.8",
+    "socket.io-client": "^4.8.4",
     "three": "^0.185.1",
+    "zod": "^4.6.5",
     "zustand": "^5.0.15"
   },
   "devDependencies": {
@@ -32,10 +49,10 @@
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.3",
     "@types/node": "^22.19.0",
-    "@types/react": "^18.3.31",
-    "@types/react-dom": "^18.3.7",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "@types/three": "^0.185.4",
-    "@vitejs/plugin-react": "^5.2.0",
+    "@vitejs/plugin-react": "^6.1.1",
     "@vitest/coverage-v8": "^4.1.11",
     "eslint": "^10.1.8",
     "eslint-config-prettier": "^10.1.8",
@@ -47,7 +64,10 @@
     "tailwindcss": "^4.3.3",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.69.0",
-    "vite": "^6.4.3",
+    "vite": "^8.3.0",
     "vitest": "^4.1.11"
+  },
+  "engines": {
+    "node": ">=22.18"
   }
 }

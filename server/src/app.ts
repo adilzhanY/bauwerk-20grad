@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath, URL } from "node:url";
 import { NestFactory } from "@nestjs/core";
 import type { NestExpressApplication } from "@nestjs/platform-express";
-import { WsAdapter } from "@nestjs/platform-ws";
+import { IoAdapter } from "@nestjs/platform-socket.io";
 import type { INestApplication } from "@nestjs/common";
 import type { Pool } from "pg";
 import { createAppModule } from "./app.module";
@@ -23,7 +23,7 @@ export async function createApp(
     bodyParser: false,
   });
   app.useBodyParser("json", { limit: "5mb" });
-  app.useWebSocketAdapter(new WsAdapter(app));
+  app.useWebSocketAdapter(new IoAdapter(app));
   app.enableCors({ origin: true, exposedHeaders: ["ETag"] });
   if (clientServed()) app.useStaticAssets(DIST);
   return app;

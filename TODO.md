@@ -1,5 +1,362 @@
 # TODO
 
+## Part 5: Hosted demo with accounts
+
+Goal: the fused app runs on a rented server under its own domain with HTTPS, not on this PC. People sign up with email, password and a username, and anyone who is signed in can open a shared project link and edit with the others. Accounts, projects, versions and memberships live in Supabase. The public GitHub repository keeps showing the portfolio version.
+
+Order matters. R and D give a working hosted demo without accounts; E, F and G add accounts on top; H adds SAM 3 for the day. Each section ends in a working state, so if time runs out before the presentation, stop after D (or E, or F) and present that. Tick a box only after its check ran.
+
+### Decisions (confirm or change them before starting)
+
+- Two repositories. `adilzhanY/bauwerk` (public) stays at `8d2407b`, the portfolio version with GitHub Pages and without SAM 3. A new private repository, `adilzhanY/bauwerk-20grad`, gets everything since, with the full history. Only the private one is deployed to the server.
+- One small x86 server: Hetzner Cloud CX22 (2 vCPU, 4 GB RAM, 40 GB disk, Ubuntu 24.04), about 4 to 5 euro a month at the time of writing; check the price on the day. x86 and not the cheaper ARM type, because the `postgis/postgis` image is published for amd64 only.
+- Supabase on the free plan holds accounts, projects, versions and memberships, a few MB. The LoD2 data is 575 MB (the `building` table alone 494 MB) and the free plan allows 500 MB, so it stays in PostGIS on the server: public, read only data that can always be loaded again. Moving it to Supabase later means the paid plan or a smaller area.
+- SAM 3 is not on the server: it needs a graphics card, and a GPU server running all month costs far more than everything else together. The hosted app works without it (openings are drawn by hand, and "Detect openings" hides itself when the service does not answer). For the presentation, section H rents a graphics card by the hour.
+- Running cost: the server, the domain, and a few hours of a rented graphics card on the presentation day. Supabase stays free.
+- No email confirmation and no one time codes: sign up with email, password and username, and the account works at once. Acceptable for a demo, recorded as a known gap.
+- The browser never reads or writes the Supabase database. It signs in through Supabase Auth and sends the access token to our NestJS server, which verifies it and is the only one touching the tables. The tables are not reachable through Supabase's public Data API.
+
+### R. Split the repository
+
+- [ ] R.1 Check what would be committed: `git status`, and that `.env`, `.venv`, `.sam3`, `node_modules`, `dist`, `coverage` and `.lavish` are ignored. Search the tree for secrets (`HF_TOKEN=hf_`, anything starting `sb_secret_` or `eyJ`, private keys) before the first commit; none may be tracked.
+- [ ] R.2 Create the private repository on GitHub, empty, without README: `gh repo create adilzhanY/bauwerk-20grad --private` (plain `gh`: repository creation is not something to guess a wrapper's syntax for).
+- [ ] R.3 In this folder: rename the remote `origin` to `public` and add the private repository as `origin`. Create the branch `demo` from the current `main`, commit the working tree there in a few one line commits (fusion with lod2, sync, photo to 3D, share), and push it with `git push -u origin demo:main`. Nothing is pushed to `public`.
+- [ ] R.4 Guard against a push to the public repository by mistake: `git config remote.public.pushurl DISABLED`, so any push there fails. Portfolio fixes happen in a separate clone of the public repository.
+- [ ] R.5 Check: the public repository on GitHub still shows `8d2407b` as its newest commit and its Pages site is unchanged; a fresh clone of the private repository runs `npm run setup` and `npm run check` green.
+
+### D. Server and domain, without accounts
+
+- [ ] D.1 Hetzner account, a project, the SSH key `~/.ssh/id_ed25519.pub`, one CX22 in Nuremberg or Falkenstein with Ubuntu 24.04, IPv4 and IPv6. Note both addresses.
+- [ ] D.2 Harden it: log in as root once, create a user with sudo and the SSH key, turn off password and root login in `sshd_config`, `ufw allow 22,80,443/tcp` and enable ufw, turn on `unattended-upgrades`, add a 2 GB swap file (the TypeScript and Vite builds need it on 4 GB).
+- [ ] D.3 Docker Engine and the compose plugin from Docker's own apt repository; the user in the `docker` group.
+- [ ] D.4 Domain: an `A` record to the IPv4 and an `AAAA` record to the IPv6, TTL 300. Check with `dig +short <domain>` from this PC before going on; the HTTPS certificate in D.10 needs it.
+- [ ] D.5 `deploy/docker-compose.yml` in the repository, one service per process, each with `restart: unless-stopped` and a health check. Only `caddy` publishes ports (80, 443); the rest talk on the compose network.
+- [ ] D.6 Service `postgis`: `postgis/postgis:17-3.5` with a named volume. The settings in `lod2/docker-compose.yml` are for bulk ingest on a desktop; on the 4 GB server use `shared_buffers=256MB` and `work_mem=16MB`, since nothing is ingested there.
+- [ ] D.7 Service `lod2-api`: Node 22, built from `lod2/` (it links `lod2-core` by file path), `DATABASE_URL` to `postgis` from the compose environment. Check it starts without a `.env` file next to it.
+- [ ] D.8 Service `server`: the NestJS collaboration server, built from the repository root like `server/Dockerfile.compose` (it imports `src/geometry` and `src/sync`), but on `node:22-slim` and with `npm ci --ignore-scripts`, so Playwright's post-install downloads no browser. `DATABASE_URL` points at `postgis` until section E moves it.
+- [ ] D.9 The server PDF export needs a browser on the server and is left out there. `VITE_SERVER_PDF=false` at build time hides that entry in the Export menu; the printable report in the browser stays. Test for the menu with and without the flag.
+- [ ] D.10 Service `caddy`: `caddy:2`, volumes for its data and config, and `deploy/Caddyfile` with one site block for the domain. Caddy gets the Let's Encrypt certificate on its own once the DNS records resolve.
+- [ ] D.11 Routes in the Caddyfile: `handle_path /api/*` to `lod2-api:8788`; `handle_path /collab/*` to `server:8789` (WebSocket upgrades pass through); `handle_path /vision/*` to `{$VISION_URL:http://127.0.0.1:9}`, so without a GPU address the default refuses the connection, the app gets a 502 and hides "Detect openings", and Caddy still starts; everything else from the built app with `try_files {path} /index.html`, because the app's routes (`/editor`, `/gebaeude/<id>`) are paths, not files.
+- [ ] D.12 In the Caddyfile: `encode zstd gzip`, and long cache headers for `/assets/*` only, since Vite puts a hash in those names and `index.html` must always be fresh.
+- [ ] D.13 The app build for the server: `VITE_API_URL=/collab VITE_SERVER_PDF=false npm run build`, base `/`. The same relative paths as in development, so no code changes for the proxy.
+- [ ] D.14 LoD2 data without ingesting again: `pg_dump -Fc` of the `lod2` database from the local container, `scp` to the server, `pg_restore` into its `postgis`, then compare `select count(*) from building` on both sides. Keep the dump file; it is the backup.
+- [ ] D.15 Secrets only on the server: `/srv/bauwerk/.env`, `chmod 600`, never in the repository. `deploy/.env.example` lists every variable with a comment and no value.
+- [ ] D.16 First deploy: clone the private repository to `/srv/bauwerk` with a read only deploy key, then `docker compose -f deploy/docker-compose.yml up -d --build`. `deploy/README.md` holds the steps, how to update (`git pull`, the same command), and how to read logs (`docker compose logs -f server`).
+- [ ] D.17 Check from outside, on the phone on mobile data: the start page, a building search, the building page, the editor, Share, and a second device opening the link and editing live. `curl -I https://<domain>/assets/<a file>` shows the long cache header, and `/editor` reloads without a 404.
+
+### E. Projects in Supabase
+
+- [ ] E.1 A Supabase project on the free plan in Frankfurt (`eu-central-1`), a long database password kept in the password manager. Free projects pause after a week without use: open the dashboard the day before the presentation.
+- [ ] E.2 The server connects through Supabase's session pooler (the IPv4 connection string from the dashboard's Connect dialog, port 5432, `sslmode=require`) as the `postgres` role, which owns the tables. Session mode behaves like a direct connection; the transaction pooler forbids session state between statements, which buys nothing for one long running server with its own pool. Pool size 5, well under the free plan's connection limit.
+- [ ] E.3 A schema of our own, `app`, for every table. `anon` and `authenticated` get no grants on it and `app` is not among the Data API's exposed schemas. Row level security is on for every table in `app`, with no policies, as a second lock: only the server's `postgres` connection, which owns the tables, reaches the rows.
+- [ ] E.4 Migrations run once each. Today `ensureSchema` runs every file on every start, which only works while every statement is `IF NOT EXISTS`; moving a table would recreate an empty one on the next start. So: `app.schema_migrations (name text primary key, applied_at timestamptz not null default now())`, each file applied in its own transaction and recorded, applied files skipped. `003_app_schema.sql` creates `app` and moves `projects` and `project_events` out of `public` when they are there (existing local databases); the queries use `app.projects` and `app.project_events`.
+- [ ] E.5 Migration tests: start twice on an empty database, and once on a database with the old `public` tables and a project in them; the tables end in `app` and the project is kept.
+- [ ] E.6 `DATABASE_URL` on the server points at Supabase. Check: create a project through the hosted app, see its row and its events in Supabase's table editor, `docker compose restart server`, and the project is still there.
+- [ ] E.7 The server tests keep running against a local Postgres; nothing in `npm run check` or CI touches Supabase.
+
+### F. Accounts: email, password, username
+
+- [ ] F.1 Supabase Auth: the email provider on, "Confirm email" off, sign ups allowed, minimum password length 8, site URL `https://<domain>`. Default rate limits kept.
+- [ ] F.2 Usernames: `app.profiles (id uuid primary key references auth.users on delete cascade, username text not null, created_at timestamptz not null default now())`, a check that the username is 3 to 24 letters, digits, `_` or `-`, and a unique index on `lower(username)`, so `Ada` and `ada` cannot both exist. A `security definer` trigger function on `auth.users` inserts the profile from `raw_user_meta_data->>'username'`; the client passes it in `signUp({ email, password, options: { data: { username } } })`.
+- [ ] F.3 A taken username makes that trigger fail, and Supabase then answers the sign up with a generic database error. So the server offers `GET /auth/username-available?name=<name>` for a clear message before signing up; the unique index still decides in a race, and the client reads the generic error as "username taken" when the check said free a moment ago. The check tells anyone whether a username exists, which is acceptable for usernames; nothing like it is offered for emails.
+- [ ] F.4 The server checks every request: a Nest guard for REST and a Socket.IO middleware (`server.use` in the gateway's `afterInit`) read the access token (`Authorization: Bearer <token>`, or `socket.handshake.auth.token`) and verify it with `jose` against the project's JWKS (`https://<ref>.supabase.co/auth/v1/.well-known/jwks.json`, cached by `createRemoteJWKSet`): signature, expiry, issuer `https://<ref>.supabase.co/auth/v1`, audience `authenticated`. A project still on the legacy shared secret verifies HS256 with `SUPABASE_JWT_SECRET` instead. The user id is the token's `sub`; the name shown to others is the profile's username, read by the server, never taken from the client.
+- [ ] F.5 Without `SUPABASE_URL` the server runs as today, without accounts, so `npm run dev` and the tests need nothing new. With `NODE_ENV=production` and no `SUPABASE_URL` it refuses to start, so the hosted server can never run open by accident.
+- [ ] F.6 Client: `@supabase/supabase-js`, one client in `src/auth/supabase.ts` from `VITE_SUPABASE_URL` and the publishable (anon) key, which is meant to be public. A small auth store (user, username, loading) of its own, since the session is not editor state. The sync client sends the token when it connects and asks for a fresh one on every reconnect (`io(url, { auth: (cb) => cb({ token }) })`), so a refreshed token keeps working.
+- [ ] F.7 Page `/login` with two tabs, "Sign in" and "Create account": email, password with a show toggle, and on the second tab the username with the availability check. Plain messages for a wrong password, an email already registered, a username taken, a password too short, and no network. Built from the `Custom*` components (the text input gets a password mode), usable by keyboard alone, English and German complete, with tests that drive both tabs.
+- [ ] F.8 The avatar in the top bar shows the username's initials when signed in, with a menu: the username and "Sign out". Signed out it says "Sign in".
+- [ ] F.9 The editor still works signed out, as a local editor in the browser. Share, and opening a `?project=` link, need an account: signed out, they lead to `/login?next=<the link>`, and signing in comes back there. `next` only accepts paths on the same site, so the login page cannot be used to send people elsewhere.
+
+### G. Sharing with accounts
+
+- [ ] G.1 `app.projects` gets `owner_id uuid not null references auth.users on delete cascade` (a deleted account takes its own projects with it) and `app.project_events` gets `actor_id uuid`. New table `app.project_members (project_id uuid not null references app.projects on delete cascade, user_id uuid not null references auth.users on delete cascade, role text not null check (role in ('owner', 'editor')), joined_at timestamptz not null default now(), primary key (project_id, user_id))`.
+- [ ] G.2 Creating a project makes the creator its owner and first member, in the same transaction as the project row.
+- [ ] G.3 Anyone signed in who opens the link joins: the socket's `join` and `POST /projects/:id/join` add the membership with `ON CONFLICT DO NOTHING`. The project id is a random UUID, so the link is the invitation and cannot be guessed.
+- [ ] G.4 Every other route checks membership: reading a project, its versions, sending batches, and the socket room. `GET /projects` lists only the projects the user is a member of, newest first, with the owner's username. Only the owner may delete a project.
+- [ ] G.5 The presence list and the history show usernames, and each person keeps one colour on every device, derived from the user id.
+- [ ] G.6 Tests: a test key pair signs tokens and a stubbed JWKS serves its public key. Without a token 401; with an expired token or one from another project 401; a member reads and writes; someone signed in but not yet a member joins by opening the project and then reads; a non-owner cannot delete. The convergence and client tests stay as they are.
+- [ ] G.7 Check with two real accounts on two devices: A shares, B opens the link, signs up, lands in the project, both edit, and the history shows both by name.
+
+### H. SAM 3 for the presentation, by the hour
+
+- [ ] H.1 Rent one GPU instance with at least 8 GB of graphics memory by the hour (for example a community RTX 3090 or 4090 on RunPod or Vast.ai, usually under a dollar an hour). Start it only for the rehearsal and the presentation, and stop it afterwards.
+- [ ] H.2 Run `lod2/lod2-vision` there, with the Hugging Face token set on that instance only. The first start downloads the model (about 3.4 GB), so start it an hour before.
+- [ ] H.3 The vision service gets a shared secret: it refuses any request without the header `X-Vision-Key` carrying the value from its environment. Caddy adds the header when it forwards `/vision` (`header_up X-Vision-Key {$VISION_KEY}`, plus `header_up Host {upstream_hostport}` for the https upstream), so the key never reaches the browser and a stranger who finds the GPU address gets nothing.
+- [ ] H.4 `VISION_URL` and `VISION_KEY` in the server's `.env`, then `docker compose up -d caddy` recreates Caddy with them. Check: the photo editor on the hosted app shows "Detect openings" and detection works. With the instance stopped the button hides again, and the rest of the app is unaffected.
+
+### I. Before the presentation
+
+- [ ] I.1 `DEMO.md` gets a hosted variant: the domain instead of `localhost`, the second person signing up as the first step, the GPU instance started an hour before.
+- [ ] I.2 A fallback ready: the local `npm run dev` on the laptop, and a two minute screen recording of the photo detection and of two people editing, in case the network fails.
+- [ ] I.3 `DECISIONS.md`: why two repositories, why the LoD2 data is not in Supabase, why the server and not the browser talks to the database, and what the demo leaves out (email confirmation, backups beyond the dump, monitoring).
+
+## Part 4: Third interview at 20° (office)
+
+Goal: close the two gaps between Bauwerk and the posting that `20GRADGOAL.md` names. First, real-time
+multi-user collaboration that merges edits instead of overwriting the whole building. Second, the
+SAM 3 facade result reaching the 3D editor in one visible step. Work A, then B, then C. Tick a box
+only after its check ran.
+
+### A. Real-time collaboration, operation based
+
+Today: every change PUTs the whole building, a 409 reloads and resends it, last write wins. Two
+people editing different windows at the same time overwrite each other. The target is the
+Figma model: the server orders small operations, clients apply their own at once and rebase on
+the others. Merging stays per property and a server validator holds the geometry invariants.
+A text CRDT (Yjs, Automerge) cannot know that two windows must not overlap.
+
+- [x] A.1 `npm run dev` also starts the collaboration server (`server/`, NestJS) with its Postgres,
+      and the editor connects when it is up. Today it is never started, so nobody sees the feature.
+      (Done: a `bauwerk` database in the LoD2 PostGIS container, the server on 8789, the app
+      reaches it through the `/collab` proxy, HTTP and WebSocket.)
+- [x] A.2 Operations as data, pure, in `src/sync/ops.ts` with tests: `diffBuilding(prev, next)`
+      returns a list of ops keyed by element id and field (`set`, `insert`, `remove`), and
+      `applyOps(building, ops)` applies them. Property: `applyOps(prev, diffBuilding(prev, next))`
+      deep-equals `next` for every store action. No store action has to change.
+- [x] A.3 Server: `POST /projects/:id/ops` (and the same over the socket) takes
+      `{ clientId, seq, baseVersion, ops }`. In one transaction: lock the project row, apply the
+      ops to the current building, run `validateBuilding`, write the new version and one
+      `project_events` row with the ops, broadcast `{ version, actor, ops }`. An op on a deleted
+      element is dropped. An op that breaks an invariant rejects the whole batch with the reason.
+      (Changed on the way: the editor allows an invalid opening and draws it in the warning
+      colour, so the invariants are checked only when the sender's own result was valid. A merge
+      can no longer break what someone saw as valid, and nobody is blocked mid-edit.)
+- [x] A.4 Client: optimistic apply, a queue of unacknowledged batches, and on a remote batch:
+      apply it to the last confirmed building, then replay the pending local ops on top. On a
+      reject, drop that batch and show the reason as a toast. Delete the whole-building PUT path.
+- [x] A.5 Undo only undoes your own changes: the history keeps the inverse ops of each local
+      step. Undo sends the inverse as a new batch. If a remote op changed the same field since,
+      the undo of that field is skipped. Test: A moves window 1, B moves window 2, A undoes, and
+      window 2 stays where B put it. (Built differently: every remote batch is also applied to
+      the undo and redo snapshots, so the history never holds a stale copy of the other
+      person's work. Same result, no inverse ops to keep.)
+- [x] A.6 Convergence test: three simulated clients, random edits, random delivery order and
+      delay, a seeded generator. In the end all three buildings are deep-equal and valid. Run
+      1000 seeds in CI.
+- [x] A.7 Socket.IO instead of plain `ws` (their stack): a room per project, acks for batches,
+      built-in reconnect. On reconnect the client sends its last version and gets the missed
+      events from `project_events`, or a snapshot when too far behind. (Always the snapshot:
+      the join answers with the building, its version and the last batch of this tab the server
+      has; the rest of the queue is resent. One path instead of two.)
+- [x] A.8 Presence: remote cursors on the ground plane in the actor's colour with the name,
+      remote selection outline (exists), and a soft lock while someone drags an element: others
+      see it outlined and cannot start a drag on it until the gesture ends. (Also live: the
+      others see the window slide while it is dragged, in the dragger's colour. Openings only;
+      the drag end is held back until the move is confirmed, so nobody sees it jump back.)
+- [x] A.9 Version history panel: list of versions with actor and time, grouped by minute,
+      preview of an old version in the viewport, "restore" as a new version. This is the
+      "versioned" in their product line.
+- [x] A.10 Two machines: `npm run dev -- --host` (or a flag) binds the app and server to the LAN
+      so an interviewer's laptop can join over the office Wi-Fi. The project link carries the id.
+- [ ] A.11 Manual check with two browsers and then two machines: edit different windows at the
+      same time, drag the same window at the same time, pull the network for 10 s and edit,
+      undo after a remote change. Record what broke in `DECISIONS.md`.
+- [x] A.12 `DECISIONS.md`: why ops with server ordering and not a CRDT library, and why
+      invariants are checked on the server.
+
+### B. Facade photo to the 3D editor
+
+Today: the photo editor finds the wall and its openings with SAM 3 and stores them in the survey.
+They reach the editor only when "Sanierungsplanung starten" rebuilds the whole building. Inside
+the editor there is no way to bring a photo in, and no way to see if the openings match.
+
+- [x] B.1 In the editor, a selected exterior wall gets "Openings from photo" in the right panel.
+      It opens the photo editor for that wall with its real width and height from the model.
+      (The wall is the footprint edge up to the eaves; a gable above it is not part of it yet.)
+- [x] B.2 After detection, a preview in the photo editor lists what changes on that wall: added,
+      removed and moved openings per storey, and openings that could not be placed with the
+      reason. Uses `placeOpenings` from `lod2-core`, the same code as the hand-over.
+- [x] B.3 "Apply to 3D model" replaces the openings of that wall on every storey in one undo
+      step (and one sync batch), and returns to the editor with the wall selected.
+- [x] B.4 The rectified facade photo as a texture on that wall in 3D and in the elevation views
+      (N, E, S, W), with a layer toggle. Opening frames drawn over it, so anyone sees at once
+      if a window is off. This is the "visual validation" in the posting. (Built and tested for
+      types only; not seen yet. The photo stays in the browser session, it is not synced.)
+- [x] B.5 Each opening keeps its source (detected from photo, drawn, default catalogue) and the
+      detection confidence. The properties panel shows it with the photo name and date. The
+      layers panel can filter "not yet from a photo". (Source, photo name and confidence show
+      through the existing source note, which also says when the opening was edited since. No
+      date, and the layers filter is not built.)
+- [x] B.6 Energy delta: after apply, the Energy panel shows how the window area and the
+      transmission heat loss changed against before, in kWh/a and percent. This is why a photo
+      is worth taking. (Shown before applying instead, in the change preview: opening area and
+      heating demand now and after, with the change in percent. That is where the decision is.)
+- [x] B.7 Tests: apply on a wall with existing openings, apply twice is the same as once, undo
+      restores the old openings exactly, an opening that crosses a storey slab is reported and
+      not placed. (The shared placement rule trims it to the storey that holds most of it and
+      says so, rather than dropping it; an opening above the eaves is dropped with the reason.)
+- [ ] B.8 Manual check on the sample photos in `lod2/sample-photos/`, then `DECISIONS.md` on
+      what SAM 3 got wrong and how the preview catches it.
+
+### C. Smaller fixes before the demo
+
+- [x] C.1 Fix 23.10, the 3D scene mirrored against the map. A geometry bug on a geometry job
+      interview must not be in the demo.
+      (Done with one group mirrored in z around all scene content, `PLAN_MIRROR` in
+      `src/scene/three.ts`, instead of changing every mesh. Only world space code converts: the
+      pointer, the camera, the walkthrough, the plan camera, the section cut. A projection test
+      checks east is right seen from the south and north is up from the top. Not seen yet.)
+- [x] C.2 Validate the IFC export with IfcOpenShell (the vision venv already has Python): a test
+      script that opens the file, counts walls, slabs and openings per storey against the model.
+      (`npm run check:ifc`: schema validation, geometry built for every element, windows and doors
+      in openings that cut walls, counts per storey, on all four examples. uv fetches IfcOpenShell
+      into a throwaway environment; CI runs it too. Merged into the existing
+      `scripts/validate-ifc.py`, which already checked schema, EXPRESS rules and geometry.)
+- [ ] C.3 Do the open manual checks in sections 13, 36 to 40.
+- [ ] C.4 `DEMO.md`: the office script from `20GRADGOAL.md` section 6, timed, rehearsed twice.
+      (Script written and timed at about twelve minutes; the two rehearsals are still to do.)
+
+## Part 3: Fusion with lod2-challenge, and the new design
+
+Goal: one repository, one product. The LoD2 map, the building page with its energy data, the
+facade photo tools with SAM 3, and the Bauwerk editor become one app. `npm run dev` in this
+repository starts everything: the PostGIS database, the LoD2 API, the vision service when it
+is installed, and the app. The whole interface gets a new design in Inter, after the reference
+screens in `docs/design/` (light panels, round pill toolbars, a left navigation rail, a dark
+map, a German building page with the energy scale).
+
+Rules stay as in `CLAUDE.md`, with the changes in 18.7. Tick a box only after its check ran.
+
+### 18. Move lod2-challenge in
+
+- [x] 18.1 Copy every tracked and working file of lod2-challenge (no node_modules, no caches, no
+      .venv, no .sam3, no .env) into `lod2/`, keeping the package folder names so their
+      `file:../lod2-core` links still work.
+- [x] 18.2 `lod2/docs/`: its README (as `LOD2.md`), MEASUREMENTS, WRITEUP, CHALLENGE and the
+      presentation. The sample photos stay in `lod2/sample-photos/`.
+- [x] 18.3 One `.env` at this repository's root for everything: the API, the ingest CLI, the
+      vision service and the viewer read it from here. Merge `.env.example`.
+- [x] 18.4 The LoD2 database keeps its own compose file, `lod2/docker-compose.yml`, so it never
+      starts Bauwerk's server containers.
+- [x] 18.5 Root scripts: `setup`, `db`, `db:stop`, `migrate`, `index`, `ingest`, `bootstrap`,
+      `status`, `api`, `vision`, `viewer`, `dev:editor`.
+- [x] 18.6 `npm run dev`: a small runner (`scripts/dev.mjs`, no new dependency) that starts the
+      database and waits for it, then the API, the vision service when its Python exists,
+      and the app, each line prefixed with its name, all stopped together with Ctrl+C.
+- [x] 18.7 `CLAUDE.md` and `INFO.md`: the stack is now React 19, the repository has a backend,
+      and lod2 packages follow their own style (no semicolons, oxlint).
+- [x] 18.8 Prettier and ESLint ignore `lod2/`; lod2 keeps its own lint and tests, wired into
+      `npm run check` as `check:lod2`.
+- [x] 18.9 `lod2/scripts/check-bauwerk.mjs` points at this repository.
+- [x] 18.10 Everything green: Bauwerk check, lod2 typecheck, lint and tests, the viewer build.
+- [x] 18.11 DECISIONS.md entry: why the fusion, and why in stages.
+
+### 19. One set of versions
+
+- [x] 19.1 Upgrade the editor to React 19, @react-three/fiber 9, drei 10, the types to 19.
+- [x] 19.2 Upgrade Vite to 8 and @vitejs/plugin-react to 6, check the build config (manual chunks
+      under Rolldown).
+- [x] 19.3 Fix what the upgrade breaks: `JSX` namespace, ref callbacks, r3f event types,
+      `useRef` without an argument, drei component props.
+- [x] 19.4 Tests: @testing-library/react with React 19, the jsdom panel tests.
+- [x] 19.5 Add maplibre-gl, zod and `lod2-core` (file link) to the app.
+- [x] 19.6 Full check green, the bench page still reaches its frame budget.
+
+### 20. One app
+
+- [x] 20.1 A small router without a dependency: `/` start page (search and map), `/gebaeude/:gid`
+      building page, `/editor` the Bauwerk editor. The URL keeps `?at=` and `gid=` as before.
+- [x] 20.2 Move the viewer's code under `src/lod2/`: api clients, state, map, 3D scene, photo
+      editor, survey. One Zustand store per concern, as now.
+- [x] 20.3 The Vite dev server proxies `/api` and `/vision` like the viewer did.
+- [x] 20.4 Viewer strings through the i18n layer, German and English complete.
+- [x] 20.5 The hand-over becomes direct: "Sanierungsplanung starten" builds the Bauwerk building
+      with `surveyToBauwerk` and loads it into the editor store; the link import stays for
+      files from elsewhere.
+- [x] 20.6 The editor's back arrow returns to the building page.
+- [x] 20.7 Remove `lod2/lod2-viewer` once everything lives in the app; `npm run viewer` goes.
+- [x] 20.8 Tests for the router and the direct hand-over.
+
+### 21. The new design
+
+Reading of the reference screens (`docs/design/`):
+
+- Inter everywhere, tabular numbers for values. Large bold headings (about 32 px), grey subtitles.
+- Light grey page ground, white or near white panels with very large radii (about 24 px),
+  hairline borders and soft wide shadows.
+- A narrow left navigation rail inside its own rounded card: logo at the top, a round "+"
+  button, home, documents and tools icons, the user's initials in a dark circle at the bottom.
+- Start page: a big two line question as the title, a subtitle, a pill search field with a
+  soft shadow, results as a list with a pin icon, the street in bold and the place in grey.
+  The map fills the right side, dark, with round dark icon buttons stacked top left, a north
+  arrow top right, a scale bar bottom left, and a light mini map with "Quellen" bottom right.
+- Building page: a back arrow and share and bookmark icons, the address as the title, the post
+  code and city under it, tabs with an underline for the building parts ("Grundstück",
+  "Wohnhaus", ...), then "Energiedaten unsanierter Zustand" with a green to red scale A+ to H
+  and the class as a coloured tag on it, then rows of label, info icon and a right aligned
+  value with hairline dividers, a small bar chart for the monthly yield. At the bottom a black
+  pill button "Sanierungsplanung starten" and a round black chat button.
+- Editor: a white 3D view, the building in light grey with its floors drawn as lines and the
+  terrain contact line in blue. At the bottom a floating pill tool dock with grouped icon
+  tools and small shortcut letters under each icon; the active tool is a filled sky blue
+  circle. On the left a vertical storey pill (home icon, DG, 4, 3, 2, 1, EG, KG). Top right a
+  view pill ("Perspektive" with a select, and small icon buttons). Top centre a version pill
+  ("v1 gespeichert" with undo and redo). A small axis gizmo bottom right.
+
+Tasks:
+
+- [x] 21.1 Inter as the only font (local, `@fontsource-variable/inter`), numbers tabular.
+- [x] 21.2 New tokens: page, panel, line, ink, muted, the sky blue accent, the energy scale
+      colours, radii (pill, 24, 16, 12), two shadows.
+- [x] 21.3 Shell: the rounded app card on the page ground, the navigation rail with logo, plus,
+      home, documents, tools and initials.
+- [x] 21.4 Start page: title, subtitle, pill search with the result list, the dark map with its
+      controls (layers, 3D, statistics, north arrow, scale, mini map, sources).
+- [x] 21.5 Building page: back, share, bookmark, title and address line, part tabs, the energy
+      scale, the data rows with info tooltips, "Allgemeine Gebäudedaten", the facade survey
+      and photo actions, the black CTA and the chat button.
+- [x] 21.6 Energy numbers on the building page from the Bauwerk balance of the pre-filled
+      building: total demand, specific demand, heat load, specific heat load; PV potential from
+      the roof planes (area, orientation, tilt), yearly and monthly yield.
+- [x] 21.7 Editor: the bottom tool dock with groups, shortcut letters and the blue active tool.
+- [x] 21.8 Editor: the storey pill on the left (DG, upper floors, EG, KG) that switches the active
+      storey.
+- [x] 21.9 Editor: the view pill top right (Perspektive select, section, bookmark, camera,
+      panel toggle) and the version pill top centre (version, saved state, undo, redo).
+- [x] 21.10 Editor 3D look: light grey building, storey lines, blue terrain line, axis gizmo.
+- [x] 21.11 Side panels of the editor in the new card style, the same controls restyled.
+- [x] 21.12 Photo editor restyled to match: white stage frame, pill toolbar, the detection card.
+- [x] 21.13 Dark mode stays working with the new tokens.
+- [x] 21.14 Every screen at 1440 px and at 1920 px wide without overflow; keyboard focus visible. (Worked out from the widths, not seen: the editor pills rearrange by container width.)
+
+### 22. Finish
+
+- [x] 22.1 README for the fused repository: what it is, `npm run setup`, `npm run dev`, the
+      vision service, the Hugging Face token, the architecture.
+- [x] 22.2 Full check, lod2 checks, the build green (the check-bauwerk script became tests in `src/lod2/analysis.test.ts`).
+- [x] 22.3 `npm run dev` from a clean clone of the working tree starts everything.
+- [x] 22.4 lod2-challenge gets a README note pointing here.
+- [x] 22.5 Remove the ESLint override for `src/lod2/` and fix what it hid (about 80 findings,
+      mostly non-null assertions).
+
+### 23. Redesign after the 20° app
+
+- [x] 23.1 Tokens and fonts: navy, navy-black ink, green-grey muted and faint, hairlines, the
+      blue-grey scene; Geist and Geist Mono; square 8 px corners instead of pills.
+- [x] 23.2 White top bar replaces the shell card and the navigation rail: mark, search, editor,
+      building name, version, undo and redo, the navy Export menu, language, avatar.
+- [x] 23.3 Side panels docked and flush; the right panel heads with the building name, and with
+      nothing selected shows building, dimensions and location as label and value rows.
+- [x] 23.4 Layers panel after Figma: the building as a tree with an eye per storey and on the
+      scene layers; zones, site, underlay and settings as tabs.
+- [x] 23.5 Tool card at the top left with the layers and whole-building toggles, the tools with
+      their shortcut numbers beside them, and the shortcut sheet.
+- [x] 23.6 View switch 3D, top, N, E, S, W that moves the camera, plus floor plan, walkthrough
+      and section cut.
+- [x] 23.7 Minimap at the bottom left: footprint north up over faint streets, camera direction,
+      place name, back to the 3D view.
+- [x] 23.8 The plain grid is the default ground and draws at every angle; the map is a setting.
+- [x] 23.9 Start and building pages in the same look: light map, mono values, navy action.
+- [x] 23.11 Floor plan view as a drawing: walls cut and filled between their faces, windows and
+      doors as breaks with their symbols (door leaf and swing), a white sheet with zone tints,
+      and dimension lines outside (overall length and the chain of openings) with ticks and
+      labels along the line, sized in pixels so any building reads the same.
+- [x] 23.10 The 3D scene is a mirror image of the map: with north up, east is on the left, and
+      map tiles on the ground read backwards. Plan (x, y) goes to world (x, 0, y), which flips
+      the handedness. Fixing it means mapping plan y to world -z in every mesh and in every
+      tool's pointer handling, with tests. The minimap is already correct.
+
+## Part 1 and 2: history
+
 Work top to bottom. Tick with `[x]`. A task is done when `npm run check` passes and the human has looked at it. Anything that breaks an invariant in `INFO.md` goes back to open.
 
 ## 0. Scaffold

@@ -1,10 +1,11 @@
 import { useMemo } from "react";
 import { Canvas, useThree } from "@react-three/fiber";
-import { OrbitControls, OrthographicCamera } from "@react-three/drei";
+import { GizmoHelper, GizmoViewport, OrbitControls, OrthographicCamera } from "@react-three/drei";
 import { Object3D } from "three";
 import { bounds } from "@/geometry/polygon";
 import { planCamera } from "./planView";
 import { Dimensions } from "./Dimensions";
+import { PlanDrawing } from "./PlanDrawing";
 import { Underlay } from "./Underlay";
 import { MapUnderlay } from "./MapUnderlay";
 import { ThermalBridges } from "./ThermalBridges";
@@ -18,22 +19,41 @@ import { FrameProbe } from "./FrameProbe";
 import { storeyDisplay } from "./display";
 import type { RenderSample } from "./FrameProbe";
 import { UValueBands } from "./UValueBand";
-import { useSceneColors } from "./useSceneColors";
 import { useEditorStore } from "@/store/building";
 import { Camera } from "./Camera";
 import { Grid } from "./Grid";
 import { Storey } from "./Storey";
 import { Ground } from "./Ground";
+import { RemoteCursors, ShareCursor } from "./RemoteCursors";
+import { FacadePhotos } from "./FacadePhotos";
+import { PLAN_MIRROR } from "./three";
 import { Tools } from "./tools/Tools";
 import { Compass } from "./Compass";
+import { FacadeLines } from "./FacadeLines";
 import { BuildingName } from "./BuildingName";
 import { storeyElevation } from "@/store/selectors";
+import { colors } from "@/lib/colors";
 
-export function Viewport({ onSample }: { onSample?: (s: RenderSample) => void } = {}) {
+interface ViewportProps {
+  onSample?: (s: RenderSample) => void;
+}
+
+/** Room around the footprint for the plan's dimension lines, metres. */
+const PLAN_MARGIN = 0.5;
+/**
+ * The tool card, the storeys and the minimap at the left and the view switch at the top cover
+ * this much, px, plus 80 px on every side for the dimension lines.
+ */
+const PLAN_INSETS = { left: 272 + 80, right: 24 + 80, top: 72 + 80, bottom: 24 + 80 };
+
+/** The axis gizmo's distance from the bottom right corner, px. */
+const GIZMO_BOTTOM = 76;
+const GIZMO_SIDE = 72;
+
+export function Viewport({ onSample }: ViewportProps = {}) {
   const building = useEditorStore((s) => s.building);
   const activeStoreyId = useEditorStore((s) => s.activeStoreyId);
   const isPlanView = useEditorStore((s) => s.planView);
-  const scene = useSceneColors();
   const sunEnabled = useEditorStore((s) => s.sun.enabled);
   const walking = useEditorStore((s) => s.walkthrough);
   const otherStoreys = useEditorStore((s) => s.otherStoreys);
@@ -44,45 +64,55 @@ export function Viewport({ onSample }: { onSample?: (s: RenderSample) => void } 
     <Canvas
       shadows
       dpr={[1, 2]}
-      camera={{ position: [18, 14, 18], fov: 45, near: 0.1, far: 500 }}
+      camera={{ position: [18, 14, -18], fov: 45, near: 0.1, far: 500 }}
       gl={{ antialias: true, preserveDrawingBuffer: false }}
-      style={{ background: scene.bg }}
+      style={{ background: "transparent" }}
     >
-      <hemisphereLight args={["#eef1f7", "#6b6f78", 0.9]} />
-      <Sun />
+      <hemisphereLight args={["#eef1f7", "#7d838c", 1.25]} />
+      {/* World space: the camera, the pointer, the renderer's clipping (three.ts). */}
       <SectionCut />
       <Walkthrough />
-      <DefaultDirectionalLight bounds={footprintBounds} intensity={sunEnabled ? 0.25 : 1.6} />
-      <Ground />
-      <Grid />
-      <MapUnderlay />
-      <Underlay />
-      <ProposalOverlay />
-      <UValueBands />
-      <ThermalBridges />
-      {!isPlanView && <Roof />}
-      <HeatPumps />
-      <Dimensions />
       {isPlanView && <PlanViewCamera bounds={footprintBounds} elevation={activeElevation} />}
-      {building.storeys
-        .filter((storey) => !isPlanView || storey.id === activeStoreyId)
-        .filter(
-          (storey) => storeyDisplay(building, storey.id, activeStoreyId, otherStoreys) !== "hidden",
-        )
-        .map((storey) => (
-          <Storey
-            key={storey.id}
-            building={building}
-            storey={storey}
-            elevation={storeyElevation(building, storey.id)}
-            active={storey.id === activeStoreyId}
-            display={storeyDisplay(building, storey.id, activeStoreyId, otherStoreys)}
-            ghostOpacity={otherStoreys.ghostOpacity}
-          />
-        ))}
-      <Compass />
-      <BuildingName />
-      <Tools />
+      <ShareCursor />
+      {/* Everything drawn is built in plan space; this group turns it into world space. */}
+      <group scale={PLAN_MIRROR}>
+        <Sun />
+        <DefaultDirectionalLight bounds={footprintBounds} intensity={sunEnabled ? 0.25 : 1.6} />
+        <Ground />
+        <Grid />
+        <MapUnderlay />
+        <Underlay />
+        <ProposalOverlay />
+        <UValueBands />
+        <ThermalBridges />
+        {!isPlanView && <Roof />}
+        <HeatPumps />
+        <Dimensions />
+        {isPlanView && <PlanDrawing />}
+        {building.storeys
+          .filter((storey) => !isPlanView || storey.id === activeStoreyId)
+          .filter(
+            (storey) =>
+              storeyDisplay(building, storey.id, activeStoreyId, otherStoreys) !== "hidden",
+          )
+          .map((storey) => (
+            <Storey
+              key={storey.id}
+              building={building}
+              storey={storey}
+              elevation={storeyElevation(building, storey.id)}
+              active={storey.id === activeStoreyId}
+              display={storeyDisplay(building, storey.id, activeStoreyId, otherStoreys)}
+              ghostOpacity={otherStoreys.ghostOpacity}
+            />
+          ))}
+        {!isPlanView && <FacadeLines />}
+        <FacadePhotos />
+        <Compass />
+        <BuildingName />
+        <RemoteCursors />
+        <Tools />
+      </group>
       {!walking && !isPlanView && (
         <OrbitControls
           makeDefault
@@ -95,6 +125,15 @@ export function Viewport({ onSample }: { onSample?: (s: RenderSample) => void } 
         />
       )}
       <Camera />
+      {!isPlanView && !walking && (
+        <GizmoHelper alignment="bottom-right" margin={[GIZMO_SIDE, GIZMO_BOTTOM]}>
+          <GizmoViewport
+            axisColors={[colors.muted, colors.muted, colors.muted]}
+            labelColor="#ffffff"
+            axisHeadScale={0.9}
+          />
+        </GizmoHelper>
+      )}
       {onSample && <FrameProbe onSample={onSample} />}
     </Canvas>
   );
@@ -109,7 +148,14 @@ function PlanViewCamera({
 }) {
   const size = useThree((state) => state.size);
   const plan = useMemo(
-    () => planCamera(footprintBounds, { width: size.width, height: size.height }, elevation),
+    () =>
+      planCamera(
+        footprintBounds,
+        { width: size.width, height: size.height },
+        elevation,
+        PLAN_MARGIN,
+        PLAN_INSETS,
+      ),
     [footprintBounds, size.width, size.height, elevation],
   );
   return (

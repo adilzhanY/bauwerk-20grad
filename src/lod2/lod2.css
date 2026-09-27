@@ -1,0 +1,472 @@
+/*
+  Styles of the LoD2 pages (map, 3D view, photo editor), moved in from the lod2 viewer. They
+  use the app's tokens from index.css.
+*/
+
+/*
+ * Drawing surfaces inside the photo editor. These stay as plain CSS because they position
+ * things by the pixel over a photograph.
+ */
+.photo-editor-stage {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* The night tone stays dark in both themes, so photographs always read true. */
+  background: var(--night);
+}
+.photo-editor-stage.drawing {
+  cursor: crosshair;
+  outline: none;
+}
+.photo-editor-image {
+  position: absolute;
+  user-select: none;
+}
+
+/* The model's wall edges over the photo. The faint fill keeps the wall readable as a surface
+   once the photo is made transparent; the stage behind it is the dark night tone. */
+.wall-outline {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+.wall-outline polygon {
+  fill: rgba(255, 255, 255, 0.05);
+  stroke: rgba(255, 255, 255, 0.75);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+/*
+ * Openings drawn on the rectified wall. The light selection blue and white both stand out on
+ * any facade colour, where the mark red would vanish on a red render.
+ */
+.opening-box {
+  position: absolute;
+  box-sizing: border-box;
+  pointer-events: none;
+  border: 2px solid #4fb8f2;
+  background: rgba(79, 184, 242, 0.18);
+}
+.opening-box.selected {
+  border-color: #ffffff;
+  background: rgba(255, 255, 255, 0.22);
+}
+.opening-box.draft {
+  border-style: dashed;
+}
+.opening-label {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 1px 3px;
+  border-bottom-right-radius: var(--radius-soft);
+  font-family: var(--font-num);
+  font-size: 10px;
+  line-height: 1.2;
+  color: #ffffff;
+  background: rgba(27, 29, 32, 0.8);
+  white-space: nowrap;
+}
+
+/* Draggable corner dots, positioned by their centre. Colours match the corner table. */
+.corner-dot {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  margin: -11px 0 0 -11px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  cursor: grab;
+  touch-action: none;
+}
+.corner-dot.dragging {
+  cursor: grabbing;
+  transform: scale(1.2);
+}
+.corner-0 {
+  background: #ef4444;
+}
+.corner-1 {
+  background: #22c55e;
+}
+.corner-2 {
+  background: #3b82f6;
+}
+.corner-3 {
+  background: #f59e0b;
+}
+.corner-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  border-radius: 50%;
+}
+
+/* Lines joining the corner dots, drawn under the dots and the loupe. */
+.corner-outline {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+}
+.corner-outline polygon {
+  fill: none;
+  stroke-linejoin: round;
+}
+.corner-outline-shadow {
+  stroke: rgba(27, 29, 32, 0.7);
+  stroke-width: 4;
+}
+.corner-outline-line {
+  stroke: #ffffff;
+  stroke-width: 2;
+}
+
+/* Magnifier shown while a corner dot is dragged. */
+.loupe {
+  position: absolute;
+  pointer-events: none;
+  z-index: 2;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  background-color: var(--night);
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+}
+.loupe-cross {
+  position: absolute;
+  background: rgba(255, 255, 255, 0.9);
+}
+.loupe-cross.horizontal {
+  left: 10%;
+  right: 10%;
+  top: 50%;
+  height: 1px;
+}
+.loupe-cross.vertical {
+  top: 10%;
+  bottom: 10%;
+  left: 50%;
+  width: 1px;
+}
+
+/*
+ * The detection overlay. The bar sweeps while lod2-vision works and fills when it is done;
+ * the ring spins on the active step; the spark breathes. All of it stops for people who
+ * asked for reduced motion.
+ */
+/* The detection card enters and leaves smoothly: fade, a small slide, and its height
+   folding open or shut, so the sections under it glide instead of jumping. */
+.detect-presence {
+  display: grid;
+  grid-template-rows: 1fr;
+  animation: detect-enter 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.detect-presence.is-leaving {
+  animation: detect-leave 320ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+@keyframes detect-enter {
+  from {
+    grid-template-rows: 0fr;
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    grid-template-rows: 1fr;
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes detect-leave {
+  from {
+    grid-template-rows: 1fr;
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    grid-template-rows: 0fr;
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+.detect-bar {
+  position: relative;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 9999px;
+  background: var(--select-soft);
+}
+.detect-bar-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 38%;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, transparent, var(--select), transparent);
+  will-change: transform;
+  animation: detect-sweep 1.4s ease-in-out infinite;
+}
+.detect-bar-fill.is-done {
+  width: 100%;
+  background: var(--ok);
+  animation: none;
+  transform: none;
+  transition: width 300ms ease-out;
+}
+.detect-ring {
+  border: 2px solid var(--select-soft);
+  border-top-color: var(--select);
+  animation: detect-spin 0.9s linear infinite;
+}
+.detect-spark {
+  animation: detect-breathe 1.6s ease-in-out infinite;
+}
+/* Moved with transform only, so the GPU animates it and the main thread stays free.
+   The fill is 38% of the bar wide, so 263% of itself carries it past the right end. */
+@keyframes detect-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(263%);
+  }
+}
+@keyframes detect-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes detect-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.18);
+    opacity: 0.8;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .detect-presence,
+  .detect-presence.is-leaving,
+  .detect-bar-fill,
+  .detect-ring,
+  .detect-spark {
+    animation: none;
+  }
+  .detect-bar-fill {
+    width: 100%;
+    opacity: 0.6;
+  }
+}
+
+/*
+ * The scan effect while lod2-vision works on a picture. Three layers over the stage, all
+ * transparent enough to leave the image readable: a rotating glow hugging the edges, a
+ * faint diagonal shimmer, and a light band sweeping top to bottom.
+ *
+ * Every animation here moves only `transform`, which the GPU composites on its own. An
+ * earlier version animated a gradient angle and the band's `top`, which made the browser
+ * repaint a blurred full-stage layer on the main thread every frame, and that starved
+ * everything else on the page, the detection clock included.
+ */
+.ai-scan {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  overflow: hidden;
+  container-type: size;
+}
+/* The ring: a static mask and blur. Only the gradient inside it turns. */
+.ai-scan-glow {
+  position: absolute;
+  inset: 0;
+  padding: 6px;
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  filter: blur(6px);
+  opacity: 0.9;
+}
+/* A square as wide as the stage's diagonal, so it covers the stage at any angle and no
+   more: every extra pixel is video memory the SAM 3 service may need. */
+.ai-scan-glow-spin {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: hypot(100cqw, 100cqh);
+  height: hypot(100cqw, 100cqh);
+  margin-left: calc(hypot(100cqw, 100cqh) / -2);
+  margin-top: calc(hypot(100cqw, 100cqh) / -2);
+  background: conic-gradient(#7ea4e6, #c084fc, #22d3ee, #f0abfc, #7ea4e6);
+  will-change: transform;
+  animation: ai-turn 3.2s linear infinite;
+}
+.ai-scan-shimmer {
+  position: absolute;
+  inset: -50%;
+  background: linear-gradient(
+    115deg,
+    transparent 40%,
+    rgba(255, 255, 255, 0.1) 50%,
+    transparent 60%
+  );
+  mix-blend-mode: screen;
+  will-change: transform;
+  animation: ai-shimmer 2.6s ease-in-out infinite;
+}
+/* 22% of the stage high; it travels from one band above the top to the bottom edge. */
+.ai-scan-band {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 22%;
+  background: linear-gradient(
+    180deg,
+    transparent,
+    rgba(126, 164, 230, 0.22) 45%,
+    rgba(192, 132, 252, 0.28) 50%,
+    rgba(126, 164, 230, 0.22) 55%,
+    transparent
+  );
+  mix-blend-mode: screen;
+  box-shadow: 0 0 40px rgba(126, 164, 230, 0.25);
+  will-change: transform;
+  animation: ai-sweep 2.2s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+}
+@keyframes ai-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes ai-shimmer {
+  from {
+    transform: translateX(-30%);
+  }
+  to {
+    transform: translateX(30%);
+  }
+}
+@keyframes ai-sweep {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(454.5%);
+  }
+}
+
+/* Dots and boxes the detector placed arrive with a short pop, so the eye finds them. */
+.corner-dot.proposed,
+.opening-box.proposed {
+  animation: ai-pop 420ms cubic-bezier(0.2, 0.9, 0.3, 1.3) both;
+}
+@keyframes ai-pop {
+  from {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-scan-glow-spin,
+  .ai-scan-shimmer,
+  .ai-scan-band {
+    animation: none;
+  }
+  .ai-scan-band {
+    transform: translateY(177%);
+  }
+  .corner-dot.proposed,
+  .opening-box.proposed {
+    animation: none;
+  }
+}
+
+/* The dark map of the start and building pages. */
+.light-map .maplibregl-ctrl-bottom-left {
+  margin: 0 0 16px 16px;
+}
+.light-map .maplibregl-ctrl-scale {
+  background: transparent;
+  border-color: var(--muted);
+  color: var(--ink);
+  font: 600 11px var(--font-sans);
+}
+
+/* The photo editor opens by fading the backdrop in and lifting the dialog into place, and
+   closes the same way back. Close length is PHOTO_EDITOR_LEAVE_MS in constants.ts. */
+.photo-editor-overlay {
+  animation: photo-editor-fade-in 220ms ease-out both;
+}
+.photo-editor-overlay .photo-editor-dialog {
+  animation: photo-editor-rise 260ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.photo-editor-overlay.is-leaving {
+  animation: photo-editor-fade-out 180ms ease-in both;
+}
+.photo-editor-overlay.is-leaving .photo-editor-dialog {
+  animation: photo-editor-sink 180ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+@keyframes photo-editor-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes photo-editor-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes photo-editor-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+}
+@keyframes photo-editor-sink {
+  to {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .photo-editor-overlay,
+  .photo-editor-overlay .photo-editor-dialog {
+    animation: none;
+  }
+}

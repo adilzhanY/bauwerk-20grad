@@ -4,6 +4,10 @@ import {
   fromUtm,
   latLonToPlan,
   northInPlan,
+  bearingInPlan,
+  planBearing,
+  compassPoint,
+  toEastNorth,
   planToLatLon,
   planToUtm,
   toUtm,
@@ -171,5 +175,67 @@ describe("GeoJSON", () => {
       ok: false,
       error: "footprintInvalid",
     });
+  });
+});
+
+describe("bearings in the plan", () => {
+  const close = (a: number, b: number) => {
+    expect(a).toBeCloseTo(b, 9);
+  };
+
+  it("bearing 0 is north and bearing 90 is east, for any plan rotation", () => {
+    for (const rotation of [0, 30, -75, 180]) {
+      const origin = { lat: 52.5, lon: 13.4, rotation };
+      const north = northInPlan(origin);
+      const n = bearingInPlan(origin, 0);
+      close(n.x, north.x);
+      close(n.y, north.y);
+      // East is north turned a quarter clockwise, which on a plan with y up is (y, -x).
+      const e = bearingInPlan(origin, 90);
+      close(e.x, north.y);
+      close(e.y, -north.x);
+    }
+  });
+
+  it("matches the real east on the ground, not only the formula", () => {
+    const origin = { lat: 52.5, lon: 13.4, rotation: 30 };
+    const east = latLonToPlan({ lat: 52.5, lon: 13.4001 }, origin);
+    const length = Math.hypot(east.x, east.y);
+    const e = bearingInPlan(origin, 90);
+    expect(Math.abs(e.x - east.x / length)).toBeLessThan(0.03);
+    expect(Math.abs(e.y - east.y / length)).toBeLessThan(0.03);
+  });
+
+  it("planBearing is the inverse of bearingInPlan", () => {
+    const origin = { lat: 52.5, lon: 13.4, rotation: 20 };
+    for (const bearing of [0, 45, 90, 135, 225, 359]) {
+      close(planBearing(origin, bearingInPlan(origin, bearing)), bearing);
+    }
+    close(planBearing(undefined, { x: 0, y: 1 }), 0);
+    close(planBearing(undefined, { x: 1, y: 0 }), 90);
+  });
+
+  it("names the nearest compass point", () => {
+    expect(compassPoint(0)).toBe("N");
+    expect(compassPoint(44)).toBe("NE");
+    expect(compassPoint(200)).toBe("S");
+    expect(compassPoint(-30)).toBe("NW");
+    expect(compassPoint(359)).toBe("N");
+  });
+});
+
+describe("toEastNorth", () => {
+  it("is the identity for an unrotated plan", () => {
+    const p = toEastNorth(undefined, { x: 3, y: 4 });
+    expect(p.east).toBeCloseTo(3, 9);
+    expect(p.north).toBeCloseTo(4, 9);
+  });
+
+  it("undoes the plan rotation, so a point due north stays due north", () => {
+    const origin = { lat: 52.5, lon: 13.4, rotation: 30 };
+    const n = northInPlan(origin);
+    const p = toEastNorth(origin, { x: n.x * 10, y: n.y * 10 });
+    expect(p.east).toBeCloseTo(0, 9);
+    expect(p.north).toBeCloseTo(10, 9);
   });
 });

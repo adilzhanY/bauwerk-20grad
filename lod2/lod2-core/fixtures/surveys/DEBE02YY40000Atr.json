@@ -1,0 +1,202 @@
+{
+ "buildingGid": "DEBE02YY40000Atr",
+ "partGid": "DEBE3Dma0z16KShn",
+ "surfaceIndex": 0,
+ "wallWidth": 14.285,
+ "wallHeight": 17.0479,
+ "photo": "DEBE02YY40000Atr.jpg",
+ "openings": [
+  {
+   "kind": "window",
+   "score": 0.945,
+   "x": 9.983,
+   "y": 13.277,
+   "width": 1.007,
+   "height": 1.882
+  },
+  {
+   "kind": "window",
+   "score": 0.941,
+   "x": 12.175,
+   "y": 13.27,
+   "width": 1.013,
+   "height": 1.887
+  },
+  {
+   "kind": "window",
+   "score": 0.953,
+   "x": 7.759,
+   "y": 13.268,
+   "width": 1.023,
+   "height": 1.895
+  },
+  {
+   "kind": "window",
+   "score": 0.945,
+   "x": 3.254,
+   "y": 13.259,
+   "width": 1.043,
+   "height": 1.877
+  },
+  {
+   "kind": "window",
+   "score": 0.949,
+   "x": 5.509,
+   "y": 13.259,
+   "width": 1.044,
+   "height": 1.896
+  },
+  {
+   "kind": "window",
+   "score": 0.945,
+   "x": 0.967,
+   "y": 13.25,
+   "width": 1.062,
+   "height": 1.906
+  },
+  {
+   "kind": "window",
+   "score": 0.945,
+   "x": 12.207,
+   "y": 9.313,
+   "width": 1.017,
+   "height": 2.111
+  },
+  {
+   "kind": "window",
+   "score": 0.949,
+   "x": 9.988,
+   "y": 9.307,
+   "width": 1.021,
+   "height": 2.105
+  },
+  {
+   "kind": "window",
+   "score": 0.949,
+   "x": 7.768,
+   "y": 9.263,
+   "width": 1.022,
+   "height": 2.128
+  },
+  {
+   "kind": "window",
+   "score": 0.945,
+   "x": 5.524,
+   "y": 9.219,
+   "width": 1.045,
+   "height": 2.136
+  },
+  {
+   "kind": "window",
+   "score": 0.945,
+   "x": 3.25,
+   "y": 9.209,
+   "width": 1.056,
+   "height": 2.101
+  },
+  {
+   "kind": "window",
+   "score": 0.949,
+   "x": 0.953,
+   "y": 9.203,
+   "width": 1.061,
+   "height": 2.104
+  },
+  {
+   "kind": "window",
+   "score": 0.945,
+   "x": 12.223,
+   "y": 5.154,
+   "width": 1.011,
+   "height": 2.26
+  },
+  {
+   "kind": "window",
+   "score": 0.949,
+   "x": 10.001,
+   "y": 5.09,
+   "width": 1.028,
+   "height": 2.277
+  },
+  {
+   "kind": "window",
+   "score": 0.953,
+   "x": 7.778,
+   "y": 5.023,
+   "width": 1.036,
+   "height": 2.315
+  },
+  {
+   "kind": "window",
+   "score": 0.953,
+   "x": 5.53,
+   "y": 4.995,
+   "width": 1.039,
+   "height": 2.281
+  },
+  {
+   "kind": "window",
+   "score": 0.949,
+   "x": 3.271,
+   "y": 4.961,
+   "width": 1.05,
+   "height": 2.293
+  },
+  {
+   "kind": "window",
+   "score": 0.949,
+   "x": 0.981,
+   "y": 4.909,
+   "width": 1.057,
+   "height": 2.313
+  },
+  {
+   "kind": "window",
+   "score": 0.93,
+   "x": 5.4,
+   "y": 1.118,
+   "width": 1.325,
+   "height": 2.088
+  },
+  {
+   "kind": "window",
+   "score": 0.906,
+   "x": 12.112,
+   "y": 0.951,
+   "width": 1.293,
+   "height": 2.4
+  },
+  {
+   "kind": "window",
+   "score": 0.914,
+   "x": 9.921,
+   "y": 0.811,
+   "width": 1.357,
+   "height": 2.48
+  },
+  {
+   "kind": "window",
+   "score": 0.891,
+   "x": 3.096,
+   "y": 0.655,
+   "width": 1.366,
+   "height": 2.511
+  },
+  {
+   "kind": "window",
+   "score": 0.91,
+   "x": 0.798,
+   "y": 0.581,
+   "width": 1.398,
+   "height": 2.524
+  },
+  {
+   "kind": "door",
+   "score": 0.836,
+   "x": 7.536,
+   "y": -0.016,
+   "width": 1.497,
+   "height": 2.984
+  }
+ ]
+}

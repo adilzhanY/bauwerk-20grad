@@ -12,6 +12,8 @@ import { useEditorStore } from "@/store/building";
 import { LayerSection, LayerTable } from "./LayerSection";
 import { buildRoof, roofOf } from "@/geometry/roof";
 import { ENERGY_PRICE_PER_KWH, buildRoadmap, evaluateAll } from "@/geometry/scenarios";
+import { sourceRows } from "@/geometry/sources";
+import type { SourceKind } from "@/geometry/types";
 
 /*
   The report is a document, not an interface. It follows the conventions of
@@ -36,6 +38,8 @@ export function PrintView() {
     evaluateAll(building).find((result) => result.scenario.id === "full-envelope")?.energy ??
     energy;
   const now = new Date();
+  const hasSources = sourceRows(building).length > 0;
+  const methodNumber = 5 + building.storeys.length + (hasSources ? 1 : 0);
 
   return (
     <div
@@ -199,9 +203,19 @@ export function PrintView() {
         <Roadmap building={building} />
       </div>
 
+      {hasSources && (
+        <div className="page">
+          <h2>
+            <span className="n">{5 + building.storeys.length}</span>
+            {t("print.section.sources")}
+          </h2>
+          <SourcesTable building={building} />
+        </div>
+      )}
+
       <div className="page">
         <h2>
-          <span className="n">{5 + building.storeys.length}</span>
+          <span className="n">{methodNumber}</span>
           {t("print.section.method")}
         </h2>
         <p className="small" style={{ marginTop: "6pt" }}>
@@ -669,5 +683,67 @@ function StoreyPlan({ storey }: { storey: Storey }) {
         </text>
       ))}
     </svg>
+  );
+}
+
+const SOURCE_KIND_KEYS: Record<SourceKind, MessageKey> = {
+  lod2: "source.kind.lod2",
+  photo: "source.kind.photo",
+  catalogue: "source.kind.catalogue",
+  estimate: "source.kind.estimate",
+  typed: "source.kind.typed",
+};
+
+const SOURCE_LABEL_KEYS: Record<string, MessageKey> = {
+  footprint: "print.sources.footprint",
+  storeys: "print.sources.storeys",
+  roof: "print.sources.roof",
+  sharedEdges: "print.sources.sharedEdges",
+  constructions: "print.sources.constructions",
+};
+
+/** Every value brought in from a survey, where it came from, and whether it was changed. */
+function SourcesTable({ building }: { building: Building }) {
+  const t = useT();
+  const rows = sourceRows(building);
+  const label = (path: string) => {
+    const key = SOURCE_LABEL_KEYS[path];
+    if (key) return t(key);
+    return t("print.sources.opening", { id: path.replace(/^opening:/, "") });
+  };
+  const state = (row: (typeof rows)[number]) =>
+    row.gone
+      ? t("print.sources.gone")
+      : row.edited
+        ? t("print.sources.edited")
+        : t("print.sources.unchanged");
+  return (
+    <>
+      <p className="small" style={{ marginTop: "6pt" }}>
+        {t("print.sources.intro")}
+      </p>
+      <table style={{ marginTop: "6pt" }}>
+        <thead>
+          <tr>
+            <th style={{ width: "22%" }}>{t("print.sources.value")}</th>
+            <th>{t("print.sources.source")}</th>
+            <th style={{ width: "16%" }}>{t("print.sources.state")}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.path}>
+              <td>{label(row.path)}</td>
+              <td>
+                {t(SOURCE_KIND_KEYS[row.source.kind])}
+                {row.source.photo ? ` (${row.source.photo})` : ""}
+                {row.source.note ? `: ${row.source.note}` : ""}
+              </td>
+              <td>{state(row)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
   );
 }

@@ -15,7 +15,8 @@ describe("cutPlane", () => {
     expect(signedDistance(x, [2, 0, 0])).toBeGreaterThan(0);
     expect(signedDistance(x, [4, 0, 0])).toBeLessThan(0);
     const y = cutPlane("y", 3);
-    expect(signedDistance(y, [0, 0, 2])).toBeGreaterThan(0);
-    expect(signedDistance(y, [0, 0, 4])).toBeLessThan(0);
+    // Plan y is world -z: plan y = 2 is kept, plan y = 4 is cut away.
+    expect(signedDistance(y, [0, 0, -2])).toBeGreaterThan(0);
+    expect(signedDistance(y, [0, 0, -4])).toBeLessThan(0);
   });
 });

@@ -1,3 +1,4 @@
+import { sharedEdgeSet } from "./shared";
 import {
   AIR_CHANGE_RATE,
   AIR_HEAT_CAPACITY,
@@ -14,6 +15,7 @@ import { findConstruction } from "./constructions";
 import { openingsOn, validateOpening } from "./openings";
 import { distance, edges, pointInPolygon, pointOnSegment } from "./polygon";
 import type { Building, Radiator, Room, Storey } from "./types";
+import type { EnergySummary } from "./energy";
 
 /**
  * Heat load and equipment sizing, simplified after DIN EN 12831:
@@ -49,8 +51,11 @@ export function roomEnvelopeLoss(building: Building, storey: Storey, room: Room)
   const u = (id: string, fallback = 0) =>
     findConstruction(building.constructions, id)?.uValue ?? fallback;
   const wallU = u(building.wallConstructionId);
+  const shared = sharedEdgeSet(building);
   let loss = 0;
   for (const e of es) {
+    // A party wall against a heated neighbour loses no heat.
+    if (shared.has(e.index)) continue;
     // Spans of this room's polygon lying on the footprint edge.
     const spans: [number, number][] = [];
     const n = room.polygon.length;
@@ -175,3 +180,14 @@ export function validateRadiator(rad: Radiator, storey: Storey, wallLength: numb
 }
 
 export const DEFAULT_RADIATOR = { width: 1.0, height: 0.6, power: 1000 };
+
+/**
+ * Design heat load of the whole building in watts, DIN EN 12831 in its simplest form: the
+ * transmission and ventilation loss coefficients times the design temperature difference,
+ * 20 °C inside against the Berlin design outdoor temperature. Works without drawn rooms.
+ */
+export function buildingHeatLoad(
+  energy: Pick<EnergySummary, "transmissionLoss" | "ventilationLoss">,
+): number {
+  return (energy.transmissionLoss + energy.ventilationLoss) * (20 - DESIGN_OUTDOOR_TEMPERATURE);
+}

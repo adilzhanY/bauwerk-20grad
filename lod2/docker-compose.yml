@@ -1,0 +1,40 @@
+# Local data layer for the LoD2 challenge. Nothing here is production-shaped.
+# Port 55433 avoids clashing with any local Postgres. It is bound to 127.0.0.1 only, so the
+# well-known lod2/lod2 credentials are not reachable from the network.
+# The project name keeps the database volume of the former lod2-challenge repository, so the
+# Berlin buildings already loaded there are used again.
+name: lod2-challenge
+
+services:
+  postgis:
+    image: postgis/postgis:17-3.5
+    container_name: lod2-challenge-postgis
+    environment:
+      POSTGRES_USER: lod2
+      POSTGRES_PASSWORD: lod2
+      POSTGRES_DB: lod2
+    ports:
+      # LOD2_DB_PORT in the root .env moves it; change DATABASE_URL to match.
+      - '127.0.0.1:${LOD2_DB_PORT:-55433}:5432'
+    volumes:
+      - lod2-challenge-pgdata:/var/lib/postgresql/data
+    # `npm run db` waits on this (`up -d --wait`), so a cold first run cannot race the
+    # migration against a Postgres that has not finished initdb yet. start_period keeps the
+    # first-boot initdb from counting as failures.
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U lod2 -d lod2']
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    # LoD2 ingest is write-heavy and bulk; these are laptop-scale, not server tuning.
+    command: >
+      postgres
+      -c shared_buffers=512MB
+      -c work_mem=64MB
+      -c maintenance_work_mem=512MB
+      -c max_wal_size=4GB
+      -c checkpoint_timeout=15min
+
+volumes:
+  lod2-challenge-pgdata:

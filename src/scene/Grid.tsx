@@ -10,16 +10,15 @@ export function Grid() {
   return (
     <DreiGrid
       position={[0, 0.002, 0]}
-      args={[200, 200]}
+      args={[300, 300]}
       cellSize={GRID_SIZE}
-      cellThickness={0.6}
+      cellThickness={0.7}
       cellColor={scene.grid}
       sectionSize={5}
       sectionThickness={1}
       sectionColor={scene.gridStrong}
-      fadeDistance={80}
-      fadeStrength={1.5}
-      infiniteGrid
+      fadeDistance={170}
+      fadeStrength={1.2}
       followCamera={false}
     />
   );

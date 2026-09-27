@@ -9,7 +9,7 @@ import type { StoreyDisplay } from "./display";
 import { sameSelection, useEditorStore } from "@/store/building";
 import type { Selection } from "@/store/building";
 import { useHover } from "./hover";
-import { mergeAll, meshRaycast, noRaycast, prismGeometry } from "./three";
+import { mergeAll, meshRaycast, noRaycast, prismGeometry, worldToPlan } from "./three";
 import { useDisposableGeometry } from "./useDisposableGeometry";
 
 interface Props {
@@ -72,7 +72,7 @@ export function InteriorWall({
       // Between rooms a door is the common case, so the default flips: Shift makes a window.
       const kind = e.nativeEvent.shiftKey ? "window" : "door";
       const defaults = defaultOpening(kind);
-      const u = dot(sub({ x: e.point.x, y: e.point.z }, wall.outerA), wall.direction);
+      const u = dot(sub(worldToPlan(e.point), wall.outerA), wall.direction);
       const offset = snapOffset(u - defaults.width / 2, defaults.width, wall.length);
       const id = addOpening(storeyId, {
         ...defaults,

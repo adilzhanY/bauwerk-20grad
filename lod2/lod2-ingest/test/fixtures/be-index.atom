@@ -1,0 +1,23 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns:inspire_dls="http://inspire.ec.europa.eu/schemas/inspire_dls/1.0" xmlns:georss="http://www.georss.org/georss" xmlns="http://www.w3.org/2005/Atom" xml:lang="de">
+	<title>3D-Gebäudemodelle im Level of Detail 2 (LoD 2)</title>
+	<subtitle>Der Datensatz enthält flächendeckend die dreidimensionalen Gebäudemodelle des Landes Berlin im Level of Detail 2 (LoD2). Die Grundrisse der Gebäudemodelle entsprechen genau den Gebäudeumringen, wie sie im Liegenschaftskataster nachgewiesen sind. Die Dachform eines Gebäudemodells entspricht einer generalisierten Standarddachform.</subtitle>
+	<link href="https://gdi.berlin.de/data/a_lod2/atom/0.atom" rel="self" type="application/atom+xml"/>
+	<link href="https://gdi.berlin.de/data/a_lod2/atom" rel="up" type="application/atom+xml"/>
+	<link href="https://gdi.berlin.de/geonetwork/srv/ger/csw?REQUEST=GetRecordById&amp;SERVICE=CSW&amp;VERSION=2.0.2&amp;ID=8a7ea996-7955-4fbb-8980-7be09be6f193&amp;ELEMENTSETNAME=full" rel="describedby" type="text/html"/>
+	<id>https://gdi.berlin.de/data/a_lod2/atom/0.atom</id>
+	<rights>Für die Nutzung der Daten ist die Datenlizenz Deutschland - Zero - Version 2.0 anzuwenden. Die Lizenz ist über https://www.govdata.de/dl-de/zero-2-0 abrufbar.</rights>
+	<updated>2026-03-26T11:55:12Z</updated>
+	<author>
+		<name>Senatsverwaltung für Stadtentwicklung, Bauen und Wohnen Berlin</name>
+		<email>geoportal@senstadt.berlin.de</email>
+	</author>
+	<entry>
+		<title>3D-Gebäudemodelle im Level of Detail 2 (LoD 2) - Download-Service - EPSG25833 - gml, gezippt.</title>
+		<link href="https://gdi.berlin.de/data/a_lod2/atom/1X1_EPSG_25833.pdf" rel="alternate" title="Blattschnittübersicht 1x1 Km" type="pdf"/>
+		<link href="https://gdi.berlin.de/data/a_lod2/atom/LoD2_371_5809.zip" rel="section" title="LoD2_371_5809.zip" type="application/x-gmz"/>
+		<link href="https://gdi.berlin.de/data/a_lod2/atom/LoD2_389_5819.zip" rel="section" title="LoD2_389_5819.zip" type="application/x-gmz"/>
+		<link href="https://gdi.berlin.de/data/a_lod2/atom/LoD2_392_5820.zip" rel="section" title="LoD2_392_5820.zip" type="application/x-gmz"/>
+		<link href="https://gdi.berlin.de/data/a_lod2/atom/LoD2_415_5811.zip" rel="section" title="LoD2_415_5811.zip" type="application/x-gmz"/>
+	</entry>
+</feed>

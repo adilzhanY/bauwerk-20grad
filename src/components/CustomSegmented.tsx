@@ -64,7 +64,7 @@ export function CustomSegmented<V extends string>({
       role="radiogroup"
       aria-label={label}
       className={cx(
-        "flex gap-1 rounded-pill border border-line bg-panel p-1",
+        "flex gap-1 rounded-inner border border-line bg-paper p-1",
         vertical && "flex-col",
       )}
     >
@@ -85,16 +85,18 @@ export function CustomSegmented<V extends string>({
             }}
             onKeyDown={onKeyDown}
             className={cx(
-              "relative flex items-center justify-center gap-1.5 rounded-pill transition-colors",
+              "relative flex items-center justify-center gap-1.5 rounded-control transition-colors",
               // Flex items refuse to shrink below their text by default, so a fourth
               // option pushed the last pill out of the track. min-w-0 lets them share
               // the width, and dense groups drop to the smaller size.
               iconsOnly
                 ? o.hint
-                  ? "h-11 px-3 text-sm"
-                  : "h-11 w-11 text-sm"
-                : cx("h-9 min-w-0 flex-1", options.length > 3 ? "px-2 text-xs" : "px-3 text-sm"),
-              selected ? "bg-ink text-paper" : "text-muted hover:bg-panel-2 hover:text-ink",
+                  ? "h-9 px-3 text-sm"
+                  : "h-9 w-9 text-sm"
+                : cx("h-8 min-w-0 flex-1", options.length > 3 ? "px-2 text-xs" : "px-3 text-sm"),
+              selected
+                ? "bg-select font-semibold text-white"
+                : "text-muted hover:bg-panel hover:text-ink",
               disabled && "cursor-not-allowed opacity-50",
             )}
           >

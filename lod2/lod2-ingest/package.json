@@ -1,0 +1,33 @@
+{
+  "name": "lod2-ingest",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Crawls German state LoD2 open-data portals and loads buildings into PostGIS",
+  "type": "module",
+  "scripts": {
+    "lod2": "node src/cli.ts",
+    "migrate": "node src/cli.ts migrate",
+    "test": "node --test test/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint src test"
+  },
+  "dependencies": {
+    "lod2-core": "file:../lod2-core",
+    "pg": "^8.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "@types/pg": "^8.20.0",
+    "oxlint": "^1.75.0",
+    "typescript": "~5.9.3"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./load": "./src/load.ts",
+    "./db": "./src/db.ts",
+    "./adapters": "./src/adapters/index.ts"
+  },
+  "engines": {
+    "node": ">=22.18"
+  }
+}

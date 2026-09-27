@@ -1,16 +1,29 @@
 import { useEffect, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Vector3 } from "three";
+import { planToWorld, worldToPlan } from "./three";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
+import { planBearing } from "@/geometry/geo";
 import { bounds } from "@/geometry/polygon";
 import { useEditorStore } from "@/store/building";
 import { selectTotalHeight } from "@/store/selectors";
+import { useCameraHeading } from "./cameraHeading";
+import { viewPosition } from "./viewPosition";
 
 const STOREY_ANIMATION_MS = 300;
+const VIEW_ANIMATION_MS = 450;
 
 interface Tween {
   from: Vector3;
   to: Vector3;
+  start: number;
+}
+
+interface ViewTween {
+  fromPosition: Vector3;
+  toPosition: Vector3;
+  fromTarget: Vector3;
+  toTarget: Vector3;
   start: number;
 }
 
@@ -39,7 +52,10 @@ export function Camera() {
     }
     return null;
   });
+  const cameraView = useEditorStore((s) => s.cameraView);
+  const origin = useEditorStore((s) => s.building.origin);
   const tween = useRef<Tween | null>(null);
+  const viewTween = useRef<ViewTween | null>(null);
   const fittedBuildingId = useRef<string | null>(null);
   const fittedControls = useRef<OrbitControlsImpl | null>(null);
   const skipStoreyFocus = useRef(false);
@@ -52,13 +68,14 @@ export function Camera() {
     )
       return;
     const { min, max } = bounds(footprint);
-    const centre = new Vector3((min.x + max.x) / 2, height / 2, (min.y + max.y) / 2);
+    const centre = planToWorld({ x: (min.x + max.x) / 2, y: (min.y + max.y) / 2 }, height / 2);
     const size = Math.max(max.x - min.x, max.y - min.y, height, 4);
     const distance = size * 1.8;
     camera.position.set(
       centre.x + distance * 0.8,
       centre.y + distance * 0.7,
-      centre.z + distance * 0.8,
+      // The plan's north-east, as the 3D view in viewPosition.
+      centre.z - distance * 0.8,
     );
     controls.target.copy(centre);
     controls.update();
@@ -81,7 +98,45 @@ export function Camera() {
     tween.current = { from: controls.target.clone(), to, start: performance.now() };
   }, [controls, activeStoreyId, activeMidpoint, planView]);
 
+  useEffect(() => {
+    if (!controls || cameraView.nonce === 0) return;
+    const { min, max } = bounds(footprint);
+    const centre = planToWorld({ x: (min.x + max.x) / 2, y: (min.y + max.y) / 2 }, height / 2);
+    const size = Math.max(max.x - min.x, max.y - min.y, height, 4);
+    tween.current = null;
+    viewTween.current = {
+      fromPosition: camera.position.clone(),
+      toPosition: viewPosition(cameraView.view, centre, size * 1.8, origin),
+      fromTarget: controls.target.clone(),
+      toTarget: centre,
+      start: performance.now(),
+    };
+    // Only a new choice moves the camera, not an edit to the building while a view is shown.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cameraView.nonce, controls]);
+
+  const look = useRef(new Vector3());
   useFrame(() => {
+    // The heading for the minimap, published only when it changes by a degree or more.
+    camera.getWorldDirection(look.current);
+    if (Math.hypot(look.current.x, look.current.z) > 1e-3) {
+      const bearing = planBearing(origin, worldToPlan(look.current));
+      const current = useCameraHeading.getState().bearing;
+      const delta = Math.abs(((bearing - current + 540) % 360) - 180);
+      if (delta >= 1) useCameraHeading.setState({ bearing });
+    }
+
+    const v = viewTween.current;
+    if (v && controls) {
+      const k = Math.min(1, (performance.now() - v.start) / VIEW_ANIMATION_MS);
+      const eased = 1 - Math.pow(1 - k, 3);
+      camera.position.lerpVectors(v.fromPosition, v.toPosition, eased);
+      controls.target.lerpVectors(v.fromTarget, v.toTarget, eased);
+      controls.update();
+      if (k >= 1) viewTween.current = null;
+      return;
+    }
+
     const t = tween.current;
     if (!t || !controls) return;
     const k = Math.min(1, (performance.now() - t.start) / STOREY_ANIMATION_MS);

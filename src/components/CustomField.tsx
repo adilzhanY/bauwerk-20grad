@@ -48,8 +48,10 @@ export function CustomSection({ title, action, children, first = false }: Sectio
     <section
       className={cx("flex flex-col gap-3.5 px-4 pt-4 pb-5", !first && "border-t border-line")}
     >
-      <header className="flex h-9 items-center justify-between">
-        <h2 className="font-display text-xs font-semibold  text-muted">{title}</h2>
+      <header className="flex h-7 items-center justify-between">
+        <h2 className="font-num text-[11px] font-medium tracking-[0.12em] text-faint uppercase">
+          {title}
+        </h2>
         {action}
       </header>
       {children}
@@ -60,8 +62,8 @@ export function CustomSection({ title, action, children, first = false }: Sectio
 /** Label on the left, mono value on the right. */
 export function CustomReadOnly({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-baseline justify-between gap-3">
-      <span className="text-xs text-muted">{label}</span>
+    <div className="flex items-baseline justify-between gap-3 border-b border-line pb-3.5 last:border-b-0 last:pb-0">
+      <span className="text-sm text-muted">{label}</span>
       <span className="text-right font-num text-sm text-ink">{value}</span>
     </div>
   );

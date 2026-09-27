@@ -12,3 +12,16 @@ coverage
 docs/shots/*.png
 !docs/shots/hero.png
 docs/shots/.fonts/
+
+# LoD2 part (lod2/)
+.env
+.env.*
+!.env.example
+lod2/**/node_modules/
+lod2/**/dist/
+lod2/**/.cache/
+lod2/**/.scratch/
+lod2/**/*.tsbuildinfo
+lod2/lod2-vision/.venv
+lod2/lod2-vision/.sam3/
+__pycache__/

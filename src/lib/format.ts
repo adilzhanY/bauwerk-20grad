@@ -5,6 +5,8 @@ const locale = (language: Language) => (language === "de" ? "de-DE" : "en-GB");
 export interface FormatNumberOptions {
   /** Group thousands ("1.800" in German, "1,800" in English). Off for editable inputs. */
   useGrouping?: boolean;
+  /** Always show `digits` decimals ("3,50" rather than "3,5"), for columns and measurements. */
+  fixed?: boolean;
 }
 
 export function formatNumber(
@@ -14,7 +16,7 @@ export function formatNumber(
   options: FormatNumberOptions = {},
 ): string {
   return new Intl.NumberFormat(locale(language), {
-    minimumFractionDigits: 0,
+    minimumFractionDigits: options.fixed ? digits : 0,
     maximumFractionDigits: digits,
     useGrouping: options.useGrouping ?? true,
   }).format(value);

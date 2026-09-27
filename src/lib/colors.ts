@@ -4,19 +4,24 @@
  * the model's own materials (plaster, timber, glass) do not change with the theme.
  */
 export const colors = {
-  wall: "#d9d4c7",
-  wallHover: "#ebe7dc",
-  floor: "#b8b2a4",
-  window: "#8ecae6",
+  // The 20° look: a mid grey model with dark storey bands and a red roof on a blue-grey ground.
+  wall: "#e2e4e6",
+  wallHover: "#eceef0",
+  /** A party wall against a heated neighbour: darker, so it reads as not part of the facade. */
+  wallShared: "#a9adb1",
+  floor: "#bcc1c5",
+  /** The thin line at every floor on the facade. */
+  storeyLine: "#7d8286",
+  window: "#c7d3dd",
   door: "#a67c52",
-  interiorWall: "#cfc9bb",
+  interiorWall: "#d6d6d3",
   /** Selection blue. Read live from the theme where possible; this is the light default. */
-  accent: "#234d8f",
+  accent: "#1aa0ec",
   /** Mark red for warnings and invalid elements. */
-  warning: "#c2431f",
-  fg: "#1b1d20",
-  muted: "#5b6068",
-  bg: "#e9e9e3",
+  warning: "#e23b3b",
+  fg: "#141414",
+  muted: "#6b6b6b",
+  bg: "#ffffff",
 } as const;
 
 /** Reads a CSS token from the root element. Falls back to the light default. */

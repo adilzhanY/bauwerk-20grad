@@ -4,14 +4,17 @@ import { formatMetres } from "@/lib/format";
 import { useEditorStore } from "@/store/building";
 import { selectActiveStorey, storeyElevation } from "@/store/selectors";
 
-/** Length labels on exterior and interior walls, shown while the footprint or wall tool is active. */
+/**
+ * Length labels on exterior and interior walls in the 3D view, shown while the footprint or
+ * wall tool is active. The floor plan view draws full dimension lines instead (PlanDrawing).
+ */
 export function Dimensions() {
   const tool = useEditorStore((s) => s.tool);
   const planView = useEditorStore((s) => s.planView);
   const language = useEditorStore((s) => s.language);
   const building = useEditorStore((s) => s.building);
   const storey = useEditorStore(selectActiveStorey);
-  if (tool !== "footprint" && tool !== "interiorWall" && !planView) return null;
+  if (planView || (tool !== "footprint" && tool !== "interiorWall")) return null;
   const elevation = storey ? storeyElevation(building, storey.id) : 0;
   const y = elevation + 0.1;
   const label = (key: string, x: number, z: number, text: string) => (

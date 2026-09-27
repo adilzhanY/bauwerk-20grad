@@ -12,6 +12,8 @@ export function Compass() {
   const footprint = useEditorStore((s) => s.building.footprint);
   const origin = useEditorStore((s) => s.building.origin);
   const language = useEditorStore((s) => s.language);
+  // The arrow and the chip would lie across the floor plan's dimensions; the minimap shows north.
+  const planView = useEditorStore((s) => s.planView);
   const scene = useSceneColors();
   // The chip reads the building centre, so it follows the building when it is moved.
   const centre = origin ? planToLatLon(centroid(footprint), origin) : { lat: 0, lon: 0 };
@@ -21,6 +23,7 @@ export function Compass() {
   const base: [number, number] = [max.x + 2, min.y - 1];
   const tip: [number, number] = [base[0] + north.x * 2, base[1] + north.y * 2];
   const color = origin ? scene.select : scene.muted;
+  if (planView) return null;
   return (
     <group>
       <Line

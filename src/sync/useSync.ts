@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
+import type { Building } from "@/geometry/types";
 import { useEditorStore } from "@/store/building";
+import type { HistoryPreview } from "@/store/building";
 import { SyncClient, randomActor, syncConfigFromEnv } from "./client";
-import type { SyncStatus } from "./client";
+import type { Rejection, SyncStatus } from "./client";
 
 export interface ProjectSummary {
   id: string;
@@ -12,12 +14,16 @@ export interface ProjectSummary {
 
 const ACTOR_KEY = "bauwerk.actor";
 
+/**
+ * Who this tab is. Kept per tab (sessionStorage), so two tabs side by side are two people,
+ * and a reload keeps the name.
+ */
 function actorIdentity(): { actor: string; color: string } {
   try {
-    const saved = localStorage.getItem(ACTOR_KEY);
+    const saved = sessionStorage.getItem(ACTOR_KEY);
     if (saved) return JSON.parse(saved) as { actor: string; color: string };
     const fresh = randomActor();
-    localStorage.setItem(ACTOR_KEY, JSON.stringify(fresh));
+    sessionStorage.setItem(ACTOR_KEY, JSON.stringify(fresh));
     return fresh;
   } catch {
     return randomActor();
@@ -36,6 +42,64 @@ export function setProjectInUrl(id: string | null) {
 }
 
 export const syncEnabled = syncConfigFromEnv() !== null;
+
+/** The client of the project open in this tab, for the history panel. */
+let active: SyncClient | null = null;
+
+export interface VersionEntry {
+  version: number;
+  actor: string;
+  createdAt: string;
+  kind: "create" | "ops";
+  changes: number;
+}
+
+function projectUrl(path = ""): string | null {
+  const cfg = syncConfigFromEnv();
+  const id = useEditorStore.getState().projectId;
+  return cfg && id ? `${cfg.apiUrl}/projects/${id}${path}` : null;
+}
+
+/** Every version of the open project, newest first. Empty when none is open. */
+export async function fetchVersions(): Promise<VersionEntry[]> {
+  const url = projectUrl("/versions");
+  if (!url) return [];
+  const res = await fetch(url);
+  return res.ok ? ((await res.json()) as VersionEntry[]) : [];
+}
+
+/** The open project's building as it was at `version`, or null when it cannot be rebuilt. */
+export async function fetchVersion(version: number): Promise<Building | null> {
+  const url = projectUrl(`/versions/${version}`);
+  if (!url) return null;
+  const res = await fetch(url);
+  return res.ok ? ((await res.json()) as { building: Building }).building : null;
+}
+
+/** The old version on screen, kept for "restore". */
+let previewed: Building | null = null;
+
+/** Shows an old version read only. */
+export function showVersion(building: Building, meta: HistoryPreview): void {
+  if (!active) return;
+  previewed = building;
+  active.preview(building);
+  useEditorStore.getState().setHistoryPreview(meta);
+}
+
+/** Back to the live building. */
+export function endVersionPreview(): void {
+  previewed = null;
+  active?.preview(null);
+  useEditorStore.getState().setHistoryPreview(null);
+}
+
+/** Makes the version on screen the newest one: one ordinary edit, which undo takes back. */
+export function restoreVersion(): void {
+  const building = previewed;
+  endVersionPreview();
+  if (building) useEditorStore.getState().loadBuilding(building);
+}
 
 export async function listProjects(): Promise<ProjectSummary[]> {
   const cfg = syncConfigFromEnv();
@@ -62,8 +126,15 @@ export async function createProject(): Promise<string | null> {
  * Connects the store to the project named in the URL. Without VITE_API_URL this
  * hook does nothing and the app stays a local, localStorage-backed editor.
  */
-export function useSync(): { status: SyncStatus | "local"; actor: string; color: string } {
+export function useSync(): {
+  status: SyncStatus | "local";
+  actor: string;
+  color: string;
+  rejection: Rejection | null;
+  dismissRejection: () => void;
+} {
   const [status, setStatus] = useState<SyncStatus | "local">(syncEnabled ? "connecting" : "local");
+  const [rejection, setRejection] = useState<Rejection | null>(null);
   const [identity] = useState(actorIdentity);
   const [urlProject, setUrlProject] = useState(projectIdFromUrl);
 
@@ -83,17 +154,27 @@ export function useSync(): { status: SyncStatus | "local"; actor: string; color:
     const cfg = syncConfigFromEnv();
     if (!cfg || !urlProject) return;
     const client = new SyncClient(useEditorStore, { ...cfg, projectId: urlProject, ...identity });
-    const off = client.onStatus(setStatus);
-    client.start().catch(() => {
-      setStatus("error");
-    });
+    const offStatus = client.onStatus(setStatus);
+    const offReject = client.onReject(setRejection);
+    active = client;
+    client.start();
     return () => {
-      off();
+      offStatus();
+      offReject();
+      if (active === client) active = null;
+      useEditorStore.getState().setHistoryPreview(null);
       client.stop();
     };
   }, [urlProject, identity]);
 
-  return { status, ...identity };
+  return {
+    status,
+    ...identity,
+    rejection,
+    dismissRejection: () => {
+      setRejection(null);
+    },
+  };
 }
 
 /** Switches the URL and lets useSync reconnect. */

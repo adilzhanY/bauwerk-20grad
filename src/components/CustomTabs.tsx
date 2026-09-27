@@ -5,6 +5,8 @@ export interface TabItem<V extends string> {
   value: V;
   label: string;
   icon?: ReactNode;
+  /** Shows the icon only; the label becomes the accessible name and the tooltip. */
+  iconOnly?: boolean;
 }
 
 interface Props<V extends string> {
@@ -51,6 +53,8 @@ export function CustomTabs<V extends string>({ id, label, value, tabs, onChange 
             role="tab"
             id={`${id}-tab-${t.value}`}
             aria-selected={selected}
+            aria-label={t.iconOnly ? t.label : undefined}
+            title={t.iconOnly ? t.label : undefined}
             aria-controls={`${id}-panel-${t.value}`}
             tabIndex={selected || (selectedIndex < 0 && tabs[0] === t) ? 0 : -1}
             onClick={() => {
@@ -58,12 +62,12 @@ export function CustomTabs<V extends string>({ id, label, value, tabs, onChange 
             }}
             onKeyDown={onKeyDown}
             className={cx(
-              "-mb-px flex h-9 items-center gap-1.5 border-b-2 px-3 font-display text-xs font-semibold  transition-colors",
-              selected ? "border-ink text-ink" : "border-transparent text-muted hover:text-ink",
+              "-mb-px flex h-11 items-center gap-1.5 border-b-2 px-2.5 text-sm font-medium transition-colors",
+              selected ? "border-select text-ink" : "border-transparent text-muted hover:text-ink",
             )}
           >
             {t.icon}
-            {t.label}
+            {!t.iconOnly && t.label}
           </button>
         );
       })}

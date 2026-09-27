@@ -11,7 +11,7 @@ import type { StoreyDisplay } from "./display";
 import { sameSelection, useEditorStore } from "@/store/building";
 import type { Selection } from "@/store/building";
 import { useHover } from "./hover";
-import { mergeAll, meshRaycast, noRaycast, prismGeometry } from "./three";
+import { mergeAll, meshRaycast, noRaycast, prismGeometry, worldToPlan } from "./three";
 import { placeRadiatorFromWallClick } from "./tools/placeRadiator";
 import { useDisposableGeometry } from "./useDisposableGeometry";
 
@@ -47,6 +47,7 @@ export function Wall({
   const tool = useEditorStore((s) => s.tool);
   const addOpening = useEditorStore((s) => s.addOpening);
   const hover = useHover(target, active);
+  const shared = useEditorStore((s) => (s.building.sharedEdges ?? []).includes(wall.index));
 
   // Memoised by a hash of the inputs: the wall quad, height and the openings on it.
   const hash = JSON.stringify([wall.quad, wall.height, openings]);
@@ -79,7 +80,7 @@ export function Wall({
       e.stopPropagation();
       const kind = e.nativeEvent.shiftKey ? "door" : "window";
       const defaults = defaultOpening(kind);
-      const u = dot(sub({ x: e.point.x, y: e.point.z }, wall.outerA), wall.direction);
+      const u = dot(sub(worldToPlan(e.point), wall.outerA), wall.direction);
       const offset = snapOffset(u - defaults.width / 2, defaults.width, wall.length);
       const id = addOpening(storeyId, { ...defaults, wallIndex: wall.index, offset });
       select({ kind: "opening", storeyId, id });
@@ -87,7 +88,7 @@ export function Wall({
     }
     if (tool === "hvac") {
       e.stopPropagation();
-      placeRadiatorFromWallClick({ x: e.point.x, y: e.point.z }, wall.index);
+      placeRadiatorFromWallClick(worldToPlan(e.point), wall.index);
       return;
     }
     if (tool === "select") {
@@ -98,7 +99,7 @@ export function Wall({
 
   const color = selected
     ? colors.accent
-    : (remoteColor ?? (hovered ? colors.wallHover : colors.wall));
+    : (remoteColor ?? (hovered ? colors.wallHover : shared ? colors.wallShared : colors.wall));
 
   if (display === "outline") return <Outline geometry={geometry} position={[0, elevation, 0]} />;
   return (

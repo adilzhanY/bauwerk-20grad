@@ -1,0 +1,169 @@
+/**
+ * `npm run dev`: everything the app needs, in one terminal.
+ *
+ *   1. the LoD2 database (PostGIS in Docker), waited for, then its migrations
+ *   2. the LoD2 API
+ *   3. the collaboration server (NestJS), on its own database in the same Postgres
+ *   4. the vision service (SAM 3), only when its Python environment exists
+ *   5. the app
+ *
+ * Every line is prefixed with the name of the process that wrote it. Ctrl+C stops them all.
+ *
+ * `npm run dev -- --host` also serves the app on this computer's network address, so a
+ * second machine on the same Wi-Fi can open it and join a shared project. Only the app
+ * listens on the network: the API, the vision service and the collaboration server stay on
+ * this computer and are reached through the app's proxy.
+ * No dependency: plain child processes.
+ */
+import { spawn, spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+const envFile = join(root, ".env");
+if (existsSync(envFile)) process.loadEnvFile(envFile);
+
+const COLORS = { db: 90, api: 34, collab: 36, vision: 35, app: 32 };
+const children = [];
+let stopping = false;
+
+function label(name) {
+  return `\x1b[${COLORS[name] ?? 37}m${name.padEnd(6)}\x1b[0m`;
+}
+
+/** Print a child's output line by line with its name in front. */
+function pipe(name, stream, out) {
+  let rest = "";
+  stream.on("data", (chunk) => {
+    const lines = (rest + chunk.toString()).split("\n");
+    rest = lines.pop() ?? "";
+    for (const line of lines) out.write(`${label(name)} ${line}\n`);
+  });
+  stream.on("end", () => {
+    if (rest) out.write(`${label(name)} ${rest}\n`);
+  });
+}
+
+function start(name, command, args, env = {}) {
+  const child = spawn(command, args, {
+    cwd: root,
+    env: { ...process.env, ...env },
+    stdio: ["ignore", "pipe", "pipe"],
+    detached: true,
+  });
+  pipe(name, child.stdout, process.stdout);
+  pipe(name, child.stderr, process.stderr);
+  child.on("exit", (code, signal) => {
+    if (stopping) return;
+    console.log(
+      `${label(name)} stopped (${signal ?? `exit code ${code}`}). The others keep running; Ctrl+C stops all.`,
+    );
+  });
+  children.push(child);
+  return child;
+}
+
+/** Run a short command to its end, with its output prefixed. False when it failed. */
+function runOnce(name, command, args) {
+  const result = spawnSync(command, args, { cwd: root, env: process.env, encoding: "utf8" });
+  for (const line of `${result.stdout ?? ""}${result.stderr ?? ""}`.split("\n")) {
+    if (line.trim()) console.log(`${label(name)} ${line}`);
+  }
+  return result.status === 0;
+}
+
+function stopAll() {
+  if (stopping) return;
+  stopping = true;
+  for (const child of children) {
+    // Each child leads its own process group, so npm's own children stop with it.
+    try {
+      process.kill(-child.pid, "SIGTERM");
+    } catch {
+      // Already gone.
+    }
+  }
+  setTimeout(() => process.exit(0), 1500).unref();
+}
+process.on("SIGINT", stopAll);
+process.on("SIGTERM", stopAll);
+
+// 1. Database, then migrations. Without Docker the app still runs; the map stays empty.
+const compose = [
+  "compose",
+  "-f",
+  "lod2/docker-compose.yml",
+  ...(existsSync(envFile) ? ["--env-file", ".env"] : []),
+  "up",
+  "-d",
+  "--wait",
+];
+const dbUp = runOnce("db", "docker", compose);
+if (dbUp) {
+  runOnce("db", "npm", [
+    "--prefix",
+    "lod2/lod2-ingest",
+    "run",
+    "--silent",
+    "lod2",
+    "--",
+    "migrate",
+  ]);
+} else {
+  console.log(
+    `${label("db")} Could not start the database. Is Docker running? The map will stay empty.`,
+  );
+}
+
+// 2. API.
+start("api", "npm", ["--prefix", "lod2/lod2-api", "run", "dev"]);
+
+// 3. Collaboration server. It keeps its projects in a database of its own, `bauwerk`, in the
+// same Postgres, created here on the first run. The app reaches it through the /collab proxy.
+if (dbUp) {
+  const exists = `psql -U lod2 -d lod2 -tAc "SELECT 1 FROM pg_database WHERE datname = 'bauwerk'" | grep -q 1`;
+  runOnce("db", "docker", [
+    "exec",
+    "lod2-challenge-postgis",
+    "sh",
+    "-c",
+    `${exists} || createdb -U lod2 bauwerk`,
+  ]);
+  start("collab", "npm", ["--prefix", "server", "run", "dev"], {
+    DATABASE_URL:
+      process.env.BAUWERK_DATABASE_URL ??
+      `postgres://lod2:lod2@127.0.0.1:${process.env.LOD2_DB_PORT ?? "55433"}/bauwerk`,
+    PORT: process.env.BAUWERK_SERVER_PORT ?? "8789",
+  });
+} else {
+  console.log(`${label("collab")} Skipped without the database. Editing stays local.`);
+}
+
+// 4. Vision service, when it is installed.
+const configuredPython = process.env.LOD2_VISION_PYTHON;
+const visionPython = configuredPython
+  ? resolve(root, configuredPython)
+  : join(
+      root,
+      "lod2",
+      "lod2-vision",
+      ".venv",
+      process.platform === "win32" ? "Scripts/python.exe" : "bin/python",
+    );
+if (existsSync(visionPython)) {
+  start("vision", "node", ["lod2/scripts/vision.mjs"]);
+} else {
+  console.log(
+    `${label("vision")} Not installed, skipped. Automatic window detection stays off (lod2/docs/LOD2.md, steps 6 to 8).`,
+  );
+}
+
+// 5. The app.
+const lan = process.argv.includes("--host");
+if (lan) {
+  console.log(
+    `${label("app")} Open the Network address below on the other machine, then open the same project there.`,
+  );
+}
+start("app", "npx", ["vite", ...(lan ? ["--host"] : [])]);

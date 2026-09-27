@@ -141,3 +141,37 @@ export function northInPlan(origin: GeoOrigin | undefined): Vec2 {
   const r = rad(origin?.rotation ?? 0);
   return { x: -Math.sin(r), y: Math.cos(r) };
 }
+
+/** Unit vector in plan coordinates for a compass bearing, degrees clockwise from north. */
+export function bearingInPlan(origin: GeoOrigin | undefined, bearing: number): Vec2 {
+  const r = rad((origin?.rotation ?? 0) - bearing);
+  return { x: -Math.sin(r), y: Math.cos(r) };
+}
+
+/** Compass bearing of a plan direction, degrees clockwise from north in [0, 360). */
+export function planBearing(origin: GeoOrigin | undefined, direction: Vec2): number {
+  const planAngle = (Math.atan2(direction.y, direction.x) * 180) / Math.PI;
+  const bearing = 90 + (origin?.rotation ?? 0) - planAngle;
+  return ((bearing % 360) + 360) % 360;
+}
+
+/**
+ * A plan point in map axes: metres east and metres north of the plan origin, for drawing the
+ * plan the way a map shows it, north up.
+ */
+export function toEastNorth(
+  origin: GeoOrigin | undefined,
+  p: Vec2,
+): { east: number; north: number } {
+  const e = bearingInPlan(origin, 90);
+  const n = bearingInPlan(origin, 0);
+  return { east: p.x * e.x + p.y * e.y, north: p.x * n.x + p.y * n.y };
+}
+
+const COMPASS_POINTS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"] as const;
+
+/** The nearest of the eight compass points for a bearing, in English letters. */
+export function compassPoint(bearing: number): (typeof COMPASS_POINTS)[number] {
+  const index = Math.round((((bearing % 360) + 360) % 360) / 45) % 8;
+  return COMPASS_POINTS[index] ?? "N";
+}

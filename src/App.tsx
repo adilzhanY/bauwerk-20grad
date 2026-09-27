@@ -1,19 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
-import { Viewport } from "@/scene/Viewport";
-import { useEditorStore } from "@/store/building";
-import { hasWebGL } from "@/lib/webgl";
-import { installCursors } from "@/lib/cursors";
-import { useSync } from "@/sync/useSync";
-import { BottomBar } from "@/ui/BottomBar";
-import { LeftPanel } from "@/ui/LeftPanel";
-import { PrintView } from "@/ui/PrintView";
-import { BenchPage } from "@/ui/BenchPage";
-import type { RenderSample } from "@/scene/FrameProbe";
-import { RightPanel } from "@/ui/RightPanel";
-import { EmptyState, TooNarrow, WebGLMissing } from "@/ui/States";
-import { ToolRail } from "@/ui/ToolRail";
-import { useKeyboardShortcuts } from "@/ui/useKeyboardShortcuts";
+import { useEffect, useState } from "react";
+import { Shell } from "@/app/Shell";
+import { useRouter } from "@/app/router";
 import { useT } from "@/i18n/useT";
+import type { LinkNotice } from "@/lib/linkImport";
+import { BuildingPage } from "@/pages/building/BuildingPage";
+import { EditorPage } from "@/pages/EditorPage";
+import { StartPage } from "@/pages/StartPage";
+import type { RenderSample } from "@/scene/FrameProbe";
+import { useEditorStore } from "@/store/building";
+import { BenchPage } from "@/ui/BenchPage";
+import { PrintView } from "@/ui/PrintView";
+import { TooNarrow } from "@/ui/States";
 
 const MIN_WIDTH = 1440;
 
@@ -31,16 +28,15 @@ function useWindowWidth(): number {
   return width;
 }
 
-export function App() {
-  useKeyboardShortcuts();
-  const sync = useSync();
+/**
+ * The app: the shell with its navigation rail around one of three pages, start (search and
+ * map), building and editor. The printable report and the bench page stay full screen.
+ */
+export function App({ linkNotice = null }: { linkNotice?: LinkNotice | null } = {}) {
   const width = useWindowWidth();
-  const webgl = useMemo(() => hasWebGL(), []);
-  const hasStoreys = useEditorStore((s) => s.building.storeys.length > 0);
+  const route = useRouter((s) => s.route);
   const language = useEditorStore((s) => s.language);
   const buildingName = useEditorStore((s) => s.building.name);
-  const tool = useEditorStore((s) => s.tool);
-  const mapVisible = useEditorStore((s) => s.showMap && s.building.origin !== undefined);
   const t = useT();
   const [sample, setSample] = useState<RenderSample | null>(null);
 
@@ -49,12 +45,9 @@ export function App() {
   }, [language]);
 
   useEffect(() => {
-    document.title = `${buildingName} · ${t("app.title")}`;
-  }, [buildingName, t]);
-
-  useEffect(() => {
-    installCursors();
-  }, []);
+    document.title =
+      route.page === "editor" ? `${buildingName} · ${t("app.title")}` : t("app.title");
+  }, [buildingName, route.page, t]);
 
   if (new URLSearchParams(window.location.search).get("print") === "1") return <PrintView />;
   if (new URLSearchParams(window.location.search).get("bench") === "1")
@@ -62,30 +55,10 @@ export function App() {
   if (width < MIN_WIDTH) return <TooNarrow />;
 
   return (
-    <div className="relative h-full overflow-hidden bg-paper" data-tool={tool}>
-      <main aria-label={t("a11y.scene")} className="absolute inset-0">
-        {!hasStoreys ? <EmptyState /> : webgl ? <Viewport /> : <WebGLMissing />}
-      </main>
-      <div className="pointer-events-none absolute inset-0 grid grid-cols-[380px_1fr_440px] grid-rows-[1fr_auto] gap-4 p-4">
-        <LeftPanel syncStatus={sync.status} />
-        <div className="flex flex-col items-center justify-end pb-1">
-          <ToolRail />
-        </div>
-        <RightPanel />
-        {mapVisible && hasStoreys && (
-          <a
-            href="https://www.openstreetmap.org/copyright"
-            target="_blank"
-            rel="noreferrer"
-            className="pointer-events-auto absolute right-[460px] bottom-16 rounded-soft bg-paper/85 px-2 py-0.5 text-xs text-muted hover:text-ink"
-          >
-            {t("map.attribution")}
-          </a>
-        )}
-        <div className="col-span-3 flex justify-center">
-          <BottomBar actor={sync.status === "local" ? null : sync} />
-        </div>
-      </div>
-    </div>
+    <Shell>
+      {route.page === "start" && <StartPage />}
+      {route.page === "building" && <BuildingPage key={route.gid} gid={route.gid} />}
+      {route.page === "editor" && <EditorPage linkNotice={linkNotice} />}
+    </Shell>
   );
 }

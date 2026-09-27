@@ -1,0 +1,31 @@
+{
+  "name": "lod2-api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Serves Berlin LoD2 vector tiles, building detail, orthophoto crops and on-demand tile ingestion",
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch src/server.ts",
+    "start": "node src/server.ts",
+    "test": "node --test test/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint src"
+  },
+  "dependencies": {
+    "@fastify/compress": "^9.2.0",
+    "@fastify/cors": "^11.1.0",
+    "fastify": "^5.6.1",
+    "lod2-core": "file:../lod2-core",
+    "lod2-ingest": "file:../lod2-ingest",
+    "pg": "^8.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "@types/pg": "^8.20.0",
+    "oxlint": "^1.75.0",
+    "typescript": "~5.9.3"
+  },
+  "engines": {
+    "node": ">=22.18"
+  }
+}

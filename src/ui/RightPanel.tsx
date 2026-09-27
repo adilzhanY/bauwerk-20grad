@@ -1,5 +1,5 @@
 import { useId, useMemo, useState } from "react";
-import { Trash2 } from "lucide-react";
+import { Camera, Trash2 } from "lucide-react";
 import { openingsOn, validateOpening } from "@/geometry/openings";
 import type { OpeningError } from "@/geometry/openings";
 import { area, distance, edges } from "@/geometry/polygon";
@@ -11,6 +11,7 @@ import { formatArea, formatMetres, formatNumber } from "@/lib/format";
 import { useEditorStore } from "@/store/building";
 import type { Selection } from "@/store/building";
 import { CustomButton } from "@/components/CustomButton";
+import { CustomSlider } from "@/components/CustomSlider";
 import { CustomCheckbox } from "@/components/CustomCheckbox";
 import { CustomReadOnly, CustomSection } from "@/components/CustomField";
 import { CustomNumberInput } from "@/components/CustomNumberInput";
@@ -18,11 +19,14 @@ import { CustomSegmented } from "@/components/CustomSegmented";
 import { CustomSelect } from "@/components/CustomSelect";
 import { CustomSwatches } from "@/components/CustomSwatches";
 import { CustomTabPanel, CustomTabs } from "@/components/CustomTabs";
+import { HistoryPanel } from "./HistoryPanel";
 import { CustomTextInput } from "@/components/CustomTextInput";
 import { ConstructionSelect, EnergyPanel } from "./EnergyPanel";
 import { ScenariosPanel } from "./ScenariosPanel";
+import { SourceNote } from "./SourceNote";
 import { effectiveWallThickness } from "@/geometry/layers";
 import { buildRoof, roofOf } from "@/geometry/roof";
+import { selectTotalFloorArea, selectTotalHeight } from "@/store/selectors";
 import {
   roomHeatLoads,
   suggestHeatPumpPower,
@@ -42,7 +46,7 @@ const openingErrorKey: Record<OpeningError, MessageKey> = {
   nonFinite: "opening.error.nonFinite",
 };
 
-type Tab = "properties" | "energy" | "scenarios";
+type Tab = "properties" | "energy" | "scenarios" | "history";
 
 export function RightPanel() {
   const t = useT();
@@ -58,8 +62,9 @@ export function RightPanel() {
   return (
     <aside
       aria-label={t("a11y.rightPanel")}
-      className="pointer-events-auto flex h-full min-h-0 flex-col overflow-hidden rounded-card border border-line bg-panel shadow-float"
+      className="pointer-events-auto flex h-full min-h-0 flex-col overflow-hidden border-l border-line bg-paper"
     >
+      <PanelHeader />
       <CustomTabs
         id={tabsId}
         label={t("panel.properties")}
@@ -68,15 +73,20 @@ export function RightPanel() {
           { value: "properties", label: t("tabs.properties") },
           { value: "energy", label: t("tabs.energy") },
           { value: "scenarios", label: t("tabs.scenarios") },
+          { value: "history", label: t("tabs.history") },
         ]}
         onChange={setTab}
       />
       <div className="min-h-0 flex-1 overflow-y-auto">
         {tab === "properties" ? (
           <CustomTabPanel id={tabsId} value="properties">
-            <CustomSection title={t("panel.properties")} first>
-              {selection ? <Properties selection={selection} /> : <BuildingCard />}
-            </CustomSection>
+            {selection ? (
+              <CustomSection title={t("panel.properties")} first>
+                <Properties selection={selection} />
+              </CustomSection>
+            ) : (
+              <BuildingCard />
+            )}
           </CustomTabPanel>
         ) : tab === "energy" ? (
           <CustomTabPanel id={tabsId} value="energy">
@@ -84,10 +94,16 @@ export function RightPanel() {
               <EnergyPanel />
             </CustomSection>
           </CustomTabPanel>
-        ) : (
+        ) : tab === "scenarios" ? (
           <CustomTabPanel id={tabsId} value="scenarios">
             <CustomSection title={t("scenarios.title")} first>
               <ScenariosPanel />
+            </CustomSection>
+          </CustomTabPanel>
+        ) : (
+          <CustomTabPanel id={tabsId} value="history">
+            <CustomSection title={t("history.title")} first>
+              <HistoryPanel />
             </CustomSection>
           </CustomTabPanel>
         )}
@@ -96,57 +112,112 @@ export function RightPanel() {
   );
 }
 
-/** Nothing selected: the building itself, with width and depth editable while it is a box. */
+/** The building name, and its storeys and floor area in grey below it, as the 20° app heads its panel. */
+function PanelHeader() {
+  const t = useT();
+  const name = useEditorStore((s) => s.building.name);
+  const storeys = useEditorStore((s) => s.building.storeys.length);
+  const floorArea = useEditorStore(selectTotalFloorArea);
+  const language = useEditorStore((s) => s.language);
+  return (
+    <header className="border-b border-line px-5 pt-4 pb-3.5">
+      <h2 className="truncate text-lg font-semibold text-ink">{name}</h2>
+      <p className="mt-0.5 truncate text-sm text-faint">
+        {floorArea > 0
+          ? t("panel.subtitle", { storeys, area: formatArea(floorArea, language) })
+          : t("panel.subtitleStoreys", { storeys })}
+      </p>
+    </header>
+  );
+}
+
+/**
+ * Nothing selected: the building itself in the 20° sections, building, dimensions and
+ * location, with width and depth editable while the footprint is a box.
+ */
 function BuildingCard() {
   const t = useT();
   const language = useEditorStore((s) => s.language);
   const building = useEditorStore((s) => s.building);
   const renameBuilding = useEditorStore((s) => s.renameBuilding);
   const resizeFootprint = useEditorStore((s) => s.resizeFootprint);
+  const eave = useEditorStore(selectTotalHeight);
+  const floorArea = useEditorStore(selectTotalFloorArea);
   const batch = useBatch();
   const box = rectangleOf(building.footprint);
   const m = t("common.metres");
+  const roof = roofOf(building);
+  const ridge = eave + buildRoof(building, eave).ridgeHeight;
+  const origin = building.origin;
   return (
     <>
-      <p className="text-sm text-muted">{t("properties.empty")}</p>
-      <CustomTextInput label={t("building.name")} value={building.name} onCommit={renameBuilding} />
-      {box ? (
-        <>
-          <CustomNumberInput
-            label={t("building.width")}
-            value={box.width}
-            min={BOX_LIMITS.width.min}
-            max={BOX_LIMITS.width.max}
-            step={0.1}
-            unit={m}
-            language={language}
-            onChange={(width) => {
-              resizeFootprint(width, box.depth);
-            }}
-            {...batch}
+      <CustomSection title={t("card.building")} first>
+        <p className="text-sm text-muted">{t("properties.empty")}</p>
+        <CustomTextInput
+          label={t("building.name")}
+          value={building.name}
+          onCommit={renameBuilding}
+        />
+        <CustomReadOnly label={t("status.storeys")} value={String(building.storeys.length)} />
+        <CustomReadOnly label={t("card.floorArea")} value={formatArea(floorArea, language)} />
+        <CustomReadOnly label={t("roof.kind")} value={t(`roof.${roof.kind}`)} />
+      </CustomSection>
+      <CustomSection title={t("card.dimensions")}>
+        {box ? (
+          <>
+            <CustomNumberInput
+              label={t("building.width")}
+              value={box.width}
+              min={BOX_LIMITS.width.min}
+              max={BOX_LIMITS.width.max}
+              step={0.1}
+              unit={m}
+              language={language}
+              onChange={(width) => {
+                resizeFootprint(width, box.depth);
+              }}
+              {...batch}
+            />
+            <CustomNumberInput
+              label={t("building.depth")}
+              value={box.depth}
+              min={BOX_LIMITS.depth.min}
+              max={BOX_LIMITS.depth.max}
+              step={0.1}
+              unit={m}
+              language={language}
+              onChange={(depth) => {
+                resizeFootprint(box.width, depth);
+              }}
+              {...batch}
+            />
+          </>
+        ) : (
+          <p className="text-xs text-muted">{t("building.notRectangle")}</p>
+        )}
+        <CustomReadOnly
+          label={t("footprint.area")}
+          value={formatArea(area(building.footprint), language)}
+        />
+        <CustomReadOnly label={t("card.eaveHeight")} value={formatMetres(eave, language)} />
+        <CustomReadOnly label={t("card.ridgeHeight")} value={formatMetres(ridge, language)} />
+      </CustomSection>
+      {origin && (
+        <CustomSection title={t("card.location")}>
+          <CustomReadOnly
+            label={t("card.latitude")}
+            value={`${formatNumber(origin.lat, language, 5)}°`}
           />
-          <CustomNumberInput
-            label={t("building.depth")}
-            value={box.depth}
-            min={BOX_LIMITS.depth.min}
-            max={BOX_LIMITS.depth.max}
-            step={0.1}
-            unit={m}
-            language={language}
-            onChange={(depth) => {
-              resizeFootprint(box.width, depth);
-            }}
-            {...batch}
+          <CustomReadOnly
+            label={t("card.longitude")}
+            value={`${formatNumber(origin.lon, language, 5)}°`}
           />
-        </>
-      ) : (
-        <p className="text-xs text-muted">{t("building.notRectangle")}</p>
+          <CustomReadOnly
+            label={t("card.bearing")}
+            value={`${formatNumber(origin.rotation, language, 0)}°`}
+          />
+        </CustomSection>
       )}
-      <CustomReadOnly
-        label={t("footprint.area")}
-        value={formatArea(area(building.footprint), language)}
-      />
-      <CustomReadOnly label={t("status.storeys")} value={String(building.storeys.length)} />
     </>
   );
 }
@@ -405,6 +476,7 @@ function RoofProperties() {
   return (
     <>
       <Title>{t("roof.title")}</Title>
+      <SourceNote path="roof" />
       <div className="flex flex-col gap-1">
         <span className="text-xs font-medium text-muted">{t("roof.kind")}</span>
         <CustomSegmented
@@ -598,6 +670,9 @@ function WallProperties({ storeyId, wallIndex }: { storeyId: string; wallIndex: 
   const footprint = useEditorStore((s) => s.building.footprint);
   const thickness = useEditorStore((s) => effectiveWallThickness(s.building));
   const wallConstructionId = useEditorStore((s) => s.building.wallConstructionId);
+  const shared = useEditorStore((s) => (s.building.sharedEdges ?? []).includes(wallIndex));
+  const setEdgeShared = useEditorStore((s) => s.setEdgeShared);
+  const openPhoto = useEditorStore((s) => s.setPhotoWall);
   const storey = useStorey(storeyId);
   const edge = edges(footprint)[wallIndex];
   if (!edge || !storey) return null;
@@ -618,6 +693,25 @@ function WallProperties({ storeyId, wallIndex }: { storeyId: string; wallIndex: 
       <CustomReadOnly label={t("wall.length")} value={formatMetres(edge.length, language)} />
       <CustomReadOnly label={t("wall.thickness")} value={formatMetres(thickness, language)} />
       <CustomReadOnly label={t("wall.openings")} value={String(onWall.length)} />
+      <CustomCheckbox
+        label={t("wall.shared")}
+        checked={shared}
+        onChange={(next) => {
+          setEdgeShared(wallIndex, next);
+        }}
+      />
+      {shared && <p className="text-xs leading-relaxed text-muted">{t("wall.sharedHint")}</p>}
+      <SourceNote path={shared ? "sharedEdges" : "footprint"} />
+      <CustomButton
+        icon={<Camera size={15} aria-hidden />}
+        onClick={() => {
+          openPhoto(wallIndex);
+        }}
+      >
+        {t("wallPhoto.open")}
+      </CustomButton>
+      <p className="text-xs leading-relaxed text-muted">{t("wallPhoto.openHint")}</p>
+      <WallPhotoControls wallIndex={wallIndex} />
       <ConstructionSelect
         category="wall"
         value={wallConstructionId}
@@ -625,6 +719,39 @@ function WallProperties({ storeyId, wallIndex }: { storeyId: string; wallIndex: 
         target={{ kind: "wall" }}
       />
       <p className="text-xs leading-relaxed text-muted">{t("wall.hint")}</p>
+    </>
+  );
+}
+
+/** For a wall that carries its straightened facade photo in 3D: how see-through, or remove it. */
+function WallPhotoControls({ wallIndex }: { wallIndex: number }) {
+  const t = useT();
+  const language = useEditorStore((s) => s.language);
+  const hasPhoto = useEditorStore((s) => s.facadePhotos[wallIndex] !== undefined);
+  const transparency = useEditorStore((s) => s.facadePhotoTransparency);
+  const setTransparency = useEditorStore((s) => s.setFacadePhotoTransparency);
+  const setFacadePhoto = useEditorStore((s) => s.setFacadePhoto);
+  if (!hasPhoto) return null;
+  return (
+    <>
+      <CustomSlider
+        label={t("wallPhoto.transparency")}
+        value={transparency}
+        min={0}
+        max={100}
+        step={5}
+        onChange={setTransparency}
+        format={(pct) => `${formatNumber(pct, language)} %`}
+      />
+      <CustomButton
+        variant="danger"
+        icon={<Trash2 size={15} aria-hidden />}
+        onClick={() => {
+          setFacadePhoto(wallIndex, null);
+        }}
+      >
+        {t("wallPhoto.removePhoto")}
+      </CustomButton>
     </>
   );
 }
@@ -757,6 +884,7 @@ function OpeningProperties({ storeyId, openingId }: { storeyId: string; openingI
           target={{ kind: "opening", storeyId, id: openingId }}
         />
       )}
+      <SourceNote path={`opening:${openingId}`} />
       <RemoveButton
         label={t("opening.remove")}
         onClick={() => {
@@ -867,6 +995,7 @@ function StoreyProperties({ storeyId }: { storeyId: string }) {
       <CustomReadOnly label={t("storey.openings")} value={String(storey.openings.length)} />
       <CustomReadOnly label={t("storey.rooms")} value={String(storey.rooms.length)} />
       <CustomReadOnly label={t("room.area")} value={formatArea(area, language)} />
+      <SourceNote path="storeys" />
       <RemoveButton
         label={t("storey.remove")}
         onClick={() => {

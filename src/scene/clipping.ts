@@ -7,7 +7,8 @@ export type CutAxis = "horizontal" | "x" | "y";
  * normal points to with `constant` as the signed distance from the origin, so
  * for a horizontal cut at height h that keeps the part below, the normal is
  * -Y and the constant is +h. For a cut along x at plan x = v keeping x < v, the
- * normal is -X and the constant is +v; the same for y (plan y is world z).
+ * normal is -X and the constant is +v. Plan y is world -z (three.ts), so keeping plan y < v
+ * keeps world z > -v: the normal is +Z and the constant is +v.
  */
 export function cutPlane(axis: CutAxis, value: number): Plane {
   switch (axis) {
@@ -16,7 +17,7 @@ export function cutPlane(axis: CutAxis, value: number): Plane {
     case "x":
       return new Plane(new Vector3(-1, 0, 0), value);
     case "y":
-      return new Plane(new Vector3(0, 0, -1), value);
+      return new Plane(new Vector3(0, 0, 1), value);
   }
 }
 

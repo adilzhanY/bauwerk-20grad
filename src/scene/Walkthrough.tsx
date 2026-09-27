@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { PointerLockControls } from "@react-three/drei";
 import { Vector3 } from "three";
+import { planToWorld, worldToPlan } from "./three";
 import { effectiveWallThickness } from "@/geometry/layers";
 import { bounds, centroid } from "@/geometry/polygon";
 import { useEditorStore } from "@/store/building";
@@ -51,7 +52,7 @@ export function Walkthrough() {
     const elevation = storeyElevation(building, storey.id);
     if (!placed.current) {
       const c = centroid(building.footprint);
-      camera.position.set(c.x, elevation + EYE_HEIGHT, c.y);
+      camera.position.copy(planToWorld(c, elevation + EYE_HEIGHT));
       placed.current = true;
     }
     const k = keys.current;
@@ -69,18 +70,19 @@ export function Walkthrough() {
     dir.normalize();
     right.current.set(-dir.z, 0, dir.x);
     const step = Math.min(dt, 0.05) * SPEED;
-    const from = { x: camera.position.x, y: camera.position.z };
-    const to = {
-      x: from.x + (dir.x * forward + right.current.x * strafe) * step,
-      y: from.y + (dir.z * forward + right.current.z * strafe) * step,
-    };
+    // The step is taken in world space and brought into the plan, where the walls are.
+    const from = worldToPlan(camera.position);
+    const to = worldToPlan({
+      x: camera.position.x + (dir.x * forward + right.current.x * strafe) * step,
+      z: camera.position.z + (dir.z * forward + right.current.z * strafe) * step,
+    });
     const { min, max } = footprintBounds;
     const clamped = {
       x: Math.min(max.x + 3, Math.max(min.x - 3, to.x)),
       y: Math.min(max.y + 3, Math.max(min.y - 3, to.y)),
     };
     const p = constrainWalk(building, storey, from, clamped, thickness);
-    camera.position.set(p.x, elevation + EYE_HEIGHT, p.y);
+    camera.position.copy(planToWorld(p, elevation + EYE_HEIGHT));
   });
 
   if (!walking) return null;

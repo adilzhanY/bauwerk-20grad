@@ -50,7 +50,8 @@ export type ImportErrorCode =
   | "originInvalid"
   | "roofInvalid"
   | "radiatorInvalid"
-  | "heatPumpInvalid";
+  | "heatPumpInvalid"
+  | "sharedEdgeInvalid";
 
 export interface ImportError {
   code: ImportErrorCode;
@@ -259,6 +260,10 @@ export function validateBuilding(b: Building): ImportError | null {
   }
 
   const wallLengths = edges(b.footprint).map((e) => e.length);
+  for (const [i, e] of (b.sharedEdges ?? []).entries()) {
+    if (e < 0 || e >= wallLengths.length)
+      return { code: "sharedEdgeInvalid", path: `building.sharedEdges[${i}]` };
+  }
   const footprintArea = area(b.footprint);
 
   for (const [si, s] of b.storeys.entries()) {
@@ -349,6 +354,8 @@ const isNumber = (v: unknown): v is number => typeof v === "number" && Number.is
 const isString = (v: unknown): v is string => typeof v === "string";
 
 const bad = (path: string): ImportError => ({ code: "invalidStructure", path });
+
+const SOURCE_KINDS: readonly string[] = ["lod2", "photo", "catalogue", "estimate", "typed"];
 
 function checkVec2(v: unknown, path: string): ImportError | null {
   if (!isRecord(v) || !isNumber(v.x) || !isNumber(v.y)) return bad(path);
@@ -451,7 +458,8 @@ function checkZone(v: unknown, path: string): ImportError | null {
   return null;
 }
 
-function checkBuildingShape(v: unknown, path: string): ImportError | null {
+/** The building has the shape of one (types and required fields), whatever its values. */
+export function checkBuildingShape(v: unknown, path: string): ImportError | null {
   if (!isRecord(v)) return bad(path);
   const b = v as Partial<Record<keyof Building, unknown>>;
   if (!isString(b.id)) return bad(`${path}.id`);
@@ -481,6 +489,25 @@ function checkBuildingShape(v: unknown, path: string): ImportError | null {
   const fp = checkPolygon(b.footprint, `${path}.footprint`);
   if (fp) return fp;
   if (!Array.isArray(b.storeys) || !Array.isArray(b.zones)) return bad(path);
+  if (b.sharedEdges !== undefined) {
+    if (!Array.isArray(b.sharedEdges)) return bad(`${path}.sharedEdges`);
+    if (!b.sharedEdges.every((e) => isNumber(e) && Number.isInteger(e)))
+      return bad(`${path}.sharedEdges`);
+  }
+  if (b.sources !== undefined) {
+    if (!isRecord(b.sources)) return bad(`${path}.sources`);
+    for (const [key, source] of Object.entries(b.sources)) {
+      const sp = `${path}.sources.${key}`;
+      if (!isRecord(source) || !SOURCE_KINDS.includes(source.kind as string)) return bad(sp);
+      if (source.note !== undefined && !isString(source.note)) return bad(`${sp}.note`);
+      if (source.photo !== undefined && !isString(source.photo)) return bad(`${sp}.photo`);
+      if (
+        source.value !== undefined &&
+        (!Array.isArray(source.value) || !source.value.every((v) => isNumber(v) || isString(v)))
+      )
+        return bad(`${sp}.value`);
+    }
+  }
   if (b.scenarios !== undefined) {
     if (!Array.isArray(b.scenarios)) return bad(`${path}.scenarios`);
     for (const [i, sc] of (b.scenarios as unknown[]).entries()) {

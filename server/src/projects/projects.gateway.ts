@@ -1,24 +1,30 @@
 import { Inject } from "@nestjs/common";
 import type { OnModuleDestroy } from "@nestjs/common";
-import type { OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit } from "@nestjs/websockets";
-import { WebSocketGateway } from "@nestjs/websockets";
-import type { WebSocket } from "ws";
+import {
+  ConnectedSocket,
+  MessageBody,
+  SubscribeMessage,
+  WebSocketGateway,
+  WebSocketServer,
+} from "@nestjs/websockets";
+import type { OnGatewayDisconnect, OnGatewayInit } from "@nestjs/websockets";
+import type { Server, Socket } from "socket.io";
+import { actorOf, batchOf } from "./projects.controller";
 import { ProjectsService } from "./projects.service";
-import type { ProjectUpdated } from "./projects.service";
+import type { ProjectOps } from "./projects.service";
 
-/** Messages a client may send. */
-export type ClientMessage =
-  | { type: "join"; projectId: string; actor: string; color: string }
-  | { type: "selection"; selection: unknown };
-
-/** Messages the server sends. */
-export type ServerMessage =
-  | { type: "update"; version: number; building: unknown; actor: string }
-  | { type: "presence"; actors: { actor: string; color: string; selection: unknown }[] }
-  | { type: "selection"; actor: string; selection: unknown };
-
+/** What the server keeps about one connected editor tab. */
 interface Member {
-  socket: WebSocket;
+  projectId: string;
+  clientId: string;
+  actor: string;
+  color: string;
+  selection: unknown;
+}
+
+/** One entry of the presence list: every tab in the project room. */
+export interface PresenceEntry {
+  clientId: string;
   actor: string;
   color: string;
   selection: unknown;
@@ -56,129 +62,144 @@ function isSelection(value: unknown): boolean {
   }
 }
 
-function isClientMessage(value: unknown): value is ClientMessage {
-  if (!isRecord(value)) return false;
-  if (value.type === "join") {
-    return (
-      isText(value.projectId, 128) &&
-      isText(value.actor, 64) &&
-      typeof value.color === "string" &&
-      /^#[0-9a-f]{3}(?:[0-9a-f]{3})?$/i.test(value.color)
-    );
-  }
-  return value.type === "selection" && isSelection(value.selection);
-}
+const isCoordinate = (value: unknown): value is number =>
+  typeof value === "number" && Number.isFinite(value) && Math.abs(value) < 1e5;
+const isPoint = (value: unknown) =>
+  isRecord(value) && isCoordinate(value.x) && isCoordinate(value.y);
+const isDrag = (value: unknown) =>
+  isRecord(value) &&
+  isText(value.storeyId, 128) &&
+  isText(value.id, 128) &&
+  isCoordinate(value.offset);
+
+const room = (projectId: string) => `project:${projectId}`;
+const member = (socket: Socket) => socket.data as Partial<Member>;
 
 /**
- * One room per project. Every accepted write is broadcast to the room, presence
- * is broadcast on join, leave and selection change. Uses plain `ws`, so the
- * client needs nothing but the browser's WebSocket.
+ * One Socket.IO room per project.
+ *
+ *   join       { projectId, clientId, actor, color }  ack: the building, its version, and the
+ *              last batch of this client the project applied
+ *   ops        { seq, ops }                            ack: applied (version) or the reason not
+ *   selection  { selection }
+ *   cursor     { cursor }     the pointer on the ground, passed on to the others
+ *   drag       { dragging }   the opening being dragged, passed on to the others
+ *
+ * Every applied batch goes to the whole room, the sender included, as "ops" with its
+ * version, so all tabs replay the same batches in the same order. Presence goes out on
+ * every join, leave and selection change.
  */
-@WebSocketGateway({ path: "/ws" })
-export class ProjectsGateway
-  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect, OnModuleDestroy
-{
-  private readonly rooms = new Map<string, Set<Member>>();
-  private readonly members = new Map<WebSocket, { projectId: string; member: Member }>();
+@WebSocketGateway({ cors: { origin: true }, maxHttpBufferSize: 5e6 })
+export class ProjectsGateway implements OnGatewayInit, OnGatewayDisconnect, OnModuleDestroy {
+  @WebSocketServer() private readonly server!: Server;
 
   constructor(@Inject(ProjectsService) private readonly projects: ProjectsService) {}
 
-  private readonly onProjectUpdated = ({ project, actor }: ProjectUpdated) => {
-    this.broadcast(project.id, {
-      type: "update",
-      version: project.version,
-      building: project.building,
-      actor,
-    });
+  private readonly onOps = (event: ProjectOps) => {
+    this.server.to(room(event.projectId)).emit("ops", event);
   };
 
   afterInit() {
-    this.projects.events.on("updated", this.onProjectUpdated);
+    this.projects.events.on("ops", this.onOps);
   }
 
   onModuleDestroy() {
-    this.projects.events.off("updated", this.onProjectUpdated);
-    this.rooms.clear();
-    this.members.clear();
+    this.projects.events.off("ops", this.onOps);
   }
 
-  handleConnection(socket: WebSocket) {
-    socket.on("message", (raw: Buffer | string) => {
-      let message: ClientMessage;
-      try {
-        const parsed: unknown = JSON.parse(String(raw));
-        if (!isClientMessage(parsed)) throw new Error("invalid message");
-        message = parsed;
-      } catch {
-        // We initiated this close, so drop the client from its room now instead of
-        // waiting for the adapter's disconnect hook. handleDisconnect is idempotent,
-        // so the later lifecycle call is harmless.
-        this.handleDisconnect(socket);
-        socket.close(1003, "Invalid message");
-        return;
-      }
-      this.handle(socket, message);
-    });
+  @SubscribeMessage("join")
+  async join(@ConnectedSocket() socket: Socket, @MessageBody() body: unknown) {
+    if (
+      !isRecord(body) ||
+      !isText(body.projectId, 128) ||
+      !isText(body.clientId, 64) ||
+      !isText(body.actor, 64) ||
+      typeof body.color !== "string" ||
+      !/^#[0-9a-f]{3}(?:[0-9a-f]{3})?$/i.test(body.color)
+    ) {
+      return { ok: false, reason: "invalid" };
+    }
+    const previous = member(socket).projectId;
+    if (previous && previous !== body.projectId) {
+      await socket.leave(room(previous));
+      await this.sendPresence(previous);
+    }
+    socket.data = {
+      projectId: body.projectId,
+      clientId: body.clientId,
+      actor: actorOf(body.actor),
+      color: body.color,
+      selection: null,
+    } satisfies Member;
+    // Join before reading, so no batch can fall between the snapshot and the room. A batch
+    // that lands in between arrives twice, as part of the snapshot and as a message, and
+    // the client skips the message by its version.
+    await socket.join(room(body.projectId));
+    const project = await this.projects.get(body.projectId);
+    if (!project) return { ok: false, reason: "notFound" };
+    const lastSeq = await this.projects.lastSeq(body.projectId, body.clientId);
+    await this.sendPresence(body.projectId);
+    return { ok: true, version: project.version, building: project.building, lastSeq };
   }
 
-  handleDisconnect(socket: WebSocket) {
-    const entry = this.members.get(socket);
-    if (!entry) return;
-    this.members.delete(socket);
-    const room = this.rooms.get(entry.projectId);
-    room?.delete(entry.member);
-    if (room?.size === 0) this.rooms.delete(entry.projectId);
-    this.sendPresence(entry.projectId);
+  @SubscribeMessage("ops")
+  async ops(@ConnectedSocket() socket: Socket, @MessageBody() body: unknown) {
+    const { projectId, clientId, actor } = member(socket);
+    if (!projectId || !clientId || !actor) return { ok: false, reason: "notJoined" };
+    const batch = batchOf(isRecord(body) ? { ...body, clientId } : null);
+    if (!batch) return { ok: false, reason: "invalidBatch" };
+    const result = await this.projects.applyBatch(projectId, batch, actor);
+    return result.ok
+      ? { ok: true, version: result.version, duplicate: result.duplicate }
+      : { ok: false, reason: result.reason, ...("error" in result ? { error: result.error } : {}) };
   }
 
-  private handle(socket: WebSocket, message: ClientMessage) {
-    if (message.type === "join") {
-      this.handleDisconnect(socket);
-      const member: Member = {
-        socket,
-        actor: message.actor.trim(),
-        color: message.color,
-        selection: null,
+  @SubscribeMessage("selection")
+  selection(@ConnectedSocket() socket: Socket, @MessageBody() body: unknown) {
+    const data = member(socket);
+    if (!data.projectId || !isRecord(body) || !isSelection(body.selection)) return;
+    data.selection = body.selection;
+    socket
+      .to(room(data.projectId))
+      .emit("selection", { clientId: data.clientId, selection: body.selection });
+  }
+
+  /** Where the pointer is on the ground. Fire and forget: a lost one is replaced by the next. */
+  @SubscribeMessage("cursor")
+  cursor(@ConnectedSocket() socket: Socket, @MessageBody() body: unknown) {
+    const { projectId, clientId } = member(socket);
+    if (!projectId || !isRecord(body)) return;
+    const cursor = body.cursor;
+    if (cursor !== null && !isPoint(cursor)) return;
+    socket.volatile.to(room(projectId)).emit("cursor", { clientId, cursor });
+  }
+
+  /** The opening being dragged and where it is now, so the others see it move and keep off. */
+  @SubscribeMessage("drag")
+  drag(@ConnectedSocket() socket: Socket, @MessageBody() body: unknown) {
+    const { projectId, clientId } = member(socket);
+    if (!projectId || !isRecord(body)) return;
+    const dragging = body.dragging;
+    if (dragging !== null && !isDrag(dragging)) return;
+    socket.to(room(projectId)).emit("drag", { clientId, dragging });
+  }
+
+  async handleDisconnect(socket: Socket) {
+    const { projectId } = member(socket);
+    if (projectId) await this.sendPresence(projectId);
+  }
+
+  private async sendPresence(projectId: string) {
+    const sockets = await this.server.in(room(projectId)).fetchSockets();
+    const actors: PresenceEntry[] = sockets.map((s) => {
+      const data = s.data as Member;
+      return {
+        clientId: data.clientId,
+        actor: data.actor,
+        color: data.color,
+        selection: data.selection,
       };
-      const room = this.rooms.get(message.projectId) ?? new Set<Member>();
-      room.add(member);
-      this.rooms.set(message.projectId, room);
-      this.members.set(socket, { projectId: message.projectId, member });
-      this.sendPresence(message.projectId);
-      return;
-    }
-    const entry = this.members.get(socket);
-    if (!entry) return;
-    entry.member.selection = message.selection;
-    this.broadcast(
-      entry.projectId,
-      { type: "selection", actor: entry.member.actor, selection: message.selection },
-      socket,
-    );
-  }
-
-  private sendPresence(projectId: string) {
-    const room = this.rooms.get(projectId);
-    if (!room) return;
-    const actors = [...room].map((m) => ({
-      actor: m.actor,
-      color: m.color,
-      selection: m.selection,
-    }));
-    this.broadcast(projectId, { type: "presence", actors });
-  }
-
-  private broadcast(projectId: string, message: ServerMessage, except?: WebSocket) {
-    const room = this.rooms.get(projectId);
-    if (!room) return;
-    const text = JSON.stringify(message);
-    for (const m of room) {
-      if (m.socket !== except && m.socket.readyState === 1) m.socket.send(text);
-    }
-  }
-
-  /** Test helper. */
-  roomSize(projectId: string): number {
-    return this.rooms.get(projectId)?.size ?? 0;
+    });
+    this.server.to(room(projectId)).emit("presence", { actors });
   }
 }

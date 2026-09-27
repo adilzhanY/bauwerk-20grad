@@ -1,0 +1,114 @@
+{
+ "buildingGid": "DEBE02YY400000kY",
+ "partGid": "DEBE3DnfsjFWM621",
+ "surfaceIndex": 2,
+ "wallWidth": 9.0041,
+ "wallHeight": 15.2838,
+ "photo": "DEBE02YY400000kY.jpg",
+ "openings": [
+  {
+   "kind": "window",
+   "score": 0.953,
+   "x": 3.771,
+   "y": 13.643,
+   "width": 1.41,
+   "height": 1.403
+  },
+  {
+   "kind": "window",
+   "score": 0.957,
+   "x": 0.837,
+   "y": 13.642,
+   "width": 2.112,
+   "height": 1.417
+  },
+  {
+   "kind": "window",
+   "score": 0.953,
+   "x": 6.005,
+   "y": 13.63,
+   "width": 2.139,
+   "height": 1.412
+  },
+  {
+   "kind": "window",
+   "score": 0.953,
+   "x": 6.533,
+   "y": 10.096,
+   "width": 1.415,
+   "height": 1.742
+  },
+  {
+   "kind": "window",
+   "score": 0.949,
+   "x": 1.094,
+   "y": 10.088,
+   "width": 1.385,
+   "height": 1.768
+  },
+  {
+   "kind": "window",
+   "score": 0.953,
+   "x": 3.822,
+   "y": 10.088,
+   "width": 1.399,
+   "height": 1.744
+  },
+  {
+   "kind": "window",
+   "score": 0.934,
+   "x": 3.987,
+   "y": 6.371,
+   "width": 1.121,
+   "height": 1.486
+  },
+  {
+   "kind": "window",
+   "score": 0.902,
+   "x": 1.23,
+   "y": 6.367,
+   "width": 1.119,
+   "height": 1.505
+  },
+  {
+   "kind": "window",
+   "score": 0.953,
+   "x": 6.75,
+   "y": 6.322,
+   "width": 1.099,
+   "height": 1.507
+  },
+  {
+   "kind": "window",
+   "score": 0.961,
+   "x": 4.035,
+   "y": 2.6,
+   "width": 1.094,
+   "height": 1.867
+  },
+  {
+   "kind": "window",
+   "score": 0.957,
+   "x": 1.264,
+   "y": 2.593,
+   "width": 1.105,
+   "height": 1.896
+  },
+  {
+   "kind": "window",
+   "score": 0.961,
+   "x": 6.797,
+   "y": 2.566,
+   "width": 1.096,
+   "height": 1.904
+  },
+  {
+   "kind": "window",
+   "score": 0.934,
+   "x": 1.22,
+   "y": 0.021,
+   "width": 1.215,
+   "height": 0.837
+  }
+ ]
+}

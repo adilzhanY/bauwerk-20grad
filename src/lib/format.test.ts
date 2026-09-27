@@ -63,3 +63,11 @@ describe("parseNumber", () => {
     expect(parseNumber("1.2.3")).toBeNull();
   });
 });
+
+describe("formatNumber with fixed decimals", () => {
+  it("keeps trailing zeros and uses the language's decimal mark", () => {
+    expect(formatNumber(3.5, "de", 2, { fixed: true })).toBe("3,50");
+    expect(formatNumber(3.5, "en", 2, { fixed: true })).toBe("3.50");
+    expect(formatNumber(3.5, "de", 2)).toBe("3,5");
+  });
+});

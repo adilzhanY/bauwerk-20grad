@@ -7,7 +7,7 @@
   <a href="https://adilzhany.github.io/bauwerk/"><img src="https://img.shields.io/badge/try%20it-adilzhany.github.io%2Fbauwerk-141619?style=for-the-badge&labelColor=141619&color=2f5da8" alt="Live demo" /></a>
   <img src="https://img.shields.io/badge/TypeScript-strict-141619?style=for-the-badge&labelColor=141619&color=2f5da8" alt="TypeScript strict" />
   <img src="https://img.shields.io/badge/Three.js-r3f-141619?style=for-the-badge&labelColor=141619&color=2f5da8" alt="Three.js via react-three-fiber" />
-  <img src="https://img.shields.io/badge/tests-353-141619?style=for-the-badge&labelColor=141619&color=2f7a4f" alt="353 tests" />
+  <img src="https://img.shields.io/badge/tests-621-141619?style=for-the-badge&labelColor=141619&color=2f7a4f" alt="621 tests" />
 </div>
 
 <br/>
@@ -122,6 +122,34 @@ to the millimetre. Or drop a photo of a floor plan and let the vision pipeline p
 </tr>
 </table>
 
+## Start from an address
+
+The app opens on a search field and a dark map of Berlin. Type a street and a house number, or
+a Gebäude-ID, or click any building on the map, and its page opens: the address, one tab per
+building part, and the energy data of the unrenovated state, with the class on the A+ to H
+scale, the heating demand, the heat load and what a solar roof would yield per month. The 3D
+model from the city's **LoD2** data sits next to it.
+
+Those numbers are not guessed. The building part is turned into a Bauwerk building (footprint,
+storeys, roof, party walls against the neighbours, the official default U-values for its
+construction year) and the same energy balance as the editor runs on it. Facades nobody has
+photographed get the default windows of the **Bekanntmachung 2020**; a photographed facade gets
+the windows read off the photo. **Sanierungsplanung starten** opens exactly that building in the
+editor, as one undo step.
+
+Every value that arrived this way carries its source, shown next to it in the panel: LoD2 city
+model, photo (with the file name), default value, estimate or stated. Change the value and the
+panel says it was edited since the survey, and the report lists every value with its source
+and state on its own page. **Party walls** against a heated neighbour lose no heat; any wall can
+be marked or unmarked as one in its properties.
+
+### Windows from one photo
+
+Click a wall of the 3D model and press **Add photo**. Drag four dots onto the wall's corners and
+the browser straightens it; draw rectangles over the windows and doors, in metres. With the
+vision service running, **Detect windows** does both: SAM 3 finds the corners, paints over
+parked cars, and returns the openings.
+
 ## Under the hood
 
 |               |                                                                                                                                                                                    |
@@ -130,7 +158,8 @@ to the millimetre. Or drop a photo of a floor plan and let the vision pipeline p
 | **State**     | One Zustand store and a 60-line history middleware that folds a whole gesture into a single undo step.                                                                             |
 | **Interface** | Every slider, select, switch, number field and dialog built from scratch, keyboard complete, no native control on screen. English and German, where a missing key is a type error. |
 | **Server**    | NestJS and Postgres, optimistic concurrency, WebSocket rooms with presence, PDF through headless Chromium. Twelve simultaneous writes on one version, exactly one wins.            |
-| **Proof**     | 353 client tests, 8 server tests against a real Postgres, strict TypeScript with `noUncheckedIndexedAccess`.                                                                       |
+| **LoD2**      | Fastify and PostGIS serve Berlin's building models as vector tiles and meshes, loaded on demand. The survey maths lives in `lod2-core`, shared by the API and the app.             |
+| **Proof**     | 393 app tests, 228 LoD2 tests (core, ingest, API), 8 server tests against a real Postgres, strict TypeScript with `noUncheckedIndexedAccess`.                                      |
 
 **How it was built.** Three weeks, with Claude Code as the primary way code was produced and a
 human steering it. [`DECISIONS.md`](DECISIONS.md) logs 45 places where the human overruled the
@@ -141,16 +170,52 @@ unrenovated pre-1918 building. The agent produces, the human decides what is tru
 
 ## Run it
 
+You need Node.js 22.18 or newer (24 recommended) and Docker for the LoD2 database.
+
 ```bash
-npm install --legacy-peer-deps
-npm run dev      # http://localhost:5173
-npm run check    # typecheck, lint, 353 tests
+npm run setup       # installs the app and the lod2 packages
+npm run bootstrap   # once: starts the database and loads part of Kreuzberg, a few minutes
+npm run dev         # http://localhost:5173
+npm run check       # typecheck, lint and every test, app and lod2
 ```
 
-Settings, Examples, **Kreuzberg apartment house (demo)** loads the house from the screenshots.
-[`DEMO.md`](DEMO.md) is the eight-minute walkthrough. `/?bench=1` opens an 18-storey tower with 719
-openings and a frame time graph. `docker compose up --build` brings up Postgres, the API and the
-client together.
+`npm run dev` starts everything in one terminal, each line prefixed with its source: the
+database (and its migrations), the LoD2 API, the collaboration server, the vision service when it
+is installed, and the app. Ctrl+C stops them all; `npm run db:stop` stops the database. Settings live in one `.env`
+at the root; every value has a working default, see `.env.example`.
+
+The vision service needs Linux or WSL2 and an NVIDIA graphics card. Without it everything works,
+only the automatic detection is hidden. Its setup, and everything else about the LoD2 part, is
+in [`lod2/docs/LOD2.md`](lod2/docs/LOD2.md).
+
+### Editing together
+
+**Share** in the editor's top bar makes the building a shared project on the collaboration server
+and shows its link to send.
+The address bar now carries `?project=…`; the same address in another tab or on another machine
+opens the same building, and every change shows on the other side within a few milliseconds.
+Everyone sees the others' pointers and selections, a window someone drags moves live on every
+screen and cannot be grabbed until they let go, undo takes back only your own edits, and the
+History tab lists every version with a read-only preview and restore. For a second machine on
+the same network, start with `npm run dev -- --host` and open the printed Network address there.
+How it works, and why it is not a CRDT, is in `DECISIONS.md` (2026-09-25).
+
+In the editor, Settings, Examples, **Kreuzberg apartment house (demo)** loads the house from the
+screenshots. [`DEMO.md`](DEMO.md) is the eight-minute walkthrough. `/?bench=1` opens an
+18-storey tower with 719 openings and a frame time graph. `docker compose up --build` brings up
+Postgres, the collaboration API and the client together.
+
+### What lives where
+
+```
+src/                the app: pages (start, building, editor), geometry, scene and panels
+src/lod2/           the LoD2 parts of the app: API clients, 3D building view, photo editor
+lod2/lod2-core      shared types and maths: LoD2 geometry, rectification, survey to Bauwerk
+lod2/lod2-ingest    loads Berlin's LoD2 tiles into PostGIS
+lod2/lod2-api       Fastify API: vector tiles, building detail, address lookup, orthophotos
+lod2/lod2-vision    Python service around SAM 3: wall corners and openings
+server/             NestJS collaboration server: projects, versions, presence, PDF
+```
 
 ---
 

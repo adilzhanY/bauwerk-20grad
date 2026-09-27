@@ -140,6 +140,13 @@ export interface Building {
   heatPumps?: HeatPump[];
   /** Renovation variants as override sets, see geometry/scenarios.ts. */
   scenarios?: Scenario[];
+  /**
+   * Footprint edges that stand against a heated neighbour, a party wall. They lose no heat.
+   * See geometry/shared.ts.
+   */
+  sharedEdges?: number[];
+  /** Where imported values came from, by value path. See geometry/sources.ts. */
+  sources?: Record<string, ValueSource>;
 }
 
 export interface Scenario {
@@ -162,6 +169,23 @@ export interface Roof {
   parapet: number;
   /** Count the attic as heated volume. */
   heatedAttic: boolean;
+}
+
+/** Where a value of the building came from, when it was brought in rather than drawn. */
+export type SourceKind = "lod2" | "photo" | "catalogue" | "estimate" | "typed";
+
+export interface ValueSource {
+  kind: SourceKind;
+  /** What was assumed or changed on the way. */
+  note?: string;
+  /** File name of the photo a measured value was read from. */
+  photo?: string;
+  /**
+   * The value as it was brought in, in the canonical form of `sourceValue` in
+   * geometry/sources.ts. While the building still has this value the source holds; once it
+   * differs, the value counts as edited.
+   */
+  value?: (number | string)[];
 }
 
 export interface GeoOrigin {

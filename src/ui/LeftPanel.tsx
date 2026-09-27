@@ -1,25 +1,31 @@
-import { useState } from "react";
-import type { KeyboardEvent } from "react";
+import { useId, useState } from "react";
+import type { KeyboardEvent, ReactNode } from "react";
 import {
   ArrowDown,
   ArrowUp,
   Box,
   Building2,
+  ChevronRight,
   Copy,
-  Image as ImageIcon,
-  MapPin,
-  Palette,
+  DoorOpen,
+  Eye,
+  EyeOff,
+  Flame,
+  Layers,
   Plus,
   Settings2,
+  SquareDashedBottom,
+  Thermometer,
   Trash2,
+  Triangle,
 } from "lucide-react";
-import type { ReactNode } from "react";
-import type { MessageKey } from "@/i18n";
-import { CustomSegmented } from "@/components/CustomSegmented";
+import { CustomTabPanel, CustomTabs } from "@/components/CustomTabs";
 import { useT } from "@/i18n/useT";
 import { formatArea, formatMetres } from "@/lib/format";
-import { useEditorStore } from "@/store/building";
-import { selectActiveStorey } from "@/store/selectors";
+import { distance, edges } from "@/geometry/polygon";
+import type { Storey } from "@/geometry/types";
+import { sameSelection, useEditorStore } from "@/store/building";
+import type { Selection } from "@/store/building";
 import type { SyncStatus } from "@/sync/client";
 import { CustomIconButton } from "@/components/CustomIconButton";
 import { CustomSection } from "@/components/CustomField";
@@ -32,86 +38,90 @@ import { SettingsSection } from "./SettingsSection";
 import { toolHint } from "./tools";
 import { UnderlaySection } from "./UnderlaySection";
 
-type SectionId = "storeys" | "zones" | "location" | "underlay" | "settings";
+type SectionId = "layers" | "zones" | "location" | "underlay" | "settings";
 
-const sectionIcons: Record<SectionId, ReactNode> = {
-  storeys: <Building2 size={20} />,
-  zones: <Palette size={20} />,
-  location: <MapPin size={20} />,
-  underlay: <ImageIcon size={20} />,
-  settings: <Settings2 size={20} />,
-};
-
-const sectionLabel: Record<SectionId, MessageKey> = {
-  storeys: "panel.storeys",
-  zones: "panel.zones",
-  location: "location.title",
-  underlay: "underlay.title",
-  settings: "panel.settings",
-};
-
-/** Floating panel with an icon strip that shows one section at a time. */
+/**
+ * The layers panel at the left of the editor, after Figma's: the project on top, then tabs.
+ * "Layers" is the building as a tree (roof, storeys, and in each storey its rooms, walls,
+ * openings, interior walls and radiators) with an eye on every storey and on the scene
+ * layers below it. The other tabs are the zones, the location, the floor plan underlay and
+ * the settings. The hint for the current tool sits at the bottom.
+ */
 export function LeftPanel({ syncStatus }: { syncStatus: SyncStatus | "local" }) {
   const t = useT();
+  const tabsId = useId();
   const tool = useEditorStore((s) => s.tool);
-  const [section, setSection] = useState<SectionId>("storeys");
-  const ids: SectionId[] = ["storeys", "zones", "location", "underlay", "settings"];
+  const [section, setSection] = useState<SectionId>("layers");
   return (
     <aside
       aria-label={t("a11y.leftPanel")}
-      className="pointer-events-auto flex h-full min-h-0 rounded-card border border-line bg-panel shadow-float"
+      className="pointer-events-auto flex h-full min-h-0 flex-col border-r border-line bg-paper"
     >
-      <div className="flex flex-col items-center border-r border-line p-2">
-        <CustomSegmented
-          label={t("panel.view")}
-          value={section}
-          vertical
-          iconsOnly
-          options={ids.map((id) => ({
-            value: id,
-            label: t(sectionLabel[id]),
-            icon: sectionIcons[id],
-          }))}
-          onChange={setSection}
-        />
+      <ProjectSwitcher status={syncStatus} />
+      <CustomTabs
+        id={tabsId}
+        label={t("panel.view")}
+        value={section}
+        tabs={[
+          { value: "layers", label: t("tree.title") },
+          { value: "zones", label: t("panel.zones") },
+          { value: "location", label: t("location.short") },
+          { value: "underlay", label: t("underlay.short") },
+          {
+            value: "settings",
+            label: t("panel.settings"),
+            icon: <Settings2 size={16} aria-hidden />,
+            iconOnly: true,
+          },
+        ]}
+        onChange={setSection}
+      />
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <CustomTabPanel id={tabsId} value={section}>
+          {section === "layers" && <LayerTree />}
+          {section === "zones" && <ZoneList />}
+          {section === "location" && <LocationSection />}
+          {section === "underlay" && <UnderlaySection />}
+          {section === "settings" && <SettingsSection />}
+        </CustomTabPanel>
       </div>
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
-        <div className="border-b border-line px-4 py-3 text-sm leading-relaxed text-muted">
-          {t(toolHint[tool])}
-        </div>
-        {section === "storeys" && (
-          <>
-            <ProjectSwitcher status={syncStatus} />
-            <StoreyList />
-            <RoomList />
-          </>
-        )}
-        {section === "zones" && <ZoneList />}
-        {section === "location" && <LocationSection />}
-        {section === "underlay" && <UnderlaySection />}
-        {section === "settings" && <SettingsSection />}
-      </div>
+      <p className="border-t border-line px-4 py-3 text-xs leading-relaxed text-muted">
+        {t(toolHint[tool])}
+      </p>
     </aside>
   );
 }
 
-function StoreyList() {
+function LayerTree() {
   const t = useT();
-  const storeys = useEditorStore((s) => s.building.storeys);
-  const buildingName = useEditorStore((s) => s.building.name);
+  const building = useEditorStore((s) => s.building);
+  const selection = useEditorStore((s) => s.selection);
   const activeStoreyId = useEditorStore((s) => s.activeStoreyId);
   const language = useEditorStore((s) => s.language);
-  const setActiveStorey = useEditorStore((s) => s.setActiveStorey);
+  const otherStoreys = useEditorStore((s) => s.otherStoreys);
+  const hiddenStoreys = useEditorStore((s) => s.hiddenStoreys);
   const select = useEditorStore((s) => s.select);
+  const clearSelection = useEditorStore((s) => s.clearSelection);
+  const setActiveStorey = useEditorStore((s) => s.setActiveStorey);
+  const setOtherStoreys = useEditorStore((s) => s.setOtherStoreys);
+  const toggleStoreyHidden = useEditorStore((s) => s.toggleStoreyHidden);
   const addStorey = useEditorStore((s) => s.addStorey);
   const removeStorey = useEditorStore((s) => s.removeStorey);
   const moveStorey = useEditorStore((s) => s.moveStorey);
   const duplicateStorey = useEditorStore((s) => s.duplicateStorey);
-  const active = storeys.find((s) => s.id === activeStoreyId);
-  const activeIndex = active ? storeys.indexOf(active) : -1;
+  const heatPumps = building.heatPumps ?? [];
+  const storeys = building.storeys;
+  const activeIndex = storeys.findIndex((s) => s.id === activeStoreyId);
   const [newBuilding, setNewBuilding] = useState(false);
+  // Storeys the user opened or closed by hand; the active one is open unless closed.
+  const [openState, setOpenState] = useState<Record<string, boolean>>({});
+  const isOpen = (id: string) => openState[id] ?? id === activeStoreyId;
+  const toggleOpen = (id: string) => {
+    setOpenState({ ...openState, [id]: !isOpen(id) });
+  };
+  const roofHidden = otherStoreys.roof === "hidden";
 
-  const onKeyDown = (e: KeyboardEvent<HTMLButtonElement>) => {
+  const onStoreyKey = (e: KeyboardEvent<HTMLButtonElement>) => {
     if (activeIndex === -1) return;
     // Up raises the storey index, matching the top storey being drawn first.
     const step = e.key === "ArrowUp" ? 1 : e.key === "ArrowDown" ? -1 : 0;
@@ -125,159 +135,558 @@ function StoreyList() {
   };
 
   return (
-    <CustomSection
-      title={`${buildingName} · ${t("panel.storeys")}`}
-      action={
-        <span className="flex items-center gap-0.5">
-          <CustomIconButton
-            label={t("newBuilding.title")}
-            size="sm"
-            onClick={() => {
-              setNewBuilding(true);
+    <>
+      <CustomSection
+        title={t("tree.title")}
+        first
+        action={
+          <span className="flex items-center gap-0.5">
+            <CustomIconButton
+              label={t("newBuilding.title")}
+              size="sm"
+              onClick={() => {
+                setNewBuilding(true);
+              }}
+            >
+              <Box size={15} />
+            </CustomIconButton>
+            <CustomIconButton label={t("storey.add")} size="sm" onClick={addStorey}>
+              <Plus size={15} />
+            </CustomIconButton>
+          </span>
+        }
+      >
+        {newBuilding && (
+          <NewBuildingDialog
+            onClose={() => {
+              setNewBuilding(false);
             }}
-          >
-            <Box size={16} />
-          </CustomIconButton>
-          <CustomIconButton label={t("storey.add")} size="sm" onClick={addStorey}>
-            <Plus size={16} />
-          </CustomIconButton>
-        </span>
-      }
-    >
-      {newBuilding && (
-        <NewBuildingDialog
-          onClose={() => {
-            setNewBuilding(false);
-          }}
-        />
-      )}
-      {storeys.length === 0 && <p className="text-sm text-muted">{t("empty.body")}</p>}
-      {storeys.length > 0 && (
-        <div className="flex flex-col gap-3">
-          {/* A vertical switch, top storey first like the building. */}
-          <div
-            role="radiogroup"
-            aria-label={t("panel.storeys")}
-            className="flex flex-col gap-1 rounded-card border border-line bg-panel p-1"
-          >
-            {[...storeys].reverse().map((storey) => {
-              const selected = storey.id === activeStoreyId;
-              return (
-                <button
-                  key={storey.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={selected}
-                  aria-current={selected ? "true" : undefined}
-                  tabIndex={selected ? 0 : -1}
-                  title={storey.name}
-                  onClick={() => {
-                    setActiveStorey(storey.id);
-                    select({ kind: "storey", id: storey.id });
-                  }}
-                  onKeyDown={onKeyDown}
-                  className={cx(
-                    "h-10 min-w-0 truncate rounded-pill px-4 text-left text-sm transition-colors",
-                    selected ? "bg-ink text-paper" : "text-muted hover:bg-panel-2 hover:text-ink",
-                  )}
-                >
-                  {storey.name}
-                </button>
-              );
-            })}
-          </div>
-          {active && (
-            <div className="flex items-center gap-1 px-1">
-              <span className="font-num min-w-0 flex-1 truncate text-xs text-muted">
-                {formatMetres(active.height, language)} ·{" "}
-                {t("storey.roomCount", { n: active.rooms.length })}
-              </span>
-              <CustomIconButton
-                label={t("storey.moveDown")}
-                size="sm"
-                disabled={activeIndex === 0}
-                onClick={() => {
-                  moveStorey(active.id, -1);
-                }}
-              >
-                <ArrowDown size={13} />
-              </CustomIconButton>
-              <CustomIconButton
-                label={t("storey.moveUp")}
-                size="sm"
-                disabled={activeIndex === storeys.length - 1}
-                onClick={() => {
-                  moveStorey(active.id, 1);
-                }}
-              >
-                <ArrowUp size={13} />
-              </CustomIconButton>
-              <CustomIconButton
-                label={t("storey.duplicate")}
-                size="sm"
-                onClick={() => {
-                  duplicateStorey(active.id);
-                }}
-              >
-                <Copy size={13} />
-              </CustomIconButton>
-              <CustomIconButton
-                label={t("storey.remove")}
-                size="sm"
-                onClick={() => {
-                  removeStorey(active.id);
-                }}
-              >
-                <Trash2 size={13} />
-              </CustomIconButton>
-            </div>
+          />
+        )}
+        <ul role="tree" aria-label={t("tree.title")} className="-mx-2 flex flex-col">
+          <LayerRow
+            level={0}
+            icon={<Building2 size={15} />}
+            label={building.name}
+            selected={selection === null}
+            onSelect={clearSelection}
+          />
+          <LayerRow
+            level={1}
+            icon={<Triangle size={14} />}
+            label={t("tree.roof")}
+            selected={selection?.kind === "roof"}
+            onSelect={() => {
+              select({ kind: "roof" });
+            }}
+            hidden={roofHidden}
+            onToggleHidden={() => {
+              setOtherStoreys({ roof: roofHidden ? "outline" : "hidden" });
+            }}
+          />
+          {storeys.length === 0 && (
+            <li className="px-3 py-2 text-sm text-muted">{t("empty.body")}</li>
           )}
-        </div>
-      )}
-    </CustomSection>
+          {[...storeys].reverse().map((storey) => {
+            const index = storeys.indexOf(storey);
+            const active = storey.id === activeStoreyId;
+            return (
+              <StoreyLayer
+                key={storey.id}
+                storey={storey}
+                active={active}
+                open={isOpen(storey.id)}
+                hidden={hiddenStoreys.includes(storey.id)}
+                selection={selection}
+                meta={formatMetres(storey.height, language)}
+                onToggleOpen={() => {
+                  toggleOpen(storey.id);
+                }}
+                onSelect={() => {
+                  setActiveStorey(storey.id);
+                  select({ kind: "storey", id: storey.id });
+                }}
+                onKeyDown={onStoreyKey}
+                onToggleHidden={() => {
+                  toggleStoreyHidden(storey.id);
+                }}
+                actions={
+                  <>
+                    <RowAction
+                      label={t("storey.moveDown")}
+                      disabled={index === 0}
+                      onClick={() => {
+                        moveStorey(storey.id, -1);
+                      }}
+                    >
+                      <ArrowDown size={13} />
+                    </RowAction>
+                    <RowAction
+                      label={t("storey.moveUp")}
+                      disabled={index === storeys.length - 1}
+                      onClick={() => {
+                        moveStorey(storey.id, 1);
+                      }}
+                    >
+                      <ArrowUp size={13} />
+                    </RowAction>
+                    <RowAction
+                      label={t("storey.duplicate")}
+                      onClick={() => {
+                        duplicateStorey(storey.id);
+                      }}
+                    >
+                      <Copy size={13} />
+                    </RowAction>
+                    <RowAction
+                      label={t("storey.remove")}
+                      onClick={() => {
+                        removeStorey(storey.id);
+                      }}
+                    >
+                      <Trash2 size={13} />
+                    </RowAction>
+                  </>
+                }
+              />
+            );
+          })}
+          {heatPumps.map((pump, i) => {
+            const target: Selection = { kind: "heatPump", id: pump.id };
+            return (
+              <LayerRow
+                key={pump.id}
+                level={1}
+                icon={<Flame size={14} />}
+                label={t("tree.heatPump", { n: i + 1 })}
+                selected={sameSelection(selection, target)}
+                onSelect={() => {
+                  select(target);
+                }}
+              />
+            );
+          })}
+        </ul>
+      </CustomSection>
+      <SceneLayers />
+    </>
   );
 }
 
-function RoomList() {
+function StoreyLayer({
+  storey,
+  active,
+  open,
+  hidden,
+  selection,
+  meta,
+  onToggleOpen,
+  onSelect,
+  onKeyDown,
+  onToggleHidden,
+  actions,
+}: {
+  storey: Storey;
+  active: boolean;
+  open: boolean;
+  hidden: boolean;
+  selection: Selection | null;
+  meta: string;
+  onToggleOpen: () => void;
+  onSelect: () => void;
+  onKeyDown: (e: KeyboardEvent<HTMLButtonElement>) => void;
+  onToggleHidden: () => void;
+  actions: ReactNode;
+}) {
   const t = useT();
   const language = useEditorStore((s) => s.language);
-  const storey = useEditorStore(selectActiveStorey);
+  const footprint = useEditorStore((s) => s.building.footprint);
   const zones = useEditorStore((s) => s.building.zones);
-  const selection = useEditorStore((s) => s.selection);
   const select = useEditorStore((s) => s.select);
-  if (!storey || storey.rooms.length === 0) return null;
+  const setActiveStorey = useEditorStore((s) => s.setActiveStorey);
+  const walls = edges(footprint);
+  const radiators = storey.radiators ?? [];
+  const pick = (target: Selection) => () => {
+    setActiveStorey(storey.id);
+    select(target);
+  };
+  const isSelected = (target: Selection) => sameSelection(selection, target);
+  let windows = 0;
+  let doors = 0;
+
   return (
-    <CustomSection title={t("rooms.title")}>
-      <ul className="flex flex-col">
-        {storey.rooms.map((room) => {
-          const zone = zones.find((z) => z.id === room.zoneId);
-          const selected = selection?.kind === "room" && selection.id === room.id;
-          return (
-            <li key={room.id}>
-              <button
-                type="button"
-                aria-pressed={selected}
-                onClick={() => {
-                  select({ kind: "room", storeyId: storey.id, id: room.id });
-                }}
-                className={cx(
-                  "flex w-full items-center gap-2 border-l-2 px-2 py-1 text-left text-sm",
-                  selected ? "border-select bg-paper" : "border-transparent hover:bg-panel-2",
-                )}
-              >
-                <span
-                  aria-hidden
-                  className="h-2.5 w-2.5 shrink-0 rounded-full border border-line-strong"
-                  style={{ background: zone?.color ?? "transparent" }}
+    <>
+      <LayerRow
+        level={1}
+        icon={<Layers size={14} />}
+        label={storey.name}
+        meta={meta}
+        strong={active}
+        current={active}
+        selected={selection?.kind === "storey" && selection.id === storey.id}
+        open={open}
+        onToggleOpen={onToggleOpen}
+        onSelect={onSelect}
+        onKeyDown={onKeyDown}
+        hidden={hidden}
+        onToggleHidden={onToggleHidden}
+        actions={actions}
+      />
+      {open && (
+        <>
+          <LayerGroup label={t("tree.rooms")} count={storey.rooms.length}>
+            {storey.rooms.map((room) => {
+              const zone = zones.find((z) => z.id === room.zoneId);
+              const target: Selection = { kind: "room", storeyId: storey.id, id: room.id };
+              return (
+                <LayerRow
+                  key={room.id}
+                  level={3}
+                  icon={
+                    <span
+                      aria-hidden
+                      className="h-2.5 w-2.5 rounded-full border border-line-strong"
+                      style={{ background: zone?.color ?? "transparent" }}
+                    />
+                  }
+                  label={room.name}
+                  meta={formatArea(room.area, language)}
+                  selected={isSelected(target)}
+                  onSelect={pick(target)}
                 />
-                <span className="flex-1 truncate text-ink">{room.name}</span>
-                <span className="font-num text-xs text-muted">
-                  {formatArea(room.area, language)}
-                </span>
-              </button>
-            </li>
-          );
-        })}
+              );
+            })}
+          </LayerGroup>
+          <LayerGroup label={t("tree.walls")} count={walls.length}>
+            {walls.map((edge) => {
+              const target: Selection = {
+                kind: "wall",
+                storeyId: storey.id,
+                wallIndex: edge.index,
+              };
+              return (
+                <LayerRow
+                  key={edge.index}
+                  level={3}
+                  icon={<SquareDashedBottom size={13} />}
+                  label={t("tree.wall", { n: edge.index + 1 })}
+                  meta={formatMetres(distance(edge.a, edge.b), language)}
+                  selected={isSelected(target)}
+                  onSelect={pick(target)}
+                />
+              );
+            })}
+          </LayerGroup>
+          <LayerGroup label={t("tree.openings")} count={storey.openings.length}>
+            {storey.openings.map((opening) => {
+              const door = opening.kind === "door";
+              const n = door ? ++doors : ++windows;
+              const target: Selection = { kind: "opening", storeyId: storey.id, id: opening.id };
+              return (
+                <LayerRow
+                  key={opening.id}
+                  level={3}
+                  icon={door ? <DoorOpen size={13} /> : <SquareDashedBottom size={13} />}
+                  label={t(door ? "tree.door" : "tree.window", { n })}
+                  meta={`${formatMetres(opening.width, language)} × ${formatMetres(opening.height, language)}`}
+                  selected={isSelected(target)}
+                  onSelect={pick(target)}
+                />
+              );
+            })}
+          </LayerGroup>
+          {storey.interiorWalls.length > 0 && (
+            <LayerGroup label={t("tree.interiorWalls")} count={storey.interiorWalls.length}>
+              {storey.interiorWalls.map((segment, i) => {
+                const target: Selection = { kind: "interiorWall", storeyId: storey.id, index: i };
+                return (
+                  <LayerRow
+                    key={i}
+                    level={3}
+                    icon={<SquareDashedBottom size={13} />}
+                    label={t("tree.interiorWall", { n: i + 1 })}
+                    meta={formatMetres(distance(segment.a, segment.b), language)}
+                    selected={isSelected(target)}
+                    onSelect={pick(target)}
+                  />
+                );
+              })}
+            </LayerGroup>
+          )}
+          {radiators.length > 0 && (
+            <LayerGroup label={t("tree.radiators")} count={radiators.length}>
+              {radiators.map((radiator, i) => {
+                const target: Selection = {
+                  kind: "radiator",
+                  storeyId: storey.id,
+                  id: radiator.id,
+                };
+                return (
+                  <LayerRow
+                    key={radiator.id}
+                    level={3}
+                    icon={<Thermometer size={13} />}
+                    label={t("tree.radiator", { n: i + 1 })}
+                    selected={isSelected(target)}
+                    onSelect={pick(target)}
+                  />
+                );
+              })}
+            </LayerGroup>
+          )}
+        </>
+      )}
+    </>
+  );
+}
+
+/** A folder inside a storey: its name and count, closed until opened. */
+function LayerGroup({
+  label,
+  count,
+  children,
+}: {
+  label: string;
+  count: number;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <LayerRow
+        level={2}
+        label={label}
+        meta={String(count)}
+        muted
+        open={count > 0 ? open : undefined}
+        onToggleOpen={() => {
+          setOpen(!open);
+        }}
+        onSelect={() => {
+          if (count > 0) setOpen(!open);
+        }}
+      />
+      {open && children}
+    </>
+  );
+}
+
+/**
+ * One row of the tree, as in Figma's layers: indent, disclosure arrow, icon, name, a value on
+ * the right, and on hover the row's actions and its eye. The eye stays visible while hidden.
+ */
+function LayerRow({
+  level,
+  icon,
+  label,
+  meta,
+  selected = false,
+  strong = false,
+  current = false,
+  muted = false,
+  open,
+  onToggleOpen,
+  onSelect,
+  onKeyDown,
+  hidden,
+  onToggleHidden,
+  actions,
+}: {
+  level: number;
+  icon?: ReactNode;
+  label: string;
+  meta?: string;
+  selected?: boolean;
+  strong?: boolean;
+  current?: boolean;
+  muted?: boolean;
+  open?: boolean;
+  onToggleOpen?: () => void;
+  onSelect: () => void;
+  onKeyDown?: (e: KeyboardEvent<HTMLButtonElement>) => void;
+  hidden?: boolean;
+  onToggleHidden?: () => void;
+  actions?: ReactNode;
+}) {
+  const t = useT();
+  return (
+    <li
+      role="treeitem"
+      aria-selected={selected}
+      aria-expanded={open}
+      className={cx(
+        "group relative flex h-8 items-center rounded-soft pr-1 transition-colors",
+        selected ? "bg-select-soft" : "hover:bg-panel",
+      )}
+      style={{ paddingLeft: 4 + level * 14 }}
+    >
+      {current && (
+        <span
+          aria-hidden
+          className="absolute top-1.5 bottom-1.5 left-0 w-0.5 rounded-full bg-select"
+        />
+      )}
+      <span className="flex h-6 w-5 shrink-0 items-center justify-center">
+        {open !== undefined && onToggleOpen && (
+          <button
+            type="button"
+            aria-label={open ? t("tree.collapse") : t("tree.expand")}
+            onClick={onToggleOpen}
+            className="flex h-6 w-5 items-center justify-center text-faint hover:text-ink"
+          >
+            <ChevronRight size={13} className={cx("transition-transform", open && "rotate-90")} />
+          </button>
+        )}
+      </span>
+      <button
+        type="button"
+        aria-current={current ? "true" : undefined}
+        onClick={onSelect}
+        onKeyDown={onKeyDown}
+        className={cx(
+          "flex h-8 min-w-0 flex-1 items-center gap-2 text-left text-sm",
+          hidden && "opacity-45",
+        )}
+      >
+        {icon && (
+          <span
+            className={cx(
+              "flex w-4 shrink-0 justify-center",
+              selected ? "text-select" : "text-muted",
+            )}
+          >
+            {icon}
+          </span>
+        )}
+        <span
+          className={cx(
+            "min-w-0 flex-1 truncate",
+            muted ? "text-xs text-muted" : "text-ink",
+            strong && "font-semibold",
+          )}
+        >
+          {label}
+        </span>
+        {meta && (
+          <span className="shrink-0 font-num text-[11px] text-faint group-hover:hidden">
+            {meta}
+          </span>
+        )}
+      </button>
+      {actions && <span className="hidden shrink-0 items-center group-hover:flex">{actions}</span>}
+      {onToggleHidden && (
+        <RowAction
+          label={hidden ? t("tree.show") : t("tree.hide")}
+          onClick={onToggleHidden}
+          className={hidden ? "flex" : "hidden group-hover:flex"}
+        >
+          {hidden ? <EyeOff size={13} /> : <Eye size={13} />}
+        </RowAction>
+      )}
+    </li>
+  );
+}
+
+function RowAction({
+  label,
+  disabled,
+  onClick,
+  className,
+  children,
+}: {
+  label: string;
+  disabled?: boolean;
+  onClick: () => void;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      disabled={disabled}
+      onClick={onClick}
+      className={cx(
+        "h-6 w-6 shrink-0 items-center justify-center rounded-soft text-muted transition-colors hover:bg-panel-2 hover:text-ink disabled:opacity-30",
+        className ?? "flex",
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+/** The layers of the scene around the building, each with its eye. */
+function SceneLayers() {
+  const t = useT();
+  const showGrid = useEditorStore((s) => s.showGrid);
+  const setShowGrid = useEditorStore((s) => s.setShowGrid);
+  const showMap = useEditorStore((s) => s.showMap);
+  const setShowMap = useEditorStore((s) => s.setShowMap);
+  const hasOrigin = useEditorStore((s) => s.building.origin !== undefined);
+  const sun = useEditorStore((s) => s.sun.enabled);
+  const setSun = useEditorStore((s) => s.setSun);
+  const bridges = useEditorStore((s) => s.showBridges);
+  const setBridges = useEditorStore((s) => s.setShowBridges);
+  const uValues = useEditorStore((s) => s.showUValueBands);
+  const setUValues = useEditorStore((s) => s.setShowUValueBands);
+  const photos = useEditorStore((s) => s.showFacadePhotos);
+  const setPhotos = useEditorStore((s) => s.setShowFacadePhotos);
+  const hasPhotos = useEditorStore((s) => Object.keys(s.facadePhotos).length > 0);
+  const rows: { label: string; on: boolean; set: (on: boolean) => void; disabled?: string }[] = [
+    { label: t("tree.grid"), on: showGrid, set: setShowGrid },
+    {
+      label: t("tree.map"),
+      on: showMap && hasOrigin,
+      set: setShowMap,
+      disabled: hasOrigin ? undefined : t("settings.mapNeedsLocation"),
+    },
+    {
+      label: t("tree.sun"),
+      on: sun,
+      set: (on) => {
+        setSun({ enabled: on });
+      },
+    },
+    { label: t("tree.bridges"), on: bridges, set: setBridges },
+    { label: t("tree.uValues"), on: uValues, set: setUValues },
+    {
+      label: t("tree.facadePhotos"),
+      on: photos && hasPhotos,
+      set: setPhotos,
+      disabled: hasPhotos ? undefined : t("tree.facadePhotosNone"),
+    },
+  ];
+  return (
+    <CustomSection title={t("tree.scene")}>
+      <ul className="-mx-2 flex flex-col">
+        {rows.map((row) => (
+          <li
+            key={row.label}
+            title={row.disabled}
+            className="group flex h-8 items-center gap-2 rounded-soft pr-1 pl-3 hover:bg-panel"
+          >
+            <span
+              className={cx(
+                "min-w-0 flex-1 truncate text-sm",
+                row.on ? "text-ink" : "text-muted",
+                row.disabled && "opacity-45",
+              )}
+            >
+              {row.label}
+            </span>
+            <RowAction
+              label={row.on ? t("tree.hide") : t("tree.show")}
+              disabled={row.disabled !== undefined}
+              onClick={() => {
+                row.set(!row.on);
+              }}
+            >
+              {row.on ? <Eye size={13} /> : <EyeOff size={13} />}
+            </RowAction>
+          </li>
+        ))}
       </ul>
     </CustomSection>
   );
@@ -305,6 +714,7 @@ function ZoneList() {
   return (
     <CustomSection
       title={t("panel.zones")}
+      first
       action={
         <CustomIconButton label={t("zone.add")} size="sm" onClick={onAdd}>
           <Plus size={16} />
@@ -312,7 +722,7 @@ function ZoneList() {
       }
     >
       {zones.length === 0 && <p className="text-xs text-muted">{t("hint.zone")}</p>}
-      <ul className="flex flex-col">
+      <ul className="-mx-2 flex flex-col">
         {zones.map((zone) => {
           const active = zone.id === activeZoneId;
           const selected = selection?.kind === "zone" && selection.id === zone.id;
@@ -326,8 +736,8 @@ function ZoneList() {
                 }}
                 aria-pressed={selected}
                 className={cx(
-                  "flex w-full items-center gap-2 border-l-2 px-2 py-1.5 text-left text-sm",
-                  selected ? "border-select bg-paper" : "border-transparent hover:bg-panel-2",
+                  "flex h-8 w-full items-center gap-2 rounded-soft px-3 text-left text-sm transition-colors",
+                  selected ? "bg-select-soft" : "hover:bg-panel",
                 )}
               >
                 <span
@@ -336,11 +746,11 @@ function ZoneList() {
                   style={{ background: zone.color }}
                 />
                 <span className="flex-1 truncate text-ink">{zone.name}</span>
-                <span className="font-num text-xs text-muted">
+                <span className="font-num text-[11px] text-faint">
                   {t(zone.heated ? "zone.heated" : "zone.unheated")}
                 </span>
                 {active && (
-                  <span className="rounded-soft bg-select-soft px-1.5 font-num text-xs text-select">
+                  <span className="rounded-soft bg-select-soft px-1.5 font-num text-[11px] text-select">
                     {t("zone.active")}
                   </span>
                 )}

@@ -123,6 +123,12 @@ export function EnergyPanel() {
           value={formatArea(shown.windowArea, language)}
         />
         <CustomReadOnly label={t("energy.doorArea")} value={formatArea(shown.doorArea, language)} />
+        {shown.sharedWallArea > 0 && (
+          <CustomReadOnly
+            label={t("energy.sharedWallArea")}
+            value={formatArea(shown.sharedWallArea, language)}
+          />
+        )}
         <CustomReadOnly label={t("energy.windowToWall")} value={pct(shown.windowToWallRatio)} />
         <CustomReadOnly
           label={t("energy.heatedFloorArea")}
@@ -393,7 +399,7 @@ function GegCheck() {
         <span className="text-xs font-medium text-muted">{t("geg.title")}</span>
         <span
           className={cx(
-            "rounded-pill px-2.5 py-0.5 font-num text-xs font-semibold",
+            "rounded-control px-2.5 py-0.5 font-num text-xs font-semibold",
             passed === checks.length ? "bg-ok-soft text-ok" : "bg-mark-soft text-mark",
           )}
         >
@@ -414,7 +420,7 @@ function GegCheck() {
               </span>
               <span
                 className={cx(
-                  "rounded-pill px-2 py-0.5 font-semibold",
+                  "rounded-control px-2 py-0.5 font-semibold",
                   c.ok ? "bg-ok-soft text-ok" : "bg-mark-soft text-mark",
                 )}
               >

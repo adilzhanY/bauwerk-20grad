@@ -24,7 +24,7 @@ export function CustomIconButton({
       title={label}
       aria-pressed={pressed}
       className={cx(
-        "relative inline-flex shrink-0 items-center justify-center rounded-pill border transition-colors",
+        "relative inline-flex shrink-0 items-center justify-center rounded-control border transition-colors",
         "disabled:cursor-not-allowed disabled:opacity-40",
         size === "sm" ? "h-9 w-7" : "h-11 w-11",
         pressed

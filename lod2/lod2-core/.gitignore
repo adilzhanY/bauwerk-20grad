@@ -1,0 +1,4 @@
+node_modules/
+.scratch/
+# The full source tile is fetched on demand; only the trimmed sample is committed.
+fixtures/LoD2_32_280_5657_1_NW.gml

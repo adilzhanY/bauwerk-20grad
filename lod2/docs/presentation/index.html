@@ -1,0 +1,576 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Photographs onto facades</title>
+<style>
+@font-face { font-family: "Open Runde"; src: url("fonts/OpenRunde-Regular-latin.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: block; }
+@font-face { font-family: "Open Runde"; src: url("fonts/OpenRunde-Medium-latin.woff2") format("woff2"); font-weight: 500; font-style: normal; font-display: block; }
+@font-face { font-family: "Open Runde"; src: url("fonts/OpenRunde-Semibold-latin.woff2") format("woff2"); font-weight: 600; font-style: normal; font-display: block; }
+
+:root {
+  --paper: #f6f6f2;
+  --panel: #ffffff;
+  --panel-2: #eeeee8;
+  --line: #d9dad2;
+  --line-strong: #a9aca3;
+  --ink: #1b1d20;
+  --muted: #666b73;
+  --mark: #c2431f;
+  --mark-soft: #f7e0d8;
+  --select: #234d8f;
+  --select-soft: #dfe7f5;
+  --ok: #2f7a4f;
+  --ok-soft: #dcefe3;
+  --mono: "JetBrains Mono", "DejaVu Sans Mono", "Liberation Mono", "Noto Sans Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--ink); overflow: hidden; }
+body { font-family: "Open Runde", system-ui, sans-serif; font-weight: 500; color: var(--ink); -webkit-font-smoothing: antialiased; }
+
+.stage { position: absolute; left: 50%; top: 50%; width: 1920px; height: 1080px; transform-origin: 0 0; }
+.slide { position: absolute; inset: 0; width: 1920px; height: 1080px; background: var(--paper); padding: 80px 96px 64px; display: none; overflow: hidden; }
+.slide.active { display: block; }
+
+.label { font-size: 26px; font-weight: 600; color: var(--muted); }
+h1 { font-size: 64px; font-weight: 600; line-height: 1.1; margin: 10px 0 0; letter-spacing: -0.5px; }
+.content { position: absolute; left: 96px; right: 96px; top: 240px; bottom: 80px; display: flex; flex-direction: column; justify-content: center; }
+.foot { position: absolute; right: 96px; bottom: 28px; font-size: 20px; color: var(--muted); }
+.counter { position: absolute; left: 96px; top: 34px; font-size: 20px; font-weight: 500; color: var(--line-strong); letter-spacing: 0.5px; }
+p, li { font-size: 32px; font-weight: 500; line-height: 1.35; margin: 0; }
+.muted { color: var(--muted); }
+.cap { font-size: 24px; color: var(--muted); font-weight: 500; }
+code, .mono { font-family: var(--mono); }
+
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 22px; padding: 32px 40px; }
+.card h3 { margin: 0 0 8px; font-size: 28px; font-weight: 600; }
+.card p { font-size: 32px; }
+.card.decided { background: var(--select-soft); border-left: 8px solid var(--select); }
+.card.decided h3 { color: var(--select); }
+.card.rejected { background: var(--panel-2); }
+.card.rejected h3, .card.rejected p { color: var(--muted); }
+.card.problem { background: var(--mark-soft); border-left: 8px solid var(--mark); }
+.card.problem h3 { color: var(--mark); }
+.card.proof { background: var(--ok-soft); border-left: 8px solid var(--ok); }
+.card.proof h3 { color: var(--ok); }
+
+.shot { position: relative; margin: 0; border-radius: 14px; overflow: hidden; border: 1px solid var(--line); background: var(--panel); }
+.shot img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.tag { position: absolute; top: 18px; left: 18px; padding: 10px 20px; border-radius: 9999px; font-size: 26px; font-weight: 600; color: #fff; z-index: 2; }
+.tag.before { background: var(--mark); }
+.tag.after { background: var(--select); }
+
+.decision { display: grid; grid-template-columns: 860px 1fr; gap: 72px; align-items: center; }
+.decision .stack { display: flex; flex-direction: column; gap: 22px; }
+.decision .side { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; }
+
+.steps { display: flex; gap: 16px; align-items: stretch; justify-content: center; }
+.step { width: 318px; background: var(--panel); border: 1px solid var(--line); border-radius: 22px; padding: 28px 24px 32px; display: flex; flex-direction: column; align-items: center; text-align: center; }
+.step svg { width: 250px; height: 190px; }
+.step .n { margin-top: 14px; width: 52px; height: 52px; border-radius: 9999px; background: var(--select); color: #fff; font-size: 28px; font-weight: 600; display: flex; align-items: center; justify-content: center; }
+.step p { margin-top: 16px; font-size: 30px; }
+.arrow { align-self: center; color: var(--line-strong); font-size: 48px; font-weight: 600; }
+
+table.nums { width: 100%; border-collapse: separate; border-spacing: 0; border: 1px solid var(--line); border-radius: 22px; overflow: hidden; background: var(--panel); }
+table.nums th, table.nums td { font-size: 32px; padding: 20px 30px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: middle; }
+table.nums th { background: var(--panel-2); font-size: 26px; font-weight: 600; color: var(--muted); }
+table.nums tr:last-child td { border-bottom: 0; }
+table.nums td.r { color: var(--select); font-weight: 600; white-space: nowrap; }
+table.nums td.r.low { color: var(--mark); }
+.bar { position: relative; width: 420px; height: 30px; background: var(--panel-2); border-radius: 9999px; overflow: hidden; }
+.bar span { position: absolute; left: 0; top: 0; bottom: 0; background: var(--select); border-radius: 9999px; }
+.bar.low span { background: var(--mark); }
+
+.row3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; }
+.pro { background: var(--ok-soft); border: 1px solid var(--line); border-top: 8px solid var(--ok); border-radius: 22px; padding: 44px 40px; }
+.pro svg { width: 80px; height: 80px; stroke: var(--ok); }
+.pro h3 { font-size: 44px; font-weight: 600; margin: 26px 0 14px; }
+
+.con { display: grid; grid-template-columns: 72px 1fr; gap: 24px; align-items: center; }
+.con svg { width: 64px; height: 64px; stroke: var(--mark); }
+
+.codebox { background: var(--panel-2); border: 1px solid var(--line); border-radius: 14px; padding: 28px 36px; font-family: var(--mono); font-size: 26px; line-height: 1.7; white-space: pre; }
+
+ol.route { list-style: none; padding: 0; margin: 0; counter-reset: r; display: flex; flex-direction: column; gap: 24px; }
+ol.route li { counter-increment: r; display: grid; grid-template-columns: 64px 1fr; align-items: baseline; font-size: 32px; }
+ol.route li::before { content: counter(r); font-size: 36px; font-weight: 600; color: var(--select); }
+ol.route code { font-size: 30px; color: var(--select); font-weight: 600; }
+
+.notes { display: none; position: absolute; left: 0; right: 0; bottom: 0; background: rgba(27, 29, 32, 0.94); color: #f6f6f2; padding: 28px 96px 36px; font-size: 26px; line-height: 1.45; z-index: 10; max-height: 600px; overflow: auto; }
+.notes b { color: #f7e0d8; }
+.notes ol { margin: 8px 0 0; padding-left: 36px; }
+.notes li { font-size: 24px; }
+body.show-notes .slide.active .notes { display: block; }
+
+.hint { position: fixed; left: 16px; bottom: 12px; color: #a9aca3; font-size: 13px; font-family: system-ui, sans-serif; z-index: 20; transition: opacity 0.4s; }
+body.presenting .hint, body.capture .hint { opacity: 0; }
+
+@page { size: 1920px 1080px; margin: 0; }
+@media print {
+  html, body { background: none; overflow: visible; height: auto; }
+  .stage { position: static; transform: none !important; width: 1920px; height: auto; }
+  .slide { display: block !important; position: relative; page-break-after: always; break-after: page; }
+  .notes, .hint { display: none !important; }
+}
+</style>
+</head>
+<body>
+<div class="hint">Arrows or space to move, N for speaker notes, F for full screen, Ctrl+P prints every slide as PDF</div>
+<div class="stage" id="stage">
+
+<!-- 1 Title -->
+<section class="slide">
+  <div style="position:absolute;left:96px;top:0;bottom:0;right:96px;display:flex;flex-direction:column;justify-content:center;">
+    <div class="label">Coding challenge</div>
+    <h1 style="font-size:120px;margin-top:20px;">Photographs onto facades</h1>
+    <p class="muted" style="margin-top:36px;font-size:44px;">From a phone photo to window sizes in metres</p>
+    <p style="margin-top:120px;font-size:30px;">Adilzhan Yerzhan<br><span class="muted">20° GmbH, 16 September 2026</span></p>
+  </div>
+  <aside class="notes"><b>Say:</b> Hi, thank you for having me. I will follow the six points Leon sent: the challenge, a demo, my decisions and why, pros and cons, and then the code. <span class="muted">(20 seconds)</span></aside>
+</section>
+
+<!-- 2 The task -->
+<section class="slide">
+  <div class="label">The challenge</div>
+  <h1>The task</h1>
+  <div class="content" style="align-items:center;gap:64px;">
+    <div class="steps">
+      <div class="step">
+        <svg viewBox="0 0 250 190" aria-hidden="true">
+          <polygon points="55,65 125,35 195,65 125,95" fill="#c2431f" opacity=".8" stroke="#1b1d20" stroke-width="3" stroke-linejoin="round"/>
+          <polygon points="55,65 125,95 125,175 55,145" fill="#e0b44a" stroke="#1b1d20" stroke-width="3" stroke-linejoin="round"/>
+          <polygon points="125,95 195,65 195,145 125,175" fill="#eeeee8" stroke="#1b1d20" stroke-width="3" stroke-linejoin="round"/>
+          <path d="M62 170 L96 130" stroke="#234d8f" stroke-width="5" stroke-linecap="round"/>
+          <circle cx="96" cy="128" r="9" fill="#234d8f" stroke="#fff" stroke-width="3"/>
+        </svg>
+        <div class="n">1</div><p>Pick a wall in the 3D model</p>
+      </div>
+      <div class="arrow">›</div>
+      <div class="step">
+        <svg viewBox="0 0 250 190" aria-hidden="true">
+          <rect x="72" y="14" width="106" height="170" rx="18" fill="#fff" stroke="#1b1d20" stroke-width="4"/>
+          <rect x="82" y="32" width="86" height="130" rx="6" fill="#dfe7f5"/>
+          <polygon points="98,58 152,50 158,150 92,152" fill="#c2431f" opacity=".85"/>
+          <g fill="#fff" opacity=".9"><rect x="104" y="70" width="12" height="16"/><rect x="132" y="67" width="12" height="16"/><rect x="104" y="104" width="12" height="18"/><rect x="134" y="102" width="12" height="18"/></g>
+          <circle cx="125" cy="172" r="5" fill="#1b1d20"/>
+        </svg>
+        <div class="n">2</div><p>Give it a photo</p>
+      </div>
+      <div class="arrow">›</div>
+      <div class="step">
+        <svg viewBox="0 0 250 190" aria-hidden="true">
+          <polygon points="18,50 96,38 104,160 10,150" fill="#eeeee8" stroke="#a9aca3" stroke-width="3"/>
+          <g fill="#234d8f"><circle cx="18" cy="50" r="7"/><circle cx="96" cy="38" r="7"/><circle cx="104" cy="160" r="7"/><circle cx="10" cy="150" r="7"/></g>
+          <path d="M116 98 H144" stroke="#234d8f" stroke-width="6"/><polygon points="144,86 160,98 144,110" fill="#234d8f"/>
+          <rect x="170" y="40" width="70" height="116" fill="#dfe7f5" stroke="#234d8f" stroke-width="4"/>
+        </svg>
+        <div class="n">3</div><p>Straighten the photo onto the wall</p>
+      </div>
+      <div class="arrow">›</div>
+      <div class="step">
+        <svg viewBox="0 0 250 190" aria-hidden="true">
+          <rect x="40" y="20" width="170" height="160" fill="#c2431f" opacity=".85"/>
+          <rect x="70" y="48" width="44" height="64" fill="#fff" opacity=".35"/>
+          <rect x="70" y="48" width="44" height="64" fill="none" stroke="#fff" stroke-width="4"/>
+          <rect x="140" y="48" width="44" height="64" fill="#fff" opacity=".35"/>
+          <rect x="44" y="120" width="126" height="34" rx="8" fill="#1b1d20"/>
+          <text x="107" y="144" text-anchor="middle" font-family="Open Runde, sans-serif" font-size="20" font-weight="600" fill="#fff">1.03 × 1.67</text>
+        </svg>
+        <div class="n">4</div><p>Draw windows and doors in metres</p>
+      </div>
+      <div class="arrow">›</div>
+      <div class="step">
+        <svg viewBox="0 0 250 190" aria-hidden="true">
+          <circle cx="125" cy="95" r="90" fill="#eeeee8"/>
+          <path d="M125 95 L125 5 A90 90 0 0 1 213.97 81.48 Z" fill="#234d8f"/>
+          <circle cx="125" cy="95" r="64" fill="#fff"/>
+          <text x="125" y="106" text-anchor="middle" font-family="Open Runde, sans-serif" font-size="32" font-weight="600" fill="#234d8f">22.6 %</text>
+        </svg>
+        <div class="n">5</div><p>Opening area and window-to-wall ratio</p>
+      </div>
+    </div>
+    <p style="font-size:44px;font-weight:600;color:var(--ok);text-align:center;">And say how accurate the numbers are, and how I know.</p>
+  </div>
+  <aside class="notes"><b>Say:</b> The task has five steps. The last line is the important one: the brief says honest limits are better than claimed generality. <span class="muted">(40 seconds)</span></aside>
+</section>
+
+<!-- 3 Why it is hard -->
+<section class="slide">
+  <div class="label">The challenge</div>
+  <h1>Why it is hard</h1>
+  <div class="content">
+    <div style="display:grid;grid-template-columns:900px 1fr;gap:64px;align-items:center;">
+      <figure class="shot" style="height:680px;"><img src="img/ky.jpg" alt="The kY sample photo" style="object-fit:cover;"></figure>
+      <div style="display:flex;flex-direction:column;gap:26px;">
+        <div class="card problem"><h3>Perspective</h3><p>A 14 mm ultra wide lens, verticals converge</p></div>
+        <div class="card problem"><h3>Hidden parts</h3><p>Cars, a skip, a tree, hard shadows</p></div>
+        <div class="card problem"><h3>The model</h3><p>Metric and georeferenced, but no basement and years old</p></div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes"><b>Say:</b> In a phone photo the top windows look smaller than the bottom ones. You cannot measure anything in it directly. And the photos have cars, a skip and a tree in front of the walls. <span class="muted">(50 seconds)</span></aside>
+</section>
+
+<!-- 4 The idea -->
+<section class="slide">
+  <div class="label">The challenge</div>
+  <h1>The idea in one picture</h1>
+  <div class="content" style="align-items:center;gap:40px;">
+    <svg viewBox="0 0 1728 620" width="1728" height="620" role="img" aria-label="A slanted wall in the photo with four dots, an arrow labelled homography, and a straight rectangle of 14.33 by 14.38 metres">
+      <g font-family="Open Runde, system-ui, sans-serif">
+        <text x="300" y="36" text-anchor="middle" font-size="30" font-weight="600" fill="#666b73">Photo</text>
+        <polygon points="140,90 470,130 500,560 100,540" fill="#eeeee8" stroke="#a9aca3" stroke-width="4"/>
+        <g fill="#c2431f" opacity=".35">
+          <rect x="175" y="170" width="50" height="70"/><rect x="265" y="178" width="50" height="70"/><rect x="355" y="186" width="50" height="70"/>
+          <rect x="170" y="310" width="56" height="84"/><rect x="265" y="316" width="56" height="84"/><rect x="360" y="322" width="56" height="84"/>
+        </g>
+        <polygon points="140,90 470,130 500,560 100,540" fill="none" stroke="#234d8f" stroke-width="3"/>
+        <g fill="#234d8f" stroke="#fff" stroke-width="4">
+          <circle cx="140" cy="90" r="16"/><circle cx="470" cy="130" r="16"/><circle cx="500" cy="560" r="16"/><circle cx="100" cy="540" r="16"/>
+        </g>
+        <line x1="600" y1="325" x2="1030" y2="325" stroke="#234d8f" stroke-width="8"/>
+        <polygon points="1030,300 1080,325 1030,350" fill="#234d8f"/>
+        <text x="830" y="295" text-anchor="middle" font-size="40" font-weight="600" fill="#234d8f">homography</text>
+        <text x="830" y="385" text-anchor="middle" font-size="26" fill="#666b73">4 dots + real wall size</text>
+        <text x="1390" y="36" text-anchor="middle" font-size="30" font-weight="600" fill="#666b73">Wall, 1 pixel = 1 cm</text>
+        <rect x="1160" y="90" width="460" height="462" fill="#dfe7f5" stroke="#234d8f" stroke-width="4"/>
+        <g fill="#234d8f" opacity=".55">
+          <rect x="1210" y="150" width="70" height="100"/><rect x="1355" y="150" width="70" height="100"/><rect x="1500" y="150" width="70" height="100"/>
+          <rect x="1210" y="320" width="70" height="100"/><rect x="1355" y="320" width="70" height="100"/><rect x="1500" y="320" width="70" height="100"/>
+        </g>
+        <text x="1390" y="600" text-anchor="middle" font-size="32" font-weight="600" fill="#1b1d20">14.33 m</text>
+        <text x="1668" y="330" text-anchor="middle" font-size="32" font-weight="600" fill="#1b1d20" transform="rotate(90 1668 330)">14.38 m</text>
+      </g>
+    </svg>
+    <p style="text-align:center;">The model knows the real size of the wall. Four corners connect the photo to it.</p>
+  </div>
+  <aside class="notes"><b>Say:</b> This is the core idea. I place four dots on the wall corners in the photo. The model tells me the real width and height of that wall. From the four pairs I compute a homography and build a straight image where one pixel is one centimetre. Now windows are rectangles at their real size. <span class="muted">(1 minute)</span></aside>
+</section>
+
+<!-- 5 Demo -->
+<section class="slide">
+  <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+    <svg viewBox="0 0 24 24" width="120" height="120" fill="none" stroke="#234d8f" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><path d="M10 7.5v5l4.5-2.5z" fill="#234d8f"/></svg>
+    <h1 style="font-size:140px;margin-top:28px;">Demo</h1>
+    <p class="muted" style="margin-top:24px;font-size:40px;">BOo, then kY</p>
+  </div>
+  <aside class="notes"><b>Demo script (6 minutes):</b>
+    <ol>
+      <li>Search <code>DEBE02YY40000BOo</code>. The building appears.</li>
+      <li>Click the street wall. Panel: Faces ESE (114°), the brief says 114. Above ground 14.38 m, 1.17 m buried.</li>
+      <li>Add photo, Choose photo, BOo. Point at "Camera direction matches this wall" and the EXIF lens: 2.22 mm, 14 mm equivalent.</li>
+      <li>Drag one dot slowly: loupe and live preview. "The verticals become straight when the corners are right."</li>
+      <li>Apply. 1433 by 1438 px, 1 px = 1 cm.</li>
+      <li>Draw one window, Ctrl+C, Ctrl+V under the mouse, Ctrl and drag to resize.</li>
+      <li>Switch to the tab with all 24 openings drawn.</li>
+      <li>kY: only show "15.28 m high above ground, 10.94 m buried". "I will explain this in the decisions."</li>
+    </ol>
+    <b>If it fails:</b> open the screenshots, say "Docker did not start, here are the screenshots from last night". Do not debug for more than 30 seconds.
+  </aside>
+</section>
+
+<!-- 6 Decision corners -->
+<section class="slide">
+  <div class="label">Decisions and reasons</div>
+  <h1>A person places the corners</h1>
+  <div class="content">
+    <div class="decision">
+      <div class="stack">
+        <div class="card decided"><h3>Decided</h3><p>4 dots, dragged by a person, with a loupe</p></div>
+        <div class="card"><h3>Why</h3><p>Works on all three photos. A person sees the cars and the roof line. A wrong dot is easy to see and fix.</p></div>
+        <div class="card rejected"><h3>Rejected</h3><p>Automatic corner detection. It fails where corners are hidden.</p></div>
+      </div>
+      <div class="side">
+        <figure class="shot" style="width:700px;height:668px;"><img src="img/IMG05.jpg" alt="The loupe while dragging a corner dot"></figure>
+        <p class="cap">The loupe while I drag the top left corner</p>
+      </div>
+    </div>
+  </div>
+  <aside class="notes"><b>Say:</b> Every number after this depends on the four corners, so I made placing them precise. The loupe came from using the tool myself: my hand covered the corner. <span class="muted">(1 minute)</span></aside>
+</section>
+
+<!-- 7 Decision homography -->
+<section class="slide">
+  <div class="label">Decisions and reasons</div>
+  <h1>My own homography, in lod2-core</h1>
+  <div class="content">
+    <div class="decision">
+      <div class="stack">
+        <div class="card decided"><h3>Decided</h3><p>8 equations from 4 point pairs, solved in my own code</p></div>
+        <div class="card"><h3>Why</h3><p>Small maths, no new dependency, tested within 1 pixel, and I can explain every line</p></div>
+        <div class="card rejected"><h3>Rejected</h3><p>OpenCV: a big dependency for one small solve</p></div>
+      </div>
+      <div class="side" style="align-items:stretch;">
+        <svg viewBox="0 0 860 300" width="860" height="300" aria-label="Four photo points paired with four wall corners give eight equations">
+          <g font-family="Open Runde, system-ui, sans-serif">
+            <polygon points="70,60 300,40 320,260 50,250" fill="#eeeee8" stroke="#a9aca3" stroke-width="3"/>
+            <rect x="540" y="40" width="250" height="220" fill="#dfe7f5" stroke="#234d8f" stroke-width="3"/>
+            <g stroke="#234d8f" stroke-width="2.5" stroke-dasharray="8 8" opacity=".7">
+              <line x1="70" y1="60" x2="540" y2="40"/><line x1="300" y1="40" x2="790" y2="40"/>
+              <line x1="320" y1="260" x2="790" y2="260"/><line x1="50" y1="250" x2="540" y2="260"/>
+            </g>
+            <g fill="#234d8f" stroke="#fff" stroke-width="3">
+              <circle cx="70" cy="60" r="12"/><circle cx="300" cy="40" r="12"/><circle cx="320" cy="260" r="12"/><circle cx="50" cy="250" r="12"/>
+              <circle cx="540" cy="40" r="12"/><circle cx="790" cy="40" r="12"/><circle cx="790" cy="260" r="12"/><circle cx="540" cy="260" r="12"/>
+            </g>
+            <rect x="330" y="124" width="200" height="52" rx="26" fill="#234d8f"/>
+            <text x="430" y="159" text-anchor="middle" font-size="26" font-weight="600" fill="#fff">4 pairs, 8 eq.</text>
+            <text x="185" y="292" text-anchor="middle" font-size="24" fill="#666b73">photo pixels</text>
+            <text x="665" y="292" text-anchor="middle" font-size="24" fill="#666b73">wall metres</text>
+          </g>
+        </svg>
+        <div class="codebox">homographyFromPairs(from, to)
+applyHomography(H, point)
+invertHomography(H)</div>
+        <div class="card proof" style="padding:24px 36px;"><h3>Tested</h3><p>Known points land within 1 pixel, and a round trip comes back</p></div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes"><b>Say:</b> The brief says libraries are fine, and I agree. Here the solve is small, so a library would add more than it saves. All maths lives in lod2-core, because core has tests and the viewer has none. <span class="muted">(1 minute)</span></aside>
+</section>
+
+<!-- 8 Decision openings -->
+<section class="slide">
+  <div class="label">Decisions and reasons</div>
+  <h1>Openings drawn by hand, on the straight wall</h1>
+  <div class="content">
+    <div class="decision">
+      <div class="stack">
+        <div class="card decided"><h3>Decided</h3><p>Rectangles drawn by a person, stored in wall metres</p></div>
+        <div class="card"><h3>Why</h3><p>Detectors fail behind cars, skips and trees. My boxes are the reference a detector is tested against.</p></div>
+        <div class="card rejected"><h3>Rejected</h3><p>Automatic detection first. It is my next step, on the rectified image.</p></div>
+      </div>
+      <div class="side">
+        <figure class="shot" style="width:720px;height:721px;"><img src="img/IMG06c.jpg" alt="BOo rectified wall with 24 openings"></figure>
+      </div>
+    </div>
+  </div>
+  <aside class="notes"><b>Say:</b> I decided to do the rectification properly first, because every number depends on it. On the straight image windows are rectangles at real size, so detection becomes much easier there. That is the natural next step, and my boxes are the ground truth to test it. <span class="muted">(1 minute 20 seconds)</span></aside>
+</section>
+
+<!-- 9 Ground fix -->
+<section class="slide">
+  <div class="label">Decisions and reasons</div>
+  <h1>The key finding: measure above the ground</h1>
+  <div class="content" style="gap:28px;">
+    <div style="display:flex;gap:40px;justify-content:center;">
+      <figure class="shot" style="width:560px;height:623px;"><span class="tag before">Before: 15.55 m high</span><img src="img/IMG07c.jpg" alt="BOo before the ground fix"></figure>
+      <svg viewBox="0 0 120 120" width="120" height="623" aria-hidden="true"><path d="M20 60 H86" stroke="#234d8f" stroke-width="8"/><polygon points="84,40 110,60 84,80" fill="#234d8f"/></svg>
+      <figure class="shot" style="width:564px;height:623px;"><span class="tag after">After: 14.38 m, 1.17 m buried</span><img src="img/IMG08c.jpg" alt="BOo after the ground fix"></figure>
+    </div>
+    <div class="card proof" style="padding:22px 40px;"><p>LoD2 has no basement, so the model wall goes below the street. On kY it went <b>10.94 m</b> down: 26.22 m became 15.28 m.</p></div>
+  </div>
+  <aside class="notes"><b>Say:</b> This was the most important thing I found. On kY the wall came out 26 metres high, with 5 metre floors. That is not a real building. The info panel said the building is up to 11 metres deep below ground. The model's wall goes down to the floor slab, but my bottom dots were at the street. So everything was stretched by 1.72. Now I cut the wall at the model's own ground contact line. Here you see BOo: it was stretched too, by 8 percent, so every window was taller than it really is. <span class="muted">(1 minute 40 seconds)</span></aside>
+</section>
+
+<!-- 10 Accuracy -->
+<section class="slide">
+  <div class="label">Decisions and reasons</div>
+  <h1>How I know the numbers</h1>
+  <div class="content" style="gap:40px;">
+    <table class="nums">
+      <tr><th>Wall</th><th>Size above ground</th><th>Openings</th><th>Opening area</th><th>Ratio</th><th></th></tr>
+      <tr><td>BOo</td><td>14.33 × 14.38 m</td><td>24</td><td>46.58 m²</td><td class="r">22.6 %</td><td><div class="bar"><span style="width:75.3%"></span></div></td></tr>
+      <tr><td>Atr</td><td>14.28 × 17.05 m</td><td>24</td><td>57.81 m²</td><td class="r">23.7 %</td><td><div class="bar"><span style="width:79%"></span></div></td></tr>
+      <tr><td>kY</td><td>9.00 × 15.28 m</td><td>12</td><td>24.82 m²</td><td class="r low">18.1 %, too low</td><td><div class="bar low"><span style="width:60.3%"></span></div></td></tr>
+    </table>
+    <div class="row3">
+      <div class="card proof"><h3>Drew every wall twice</h3><p>Ratio moves 1 to 2 points</p></div>
+      <div class="card proof"><h3>Identical windows</h3><p>Differ by up to 16 to 17 cm</p></div>
+      <div class="card proof"><h3>Doors</h3><p>Up to 27 cm, bottoms behind cars</p></div>
+    </div>
+  </div>
+  <aside class="notes"><b>Say:</b> I measured every wall twice. The ground fix cannot change the ratio, because it scales windows and wall the same way, so the difference between my two runs is pure drawing error: one to two percentage points. Identical windows on one floor differ by up to 17 centimetres, so that is the precision of one box. kY's ratio is too low, because a car and a shadow hide the ground floor and I drew nothing there. <span class="muted">(1 minute 30 seconds)</span></aside>
+</section>
+
+<!-- 11 Which wall (optional) -->
+<section class="slide">
+  <div class="label">Decisions and reasons</div>
+  <h1>Which wall is in the photo</h1>
+  <div class="content">
+    <div class="decision" style="grid-template-columns:760px 1fr;">
+      <div class="stack">
+        <div class="card decided"><h3>Decided</h3><p>Show which way the wall faces, and warn when the photo's compass does not fit</p></div>
+        <div class="card"><h3>Why</h3><p>kY has 77 walls. A wrong wall makes every number wrong.</p></div>
+        <div class="card rejected"><h3>Rejected</h3><p>The GPS position. The brief shows it is metres off.</p></div>
+      </div>
+      <div class="side">
+        <figure class="shot" style="width:936px;height:310px;"><img src="img/IMG10c.jpg" alt="kY wall selected, the panel shows Faces WNW 289 degrees"></figure>
+        <p class="cap" style="align-self:flex-start;margin-left:0;">kY middle wall, the panel says Faces WNW (289°). The brief says 289°.</p>
+        <div class="card proof" style="width:936px;padding:26px 36px;"><h3>The photo editor on kY</h3><p>"Camera direction matches this wall (4 degrees off)."</p></div>
+      </div>
+    </div>
+  </div>
+  <div class="foot">optional</div>
+  <aside class="notes"><b>Say:</b> The compass in the photo is good enough to say which wall, not more. So I read only the compass, not the GPS position. <span class="muted">(1 minute, skip if short on time)</span></aside>
+</section>
+
+<!-- 12 Pros -->
+<section class="slide">
+  <div class="label">Pros and cons</div>
+  <h1>What works well</h1>
+  <div class="content">
+    <div class="row3">
+      <div class="pro">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.41 2.41 0 0 1 0-3.4l2.6-2.6a2.41 2.41 0 0 1 3.4 0Z"/><path d="m14.5 12.5 2-2"/><path d="m11.5 9.5 2-2"/><path d="m8.5 6.5 2-2"/><path d="m17.5 15.5 2-2"/></svg>
+        <h3>Metric</h3><p>Real metres from the model, not guessed</p>
+      </div>
+      <div class="pro">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+        <h3>Checkable</h3><p>Every corner and box can be seen and fixed by a person</p>
+      </div>
+      <div class="pro">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>
+        <h3>Tested</h3><p>All maths in lod2-core with node:test. Nothing in the UI measures.</p>
+      </div>
+    </div>
+  </div>
+  <aside class="notes"><b>Say:</b> Every number can be traced back to four dots and a rectangle a person placed, and all the maths is tested. <span class="muted">(1 minute)</span></aside>
+</section>
+
+<!-- 13 Cons -->
+<section class="slide">
+  <div class="label">Pros and cons</div>
+  <h1>Where it is not accurate</h1>
+  <div class="content" style="gap:30px;">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:22px 32px;">
+      <div class="card problem con">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        <div><h3>Manual</h3><p>24 boxes take a few minutes per wall</p></div>
+      </div>
+      <div class="card problem con">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 16l1.5-5A2 2 0 0 1 8.4 9.5h7.2a2 2 0 0 1 1.9 1.5L19 16"/><rect x="3" y="16" width="18" height="4" rx="1.5"/><circle cx="7" cy="20" r="1.5"/><circle cx="17" cy="20" r="1.5"/></svg>
+        <div><h3>Hidden corners</h3><p>BOo's bottom corners are behind cars</p></div>
+      </div>
+      <div class="card problem con">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21V10l9-7 9 7v11z"/><path d="M9 21v-6h6v6"/></svg>
+        <div><h3>Only rectangles</h3><p>A gable wall is not exact</p></div>
+      </div>
+      <div class="card problem con">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 15h18"/><path d="M8 19l8-4M8 15l-5 3"/></svg>
+        <div><h3>kY ground floor</h3><p>Not drawn, so the ratio is too low</p></div>
+      </div>
+      <div class="card problem con">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h11l3 3v15H5z"/><path d="M8 3v5h7V3"/><path d="M4 4l16 16"/></svg>
+        <div><h3>No saving</h3><p>A reload loses everything</p></div>
+      </div>
+      <div class="card problem con">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h3l2-3h6l2 3h3v12H4z"/><circle cx="12" cy="13" r="4"/></svg>
+        <div><h3>Lens</h3><p>I did not correct lens distortion</p></div>
+      </div>
+    </div>
+    <p class="cap" style="text-align:center;">All of this is written down in WRITEUP.md and MEASUREMENTS.md.</p>
+  </div>
+  <aside class="notes"><b>Say:</b> These are the honest limits. The biggest one is the hidden corners on BOo: if those two dots are a bit off, every height changes. <span class="muted">(1 minute 30 seconds)</span></aside>
+</section>
+
+<!-- 14 Code walkthrough -->
+<section class="slide">
+  <div class="label">Code walkthrough</div>
+  <h1>The route through the code</h1>
+  <div class="content">
+    <div style="display:grid;grid-template-columns:1fr 600px;gap:100px;align-items:center;">
+      <ol class="route">
+        <li><span><code>wall.ts</code> the wall laid flat, and cut at the ground</span></li>
+        <li><span><code>homography.ts</code> four pairs to a homography</span></li>
+        <li><span><code>rectify.ts</code> the straight image, built backwards</span></li>
+        <li><span><code>openings.ts</code> boxes in metres, the ratio</span></li>
+        <li><span><code>exif.ts</code> only the compass</span></li>
+        <li><span>one test, then <code>PhotoEditor.tsx</code> as the caller</span></li>
+      </ol>
+      <div style="display:flex;flex-direction:column;align-items:stretch;">
+        <div class="card" style="text-align:center;"><h3 class="muted">lod2-viewer</h3><p>Photo editor, only UI</p></div>
+        <div style="text-align:center;font-size:56px;color:var(--line-strong);line-height:1.3;">↓</div>
+        <div class="card decided" style="border-left-width:1px;border-top:8px solid var(--select);text-align:center;">
+          <h3>lod2-core, maths, tested</h3>
+          <p class="mono" style="font-size:28px;line-height:1.7;">wall.ts<br>homography.ts<br>rectify.ts<br>openings.ts<br>exif.ts</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes"><b>VS Code route (7 minutes), line numbers on ui-bauwerk-style:</b>
+    <ol>
+      <li>wall.ts:44 wallToPlane. "This turns the 3D wall into a flat shape in metres."</li>
+      <li>wall.ts:139 wallGroundLevel and :180 clipRingAboveZ. "This is the ground fix."</li>
+      <li>homography.ts:21 and :36. "Eight unknowns, four pairs give eight equations."</li>
+      <li>rectify.ts:34 and :58. "Going backwards never leaves holes."</li>
+      <li>openings.ts:19 imageToWall, :57 windowToWallRatio, :139 openingsSummary.</li>
+      <li>exif.ts:82 readCompassDirection, :128 sizesMatchIgnoringRotation.</li>
+      <li>test/wall.test.ts, the wall with the ground 1 m up: 2 m high, 12 m².</li>
+      <li>PhotoEditor.tsx: scroll only. "All UI, it calls what I just showed. Splitting it is on my list."</li>
+    </ol>
+  </aside>
+</section>
+
+<!-- 15 Next steps and thank you -->
+<section class="slide">
+  <div class="label">With more time</div>
+  <h1>Next steps</h1>
+  <div style="position:absolute;left:96px;right:96px;top:230px;display:grid;grid-template-columns:repeat(5, 1fr);gap:20px;">
+    <div class="card" style="padding:26px 28px;"><h3 style="color:var(--select);">1</h3><p style="font-size:28px;">Automatic openings, tested against my boxes</p></div>
+    <div class="card" style="padding:26px 28px;"><h3 style="color:var(--select);">2</h3><p style="font-size:28px;">Mark openings behind cars as estimated</p></div>
+    <div class="card" style="padding:26px 28px;"><h3 style="color:var(--select);">3</h3><p style="font-size:28px;">Save dots and openings per wall</p></div>
+    <div class="card" style="padding:26px 28px;"><h3 style="color:var(--select);">4</h3><p style="font-size:28px;">Walls that are not rectangles</p></div>
+    <div class="card" style="padding:26px 28px;"><h3 style="color:var(--select);">5</h3><p style="font-size:28px;">A printable report per wall</p></div>
+  </div>
+  <div style="position:absolute;left:0;right:0;top:520px;bottom:80px;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+    <p style="font-size:150px;font-weight:600;line-height:1;letter-spacing:-2px;">Thank you.</p>
+    <p style="font-size:84px;font-weight:600;color:var(--select);margin-top:24px;">Questions?</p>
+  </div>
+  <aside class="notes"><b>Say:</b> The first one is where I would start. Thank you, I am happy to answer questions. <span class="muted">(1 minute)</span></aside>
+</section>
+
+</div>
+<script>
+(function () {
+  var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
+  var stage = document.getElementById('stage');
+  var current = 0;
+
+  slides.forEach(function (slide, i) {
+    var counter = document.createElement('div');
+    counter.className = 'counter';
+    counter.textContent = (i + 1) + '/' + slides.length;
+    slide.appendChild(counter);
+  });
+
+  function fit() {
+    var scale = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
+    stage.style.transform = 'scale(' + scale + ') translate(-50%, -50%)';
+  }
+
+  function show(index) {
+    current = Math.max(0, Math.min(slides.length - 1, index));
+    slides.forEach(function (slide, i) { slide.classList.toggle('active', i === current); });
+    history.replaceState(null, '', location.search + '#' + (current + 1));
+  }
+
+  document.addEventListener('keydown', function (event) {
+    var key = event.key;
+    if (key === 'ArrowRight' || key === ' ' || key === 'PageDown') { show(current + 1); event.preventDefault(); }
+    else if (key === 'ArrowLeft' || key === 'PageUp') { show(current - 1); event.preventDefault(); }
+    else if (key === 'Home') { show(0); }
+    else if (key === 'End') { show(slides.length - 1); }
+    else if (key === 'n' || key === 'N') { document.body.classList.toggle('show-notes'); }
+    else if (key === 'f' || key === 'F') {
+      if (document.fullscreenElement) { document.exitFullscreen(); }
+      else { document.documentElement.requestFullscreen(); }
+    }
+    document.body.classList.add('presenting');
+  });
+
+  document.addEventListener('click', function (event) {
+    if (event.target.closest('.notes')) return;
+    show(current + 1);
+  });
+
+  if (location.search.indexOf('capture') !== -1) document.body.classList.add('capture');
+  window.addEventListener('resize', fit);
+  fit();
+  show((parseInt(location.hash.slice(1), 10) || 1) - 1);
+})();
+</script>
+</body>
+</html>

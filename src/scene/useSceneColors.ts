@@ -4,6 +4,7 @@ import { useEditorStore } from "@/store/building";
 
 export interface SceneColors {
   bg: string;
+  paper: string;
   ground: string;
   grid: string;
   gridStrong: string;
@@ -16,6 +17,7 @@ export interface SceneColors {
 function read(): SceneColors {
   return {
     bg: themeColor("--scene-bg", "#e9e9e3"),
+    paper: themeColor("--paper", "#ffffff"),
     ground: themeColor("--scene-ground", "#dddcd4"),
     grid: themeColor("--scene-grid", "#c4c6bd"),
     gridStrong: themeColor("--scene-grid-strong", "#a9aba2"),

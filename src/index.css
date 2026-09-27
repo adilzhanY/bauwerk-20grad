@@ -1,28 +1,38 @@
-@import "@fontsource-variable/archivo";
-@import "@fontsource-variable/manrope";
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
 @import "tailwindcss";
+@import "./lod2/lod2.css";
 
 /*
-  Design tokens. Light is the default; dark is a designed second set with the
-  same roles, not an inversion. Components never use a colour literal: they use
-  bg-paper, bg-panel, border-line, text-ink, text-muted, text-mark, text-select.
-  Everything is a pill or a large rounded card; radius comes from the tokens.
+  Design tokens, after the 20° app: a white top bar and white side panels on hairline borders,
+  a cool blue-grey 3D scene, one deep navy for the primary action, the active tool and the
+  selection, navy-black ink and a green-grey muted ink. Geist for text, Geist Mono for every
+  value and measurement and for the small uppercase section labels. Corners are small and
+  square, not pills. Components never use a colour literal: they use bg-paper, bg-panel,
+  border-line, text-ink, text-muted, text-faint, text-mark, text-select. Dark is a designed
+  second set with the same roles, not an inversion.
 */
 :root {
-  --paper: #f6f6f2;
-  --panel: #ffffff;
-  --panel-2: #eeeee8;
-  --line: #d9dad2;
-  --line-strong: #a9aca3;
-  --ink: #1b1d20;
-  --muted: #666b73;
-  --mark: #c2431f;
-  --mark-soft: #f7e0d8;
-  --select: #234d8f;
-  --select-soft: #dfe7f5;
-  --ok: #2f7a4f;
-  --ok-soft: #dcefe3;
-  --fixed-ink: #1b1d20;
+  --ground: #f4f6f6;
+  --paper: #ffffff;
+  --panel: #f7f9f9;
+  --panel-2: #eef2f2;
+  --line: #e5e9e8;
+  --line-strong: #cdd4d2;
+  --ink: #0d2137;
+  --muted: #7b8783;
+  --faint: #a5afab;
+  --mark: #d64545;
+  --mark-soft: #fbe9e9;
+  --select: #024e7b;
+  --select-strong: #04304e;
+  --select-soft: #e3eef5;
+  --ok: #2a8a57;
+  --ok-soft: #e2f3e9;
+  --sun: #e8b20c;
+  --fixed-ink: #0d2137;
+  --night: #1b2430;
+  --night-2: #273241;
   --layer-masonry: #d9b8a0;
   --layer-concrete: #b9bcbf;
   --layer-insulation: #f3e39a;
@@ -30,69 +40,106 @@
   --layer-timber: #d7b783;
   --layer-membrane: #4a4a4a;
   --layer-other: #cfd6de;
-  --shadow: 0 10px 30px rgba(27, 29, 32, 0.12), 0 1px 2px rgba(27, 29, 32, 0.08);
-  --scene-bg: #e9e9e3;
-  --scene-ground: #dddcd4;
-  --scene-grid: #c4c6bd;
-  --scene-grid-strong: #a9aba2;
+  --shadow: 0 4px 16px rgba(13, 33, 55, 0.08), 0 1px 2px rgba(13, 33, 55, 0.06);
+  --shadow-soft: 0 2px 8px rgba(13, 33, 55, 0.06);
+  /* The scene: a sky that darkens toward the viewer, the ground grid in the same blue-grey. */
+  --scene-bg: #dde3e8;
+  --scene-sky: #eef2f5;
+  --scene-floor: #c3cbd4;
+  --scene-ground: #dfe5ea;
+  --scene-grid: #b7c1cb;
+  --scene-grid-strong: #97a4b1;
+  --footprint: #f8e0b3;
+  --footprint-line: #c58d1d;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --paper: #16181b;
-    --panel: #1f2226;
-    --panel-2: #2a2e34;
-    --line: #363a41;
-    --line-strong: #565c66;
-    --ink: #e7e7e1;
-    --muted: #a2a6ad;
-    --mark: #e0673f;
-    --mark-soft: #3a241b;
-    --select: #7ea4e6;
-    --select-soft: #1d2a40;
-    --ok: #6cc08b;
-    --ok-soft: #1f3327;
-    --shadow: 0 10px 30px rgba(0, 0, 0, 0.45), 0 1px 2px rgba(0, 0, 0, 0.4);
-    --scene-bg: #111316;
-    --scene-ground: #15171a;
-    --scene-grid: #2a2e35;
-    --scene-grid-strong: #3a4049;
+    --ground: #0e141b;
+    --paper: #141b23;
+    --panel: #19212b;
+    --panel-2: #212b37;
+    --line: #29343f;
+    --line-strong: #3d4a58;
+    --ink: #e6edf3;
+    --muted: #93a09c;
+    --faint: #6c7a76;
+    --mark: #f07070;
+    --mark-soft: #3a1f22;
+    --select: #3b8cc4;
+    --select-strong: #5aa6db;
+    --select-soft: #12283a;
+    --ok: #5fcf8a;
+    --ok-soft: #173024;
+    --sun: #e3b810;
+    --night: #1b2430;
+    --night-2: #273241;
+    --shadow: 0 4px 16px rgba(0, 0, 0, 0.45), 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-soft: 0 2px 8px rgba(0, 0, 0, 0.4);
+    --scene-bg: #18212b;
+    --scene-sky: #1d2833;
+    --scene-floor: #111820;
+    --scene-ground: #16202a;
+    --scene-grid: #243140;
+    --scene-grid-strong: #33455a;
+    --footprint: #5b4a2a;
+    --footprint-line: #d9a53c;
   }
 }
 :root[data-theme="dark"] {
-  --paper: #16181b;
-  --panel: #1f2226;
-  --panel-2: #2a2e34;
-  --line: #363a41;
-  --line-strong: #565c66;
-  --ink: #e7e7e1;
-  --muted: #a2a6ad;
-  --mark: #e0673f;
-  --mark-soft: #3a241b;
-  --select: #7ea4e6;
-  --select-soft: #1d2a40;
-  --ok: #6cc08b;
-  --shadow: 0 10px 30px rgba(0, 0, 0, 0.45), 0 1px 2px rgba(0, 0, 0, 0.4);
-  --scene-bg: #111316;
-  --scene-ground: #15171a;
-  --scene-grid: #2a2e35;
-  --scene-grid-strong: #3a4049;
+  --ground: #0e141b;
+  --paper: #141b23;
+  --panel: #19212b;
+  --panel-2: #212b37;
+  --line: #29343f;
+  --line-strong: #3d4a58;
+  --ink: #e6edf3;
+  --muted: #93a09c;
+  --faint: #6c7a76;
+  --mark: #f07070;
+  --mark-soft: #3a1f22;
+  --select: #3b8cc4;
+  --select-strong: #5aa6db;
+  --select-soft: #12283a;
+  --ok: #5fcf8a;
+  --ok-soft: #173024;
+  --sun: #e3b810;
+  --night: #1b2430;
+  --night-2: #273241;
+  --shadow: 0 4px 16px rgba(0, 0, 0, 0.45), 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-soft: 0 2px 8px rgba(0, 0, 0, 0.4);
+  --scene-bg: #18212b;
+  --scene-sky: #1d2833;
+  --scene-floor: #111820;
+  --scene-ground: #16202a;
+  --scene-grid: #243140;
+  --scene-grid-strong: #33455a;
+  --footprint: #5b4a2a;
+  --footprint-line: #d9a53c;
 }
 
 @theme {
   --color-*: initial;
+  --color-ground: var(--ground);
   --color-paper: var(--paper);
+  --color-night: var(--night);
+  --color-night-2: var(--night-2);
   --color-panel: var(--panel);
   --color-panel-2: var(--panel-2);
   --color-line: var(--line);
   --color-line-strong: var(--line-strong);
   --color-ink: var(--ink);
   --color-muted: var(--muted);
+  --color-faint: var(--faint);
   --color-mark: var(--mark);
   --color-mark-soft: var(--mark-soft);
   --color-select: var(--select);
+  --color-select-strong: var(--select-strong);
   --color-select-soft: var(--select-soft);
   --color-ok: var(--ok);
   --color-ok-soft: var(--ok-soft);
+  --color-sun: var(--sun);
+  --color-footprint: var(--footprint);
+  --color-footprint-line: var(--footprint-line);
   --color-wall: #d9d4c7;
   --color-floor: #b8b2a4;
   --color-window: #8ecae6;
@@ -101,26 +148,43 @@
   --color-black: #000000;
   --color-transparent: transparent;
 
-  --font-display: "Archivo Variable", "Helvetica Neue", Arial, sans-serif;
-  --font-sans: "Manrope Variable", system-ui, sans-serif;
-  /* Numbers use the same face as text, with tabular figures set on the body. */
-  --font-num: "Manrope Variable", system-ui, sans-serif;
+  --font-display: "Geist Variable", system-ui, sans-serif;
+  --font-sans: "Geist Variable", system-ui, sans-serif;
+  /* Every value and measurement, and the uppercase section labels. */
+  --font-num: "Geist Mono Variable", ui-monospace, monospace;
 
   --text-*: initial;
-  --text-xs: 13px;
+  --text-xs: 12px;
   --text-sm: 14px;
   --text-base: 15px;
   --text-lg: 17px;
-  --text-xl: 22px;
-  --text-title: 30px;
+  --text-xl: 20px;
+  --text-title: 28px;
+  --text-hero: 32px;
 
   --radius-*: initial;
-  --radius-pill: 9999px;
-  --radius-card: 22px;
-  --radius-inner: 14px;
-  --radius-soft: 8px;
+  /* Buttons, inputs, segments: a small square corner. */
+  --radius-control: 8px;
+  --radius-shell: 12px;
+  --radius-card: 12px;
+  --radius-inner: 8px;
+  --radius-soft: 6px;
 
   --shadow-float: var(--shadow);
+  --shadow-soft: var(--shadow-soft);
+}
+
+@layer components {
+  /* The 3D view's ground: a pale sky at the top that darkens toward the viewer, as in the
+     20° app. The canvas above it is transparent. */
+  .scene-ground {
+    background: linear-gradient(
+      to bottom,
+      var(--scene-sky) 0%,
+      var(--scene-bg) 42%,
+      var(--scene-floor) 100%
+    );
+  }
 }
 
 @layer base {
@@ -130,7 +194,7 @@
     height: 100%;
   }
   body {
-    @apply bg-paper font-sans text-base text-ink antialiased;
+    @apply bg-ground font-sans text-base text-ink antialiased;
     font-variant-numeric: tabular-nums;
   }
   :focus-visible {
@@ -148,4 +212,24 @@
       background: white;
     }
   }
+}
+
+/* System cursors: grab on the 3D canvas, a crosshair for the drawing tools, and a resize
+   arrow for number labels that scrub. */
+canvas {
+  cursor: grab;
+}
+canvas:active,
+[data-tool="move"] canvas:active {
+  cursor: grabbing;
+}
+[data-tool="footprint"] canvas,
+[data-tool="opening"] canvas,
+[data-tool="interiorWall"] canvas,
+[data-tool="measure"] canvas {
+  cursor: crosshair;
+}
+.cursor-scrub,
+.cursor-scrub * {
+  cursor: ew-resize;
 }

@@ -11,7 +11,7 @@ import { useHover } from "./hover";
 import { mergeAll, prismGeometry } from "./three";
 import { useDisposableGeometry } from "./useDisposableGeometry";
 
-const ROOF_COLOR = "#8d6e63";
+const ROOF_COLOR = "#cd5454";
 const ROOF_THICKNESS = 0.2;
 const ROOF_SELECTION = { kind: "roof" } as const;
 

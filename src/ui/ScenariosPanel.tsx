@@ -175,7 +175,7 @@ function Roadmap() {
               {s.scenario.id === "full-envelope" ? t("scenarios.full") : s.scenario.name}
             </span>
             <span
-              className="rounded-pill px-2 py-0.5 font-num text-xs font-semibold"
+              className="rounded-control px-2 py-0.5 font-num text-xs font-semibold"
               style={{
                 background: ENERGY_CLASS_COLORS[s.energy.energyClass],
                 color: "var(--fixed-ink)",
