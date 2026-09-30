@@ -1,4 +1,4 @@
-import { Line } from "@react-three/drei";
+import { Line } from "./Line";
 import { useEditorStore } from "@/store/building";
 import { storeyElevation } from "@/store/selectors";
 import { useSceneColors } from "./useSceneColors";

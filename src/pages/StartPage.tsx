@@ -1,12 +1,19 @@
+import { PageTitle } from "@/components/shared/PageTitle";
+import { Presence } from "@/components/shared/Presence";
+import { Notice } from "@/components/shared/Notice";
+import { Hint } from "@/components/shared/Hint";
 import { useEffect, useRef, useState } from "react";
-import { Building2, Loader2, MapPin, Search } from "lucide-react";
+import { Building2, MapPin, Search } from "lucide-react";
+import { Spinner } from "@/components/shared/Spinner";
 import { useRouter } from "@/app/router";
 import { useT } from "@/i18n/useT";
 import { search as searchGid } from "@/lod2/api/client";
 import { buildingAtPoint, searchAddress } from "@/lod2/api/geocode";
 import type { Place } from "@/lod2/api/geocode";
 import { useStore } from "@/lod2/state/store";
-import { BuildingMap } from "./map/BuildingMap";
+import { BuildingMap } from "@/components/map/BuildingMap";
+import { readNewProject } from "@/app/projectRoutes";
+import { SAMPLE_BUILDINGS } from "@/lib/sampleBuildings";
 
 /** Wait this long after the last key before asking the geocoder. */
 const DEBOUNCE_MS = 250;
@@ -107,10 +114,10 @@ export function StartPage() {
   return (
     <div className="grid h-full grid-cols-[minmax(420px,34%)_1fr]">
       <section className="flex min-h-0 flex-col overflow-y-auto border-r border-line bg-paper px-10 pt-12 pb-8">
-        <h1 className="text-xl leading-tight font-semibold">{t("start.title")}</h1>
-        <p className="mt-2 max-w-[52ch] text-sm leading-relaxed text-muted">
-          {t("start.subtitle")}
-        </p>
+        <PageTitle title={t("start.title")} subtitle={t("start.subtitle")} />
+        <Presence show={Boolean(readNewProject(window.location.search))}>
+          <Notice className="mt-4">{t("start.forNewProject")}</Notice>
+        </Presence>
 
         <label className="relative mt-6 block">
           <span className="sr-only">{t("start.searchLabel")}</span>
@@ -130,11 +137,9 @@ export function StartPage() {
             className="h-12 w-full rounded-control border border-line bg-paper pr-5 pl-12 text-base text-ink shadow-soft outline-none placeholder:text-muted focus:border-select"
           />
           {status === "searching" && (
-            <Loader2
-              size={16}
-              aria-hidden
-              className="absolute top-1/2 right-5 -translate-y-1/2 animate-spin text-muted"
-            />
+            <span className="absolute top-1/2 right-5 flex -translate-y-1/2 text-muted">
+              <Spinner />
+            </span>
           )}
         </label>
 
@@ -147,7 +152,7 @@ export function StartPage() {
                   if (hit.kind === "place") void choosePlace(hit.place);
                   else openBuilding(hit.gid);
                 }}
-                className="flex w-full items-center gap-4 rounded-inner px-4 py-3.5 text-left transition-colors hover:bg-paper"
+                className="flex w-full items-center gap-4 rounded-inner px-4 py-3.5 text-left transition-colors hover:bg-panel"
               >
                 {hit.kind === "place" ? (
                   <MapPin size={18} aria-hidden className="shrink-0 fill-ink text-panel" />
@@ -168,11 +173,42 @@ export function StartPage() {
             </li>
           ))}
         </ul>
+        <Presence show={query.trim().length < 3}>
+          <div className="mt-5 flex flex-col">
+            <p className="px-4 pb-1 text-xs font-medium tracking-wide text-muted uppercase">
+              {t("start.examples")}
+            </p>
+            <ul className="flex flex-col" aria-label={t("start.examples")}>
+              {SAMPLE_BUILDINGS.map((example) => (
+                <li key={example.gid}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      openBuilding(example.gid);
+                    }}
+                    className="flex w-full items-center gap-4 rounded-inner px-4 py-3 text-left transition-colors hover:bg-panel"
+                  >
+                    <Building2 size={18} aria-hidden className="shrink-0 text-ink" />
+                    <span className="flex min-w-0 flex-col">
+                      <span className="truncate text-[15px]">
+                        <b className="font-semibold text-ink">{example.street}</b>
+                        <span className="text-muted">, Kreuzberg</span>
+                      </span>
+                      <span className="truncate text-xs text-muted">
+                        {t(example.note)} · <span className="font-num">{example.gid}</span>
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </Presence>
         <StatusLine
           status={status}
           noResults={hits.length === 0 && searched !== "" && searched === query.trim()}
         />
-        <p className="mt-auto pt-10 text-xs leading-relaxed text-muted">{t("start.hint")}</p>
+        <Hint className="mt-auto pt-10">{t("start.hint")}</Hint>
       </section>
       <BuildingMap selectedGid={null} marker={marker} onPick={openBuilding} />
     </div>

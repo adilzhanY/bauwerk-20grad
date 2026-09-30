@@ -1,29 +1,30 @@
-import type { Building, Construction, ConstructionCategory, Layer } from "./types";
+import type { Building, Construction, ConstructionKind, Layer } from "./types";
 
 /**
  * Layered constructions. The U-value follows DIN EN ISO 6946:
  *   R_T = R_si + Σ (d_i / λ_i) + R_se,   U = 1 / R_T
  * Surface resistances in m²K/W: walls 0.13 inside and 0.04 outside; roofs
  * 0.10 and 0.04 (upward heat flow); ground floors 0.17 inside and 0.00 to the
- * ground. Windows and doors are products, not layer stacks, and keep a typed U.
+ * ground; interior walls 0.13 on both sides, both faces being inside. Windows and doors are products, not layer stacks, and keep a typed U.
  */
 
-export const SURFACE_RESISTANCE: Record<ConstructionCategory, { rsi: number; rse: number }> = {
+export const SURFACE_RESISTANCE: Record<ConstructionKind, { rsi: number; rse: number }> = {
   wall: { rsi: 0.13, rse: 0.04 },
+  interiorWall: { rsi: 0.13, rse: 0.13 },
   roof: { rsi: 0.1, rse: 0.04 },
   floor: { rsi: 0.17, rse: 0 },
   window: { rsi: 0.13, rse: 0.04 },
   door: { rsi: 0.13, rse: 0.04 },
 };
 
-export const LAYERED_CATEGORIES: ConstructionCategory[] = ["wall", "roof", "floor"];
+export const LAYERED_CATEGORIES: ConstructionKind[] = ["wall", "interiorWall", "roof", "floor"];
 
 /** Thermal resistance of the layers alone, m²K/W. */
 export function layersResistance(layers: readonly Layer[]): number {
   return layers.reduce((r, l) => r + (l.conductivity > 0 ? l.thickness / l.conductivity : 0), 0);
 }
 
-export function uValueFromLayers(layers: readonly Layer[], category: ConstructionCategory): number {
+export function uValueFromLayers(layers: readonly Layer[], category: ConstructionKind): number {
   const { rsi, rse } = SURFACE_RESISTANCE[category];
   const total = rsi + layersResistance(layers) + rse;
   return total > 0 ? Math.round((1 / total) * 1000) / 1000 : 0;

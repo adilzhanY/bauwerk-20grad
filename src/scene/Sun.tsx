@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Line } from "@react-three/drei";
+import { Line } from "./Line";
 import { Object3D } from "three";
 import { bounds } from "@/geometry/polygon";
 import { sunPath } from "@/geometry/sun";

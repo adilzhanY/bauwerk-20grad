@@ -1,4 +1,5 @@
-import { openingsOn, validateOpening } from "./openings";
+import { countedOpenings, openingsOn } from "./openings";
+import { sharedEdgeSet } from "./shared";
 import { edges, pointOnSegment } from "./polygon";
 import type { Building, Vec2 } from "./types";
 
@@ -66,15 +67,20 @@ export const zero = (): Record<BridgeType, number> => ({
 
 export function extractBridges(building: Building): Bridge[] {
   const fp = building.footprint;
+  // A party wall against a heated neighbour has no heat flow, so no bridge on it either.
+  const shared = sharedEdgeSet(building);
   const es = edges(fp);
-  const perimeterSegments = (z: number) => es.map((e) => ({ a: e.a, b: e.b, z0: z, z1: z }));
-  const perimeter = es.reduce((s, e) => s + e.length, 0);
+  const outer = es.filter((e) => !shared.has(e.index));
+  const perimeterSegments = (z: number) => outer.map((e) => ({ a: e.a, b: e.b, z0: z, z1: z }));
+  const perimeter = outer.reduce((s, e) => s + e.length, 0);
   const out: Bridge[] = [];
   let elevation = 0;
   building.storeys.forEach((storey, index) => {
     const top = elevation + storey.height;
     // Outer corners: one vertical line per footprint vertex, storey high.
-    for (const p of fp) {
+    for (const [i, p] of fp.entries()) {
+      // Vertex i joins edge i - 1 and edge i; between two party walls it is inside.
+      if (shared.has(i) && shared.has((i - 1 + fp.length) % fp.length)) continue;
       out.push({
         type: "corner",
         storeyId: storey.id,
@@ -83,16 +89,12 @@ export function extractBridges(building: Building): Bridge[] {
       });
     }
     // Window and door perimeters.
-    for (const o of storey.openings) {
-      if (o.interior) continue;
+    const counted = outer.flatMap((e) =>
+      countedOpenings(openingsOn(storey.openings, e.index), e.length, storey.height),
+    );
+    for (const o of counted) {
       const e = es[o.wallIndex];
       if (!e) continue;
-      const onWall = openingsOn(storey.openings, o.wallIndex);
-      if (
-        validateOpening(o, { wallLength: e.length, storeyHeight: storey.height, siblings: onWall })
-          .length > 0
-      )
-        continue;
       const a = { x: e.a.x + e.direction.x * o.offset, y: e.a.y + e.direction.y * o.offset };
       const b = { x: a.x + e.direction.x * o.width, y: a.y + e.direction.y * o.width };
       const z0 = elevation + o.sill;
@@ -134,7 +136,7 @@ export function extractBridges(building: Building): Bridge[] {
     // Interior wall ends touching the exterior wall.
     for (const wall of storey.interiorWalls) {
       for (const p of [wall.a, wall.b]) {
-        if (es.some((e) => pointOnSegment(p, e.a, e.b, 1e-6))) {
+        if (outer.some((e) => pointOnSegment(p, e.a, e.b, 1e-6))) {
           out.push({
             type: "junction",
             storeyId: storey.id,

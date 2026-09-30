@@ -8,12 +8,12 @@ RUN npm ci --legacy-peer-deps --ignore-scripts
 COPY index.html tsconfig.json tsconfig.app.json tsconfig.node.json vite.config.ts ./
 COPY public ./public
 COPY src ./src
-ARG VITE_SUPABASE_URL=""
-ARG VITE_SUPABASE_ANON_KEY=""
+# The photo editor's sample photos, bundled from here.
+COPY lod2/sample-photos ./lod2/sample-photos
+# The app asks the server whether there are accounts (/auth/mode); nothing about them is
+# baked into the build.
 ENV VITE_API_URL=/collab \
-    VITE_SERVER_PDF=false \
-    VITE_SUPABASE_URL=$VITE_SUPABASE_URL \
-    VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY
+    VITE_SERVER_PDF=false
 RUN npx vite build
 
 FROM caddy:2

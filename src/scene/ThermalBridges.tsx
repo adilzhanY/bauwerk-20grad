@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { Html, Line } from "@react-three/drei";
+import { Html } from "@react-three/drei";
+import { Line } from "./Line";
 import { PSI, bridgeDetailOf, summarizeBridges } from "@/geometry/bridges";
 import type { Bridge, BridgeType } from "@/geometry/bridges";
 import { useT } from "@/i18n/useT";

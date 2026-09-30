@@ -1,9 +1,19 @@
-import { applyTheme, saveBuilding, saveLanguage, saveTheme } from "@/lib/storage";
+import {
+  applyTheme,
+  rememberOpenProject,
+  saveLanguage,
+  saveProjectCopy,
+  saveTheme,
+} from "@/lib/storage";
 import type { createEditorStore } from "./building";
 
 const SAVE_DELAY_MS = 300;
 
-/** Autosaves the building (debounced) and the language to localStorage. */
+/**
+ * Keeps the language and theme, and, without a server, a saved project: once a project has
+ * been saved (it has a local id) its changes are kept as they happen, the way a server
+ * project syncs live. A building that was never saved is kept nowhere; leaving it asks.
+ */
 export function startPersistence(store: ReturnType<typeof createEditorStore>): () => void {
   let timer: ReturnType<typeof setTimeout> | null = null;
   applyTheme(store.getState().theme);
@@ -14,9 +24,12 @@ export function startPersistence(store: ReturnType<typeof createEditorStore>): (
       applyTheme(state.theme);
     }
     if (state.building !== previous.building) {
+      const id = state.building.project?.localId ?? null;
+      if (id !== (previous.building.project?.localId ?? null)) rememberOpenProject(id);
+      if (!id) return;
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
-        saveBuilding(state.building);
+        saveProjectCopy(state.building);
       }, SAVE_DELAY_MS);
     }
   });

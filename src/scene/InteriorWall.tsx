@@ -18,6 +18,10 @@ interface Props {
   segment: Segment;
   openings: readonly Opening[];
   height: number;
+  /** Metres, from the wall's type. */
+  thickness: number;
+  /** Where the wall is built, metres along it (wallGraph.pieceRange). */
+  range: [number, number];
   elevation: number;
   active: boolean;
   display: StoreyDisplay;
@@ -31,6 +35,8 @@ export function InteriorWall({
   segment,
   openings,
   height,
+  thickness,
+  range,
   elevation,
   active,
   display,
@@ -47,10 +53,13 @@ export function InteriorWall({
   const addOpening = useEditorStore((s) => s.addOpening);
   const hover = useHover(target, active);
 
-  const wall = useMemo(() => interiorWallAsWall(segment, index, height), [segment, index, height]);
-  const hash = JSON.stringify([segment, height, openings]);
+  const wall = useMemo(
+    () => interiorWallAsWall(segment, index, height, thickness),
+    [segment, index, height, thickness],
+  );
+  const hash = JSON.stringify([segment, height, thickness, openings, range]);
   const geometry = useMemo(() => {
-    const prisms = wallSolids(wall, openings);
+    const prisms = wallSolids(wall, openings, range);
     return mergeAll(prisms.map((p) => prismGeometry(p.plan, p.bottom, p.top)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hash]);

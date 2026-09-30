@@ -40,6 +40,13 @@ def load_env_file(path: Path) -> None:
 
 # Before torch and huggingface_hub are imported, because they read HF_HOME at import time.
 load_env_file(Path(__file__).resolve().parent.parent.parent / ".env")
+# Apple chips: operations the GPU lacks fall back to the processor instead of failing.
+os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
+# A copy of the model shipped next to this file (the demo zip): use it, download nothing.
+BUNDLED_MODEL = Path(__file__).resolve().parent / "model"
+if BUNDLED_MODEL.is_dir():
+    os.environ.setdefault("HF_HUB_CACHE", str(BUNDLED_MODEL))
+    os.environ.setdefault("HF_HUB_OFFLINE", "1")
 
 import torch  # noqa: E402
 import uvicorn  # noqa: E402
@@ -81,8 +88,6 @@ def fail(message: str) -> None:
 
 
 def load_model() -> Sam3:
-    if not torch.cuda.is_available():
-        fail("SAM 3 needs an NVIDIA GPU with CUDA; none found.")
     print("Loading SAM 3 (first start downloads about 3.4 GB)...", flush=True)
     try:
         return Sam3()
@@ -94,6 +99,8 @@ def load_model() -> Sam3:
 async def lifespan(_: FastAPI):
     global sam
     sam = load_model()
+    # Before "ready", so the first photo is as fast as every later one.
+    sam.warm_up()
     print(f"lod2-vision ready on http://{HOST}:{PORT}  (SAM 3 on {sam.device})", flush=True)
     yield
 

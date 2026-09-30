@@ -50,6 +50,51 @@ export default tseslint.config(
     },
   },
   {
+    // Imports flow one way: shared components, then the parts of each area, then pages. A
+    // page is only ever composed, never imported. See "Components" in CLAUDE.md.
+    files: [
+      "src/components/**/*.{ts,tsx}",
+      "src/scene/**/*.{ts,tsx}",
+      "src/lib/**/*.ts",
+      "src/store/**/*.ts",
+    ],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@/pages", "@/pages/*"],
+              message: "Pages compose components; nothing imports a page.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    // Shared components are the base every area builds on, so they know no area.
+    files: ["src/components/shared/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@/pages", "@/pages/*"],
+              message: "Pages compose components; nothing imports a page.",
+            },
+            {
+              group: ["@/components/*", "!@/components/shared", "!@/components/shared/*"],
+              message:
+                "A shared component uses only other shared components. Move what both need into shared/.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     // Test fixtures index into known arrays; a non-null assertion reads better than a guard.
     files: ["**/*.test.{ts,tsx}", "src/geometry/fixtures.ts"],
     rules: { "@typescript-eslint/no-non-null-assertion": "off" },

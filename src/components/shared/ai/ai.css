@@ -1,0 +1,229 @@
+/*
+ * The AI look. Every place where the AI works (SAM 3 on a facade photo, reading a floor
+ * plan, finding walls in an underlay) uses these classes through the components next to
+ * this file, so the AI looks and moves the same everywhere:
+ *
+ * - AiScan: a turning glow around the picture, a faint shimmer and a light band sweeping
+ *   over it, while the AI looks at it.
+ * - AiIcon: the sparkles in a round badge. Breathes while working, turns into a tick when
+ *   done and a warning when it failed.
+ * - AiBar: a light sweeping along a thin track while working, filled green when done.
+ * - ai-pop: what the AI placed (dots, boxes, doors, labels) arrives with a short pop.
+ * - ai-draw: lines the AI found draw themselves in.
+ *
+ * Colours are the --ai-* tokens; enter and exit use the site's --motion-* tokens. Every loop
+ * moves only transform or opacity, so the GPU runs it and the page stays responsive, and
+ * everything stops for people who asked for reduced motion.
+ */
+:root {
+  --ai-1: #7ea4e6;
+  --ai-2: #c084fc;
+  --ai-3: #22d3ee;
+  --ai-4: #f0abfc;
+  /* The strong violet of a line or wall the AI just placed. */
+  --ai-ink: #a855f7;
+}
+:root[data-theme="dark"] {
+  --ai-1: #8fb3f0;
+  --ai-2: #cc9bff;
+  --ai-3: #3ddcf2;
+  --ai-4: #f5b8fd;
+  --ai-ink: #b77cff;
+}
+
+/* AiScan: three layers over the picture, all transparent enough to leave it readable. */
+.ai-scan {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  overflow: hidden;
+  container-type: size;
+}
+/* The ring: a static mask and blur. Only the gradient inside it turns. */
+.ai-scan-glow {
+  position: absolute;
+  inset: 0;
+  padding: 6px;
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  filter: blur(6px);
+  opacity: 0.9;
+}
+/* A square as wide as the stage's diagonal, so it covers the stage at any angle and no
+   more: every extra pixel is video memory the SAM 3 service may need. */
+.ai-scan-glow-spin {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: hypot(100cqw, 100cqh);
+  height: hypot(100cqw, 100cqh);
+  margin-left: calc(hypot(100cqw, 100cqh) / -2);
+  margin-top: calc(hypot(100cqw, 100cqh) / -2);
+  background: conic-gradient(var(--ai-1), var(--ai-2), var(--ai-3), var(--ai-4), var(--ai-1));
+  will-change: transform;
+  animation: ai-turn 3.2s linear infinite;
+}
+.ai-scan-shimmer {
+  position: absolute;
+  inset: -50%;
+  background: linear-gradient(
+    115deg,
+    transparent 40%,
+    rgba(255, 255, 255, 0.1) 50%,
+    transparent 60%
+  );
+  mix-blend-mode: screen;
+  will-change: transform;
+  animation: ai-shimmer 2.6s ease-in-out infinite alternate;
+}
+/* 22% of the stage high; it travels from one band above the top to the bottom edge. */
+.ai-scan-band {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 22%;
+  background: linear-gradient(
+    180deg,
+    transparent,
+    color-mix(in srgb, var(--ai-1) 22%, transparent) 45%,
+    color-mix(in srgb, var(--ai-2) 28%, transparent) 50%,
+    color-mix(in srgb, var(--ai-1) 22%, transparent) 55%,
+    transparent
+  );
+  mix-blend-mode: screen;
+  box-shadow: 0 0 40px color-mix(in srgb, var(--ai-1) 25%, transparent);
+  will-change: transform;
+  animation: ai-sweep 2.2s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+}
+@keyframes ai-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes ai-shimmer {
+  from {
+    transform: translateX(-30%);
+  }
+  to {
+    transform: translateX(30%);
+  }
+}
+@keyframes ai-sweep {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(454.5%);
+  }
+}
+
+/* AiIcon while working: the sparkles breathe. */
+.ai-spark {
+  animation: ai-breathe 1.6s ease-in-out infinite;
+}
+@keyframes ai-breathe {
+  50% {
+    transform: scale(1.18);
+    opacity: 0.8;
+  }
+}
+
+/* AiBar. The fill is 38% of the track wide, so 263% of itself carries it past the end. */
+.ai-bar {
+  position: relative;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 9999px;
+  background: var(--select-soft);
+}
+.ai-bar-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 38%;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, transparent, var(--ai-2), var(--select), transparent);
+  will-change: transform;
+  animation: ai-bar-sweep 1.4s ease-in-out infinite;
+}
+.ai-bar-fill.is-done {
+  width: 100%;
+  background: var(--ok);
+  animation: ai-bar-fill var(--motion-duration) var(--motion-ease-in) both;
+  transform-origin: left;
+}
+@keyframes ai-bar-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(263%);
+  }
+}
+@keyframes ai-bar-fill {
+  from {
+    transform: scaleX(0.38);
+  }
+}
+
+/* What the AI placed arrives with a pop: from small and clear to its place. No bounce. */
+.ai-pop,
+.corner-dot.proposed,
+.opening-box.proposed {
+  animation: ai-pop var(--motion-duration) var(--motion-ease-in) backwards;
+}
+@keyframes ai-pop {
+  from {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+}
+/* SVG shapes pop around their own middle. */
+svg .ai-pop {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+/* Lines the AI found draw themselves in. Each line carries pathLength="1", so one dash of
+   length 1 covers it whatever its length. */
+.ai-draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: ai-draw 520ms var(--motion-ease-in) forwards;
+}
+@keyframes ai-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-scan-glow-spin,
+  .ai-scan-shimmer,
+  .ai-scan-band,
+  .ai-spark,
+  .ai-bar-fill,
+  .ai-pop,
+  .corner-dot.proposed,
+  .opening-box.proposed,
+  .ai-draw {
+    animation: none;
+  }
+  .ai-scan-band {
+    transform: translateY(177%);
+  }
+  .ai-bar-fill {
+    width: 100%;
+    opacity: 0.6;
+  }
+  .ai-draw {
+    stroke-dashoffset: 0;
+  }
+}

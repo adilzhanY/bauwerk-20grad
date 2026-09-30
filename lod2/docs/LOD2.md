@@ -44,7 +44,7 @@ The browser does the straightening itself. The vision service only receives the 
 | Vision service | 8790 | `npm run vision` |
 | The app (open this one) | 5173 | `npm run dev`, which starts all of the above too |
 
-The app (`src/` at the repository root; the map, the 3D view and the photo editor are in `src/lod2/` and `src/pages/`) proxies `/api` to the API and `/vision` to the vision service, so the browser only talks to port 5173.
+The app (`src/` at the repository root; the 3D view is in `src/lod2/`, the map and the photo editor in `src/components/`) proxies `/api` to the API and `/vision` to the vision service, so the browser only talks to port 5173.
 
 ## Run it from zero
 

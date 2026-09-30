@@ -7,6 +7,7 @@ rectifies the wall at a known number of pixels per metre. No LoD2 knowledge live
 """
 from __future__ import annotations
 
+import os
 import time
 from dataclasses import dataclass
 
@@ -73,16 +74,39 @@ class Sam3:
     """One loaded model, reused for every request."""
 
     def __init__(self) -> None:
+        # An NVIDIA card when there is one, else the Apple chip's GPU, else the processor.
+        device = (
+            "cuda" if torch.cuda.is_available()
+            else "mps" if torch.backends.mps.is_available()
+            else "cpu"
+        )
+        # The bundled SAM 3 copy (the demo zip) reads its device from here; upstream ignores it.
+        os.environ["SAM3_DEVICE"] = device
         with torch.inference_mode():
-            self.processor = Sam3Processor(build_sam3_image_model())
-        self.device = str(next(self.processor.model.parameters()).device)
+            model = build_sam3_image_model(device=device)
+            if device == "mps":
+                model = model.to("mps")
+            self.processor = Sam3Processor(model, device=device)
+        self.device = device
+
+    def warm_up(self) -> None:
+        """
+        One pass through the image encoder and a text prompt on a plain picture. The first
+        pass after a start sets up the graphics card and compiles its kernels, about 4 s on
+        an RTX 5070 against 0.7 s after; doing it here keeps that off the first photo.
+        """
+        self.detect(self.encode(Image.new("RGB", (1008, 1008), (128, 128, 128))), "window")
+
+    def precision(self):
+        """bfloat16 autocast, as the reference notebook runs; parts of SAM 3 expect it."""
+        return torch.autocast(self.device, dtype=torch.bfloat16)
 
     def encode(self, image: Image.Image) -> "Encoded":
         """
         Run the image encoder once. Every prompt on the same picture reuses the result, so a
         wall with twelve prompts costs one pass through the heavy part of the model, not twelve.
         """
-        with torch.inference_mode(), torch.autocast("cuda", dtype=torch.bfloat16):
+        with torch.inference_mode(), self.precision():
             state = self.processor.set_image(image)
         return Encoded(state=state, width=image.width, height=image.height)
 
@@ -100,7 +124,7 @@ class Sam3:
         processor, model = self.processor, self.processor.model
         # The reference notebook runs under bfloat16 autocast. Autocast is per thread, and a
         # web server calls from a worker thread, so it is entered here for every call.
-        with torch.inference_mode(), torch.autocast("cuda", dtype=torch.bfloat16):
+        with torch.inference_mode(), self.precision():
             backbone = encoded.state["backbone_out"]
             backbone.update(model.backbone.forward_text([prompt], device=processor.device))
             outputs = model.forward_grounding(

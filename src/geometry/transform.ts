@@ -31,9 +31,10 @@ function mapBuilding(b: Building, f: (p: Vec2) => Vec2): Building {
     footprint: b.footprint.map(f),
     storeys: b.storeys.map((s) => ({
       ...s,
-      interiorWalls: s.interiorWalls.map((w) => ({ a: f(w.a), b: f(w.b) })),
+      interiorWalls: s.interiorWalls.map((w) => ({ ...w, a: f(w.a), b: f(w.b) })),
       rooms: s.rooms.map((r) => ({ ...r, polygon: r.polygon.map(f) })),
       pipes: s.pipes?.map((pipe) => ({ ...pipe, points: pipe.points.map(f) })),
+      measurements: s.measurements?.map((m) => ({ ...m, a: f(m.a), b: f(m.b) })),
     })),
     heatPumps: b.heatPumps?.map((h) => ({ ...h, position: f(h.position) })),
   };

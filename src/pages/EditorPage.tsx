@@ -1,22 +1,26 @@
+import { Floating } from "@/components/shared/Floating";
+import { Presence } from "@/components/shared/Presence";
+import { ToastStack } from "@/components/shared/Toast";
 import { useMemo, useState } from "react";
 import { Viewport } from "@/scene/Viewport";
 import { useEditorStore } from "@/store/building";
 import { hasWebGL } from "@/lib/webgl";
-import { useSync } from "@/sync/useSync";
-import { LeftPanel } from "@/ui/LeftPanel";
-import { RightPanel } from "@/ui/RightPanel";
-import { EmptyState, WebGLMissing } from "@/ui/States";
-import { EditorHeader } from "./editor/EditorHeader";
-import { Minimap } from "./editor/Minimap";
-import { StoreyPill } from "./editor/StoreyPill";
-import { ToolDock } from "./editor/ToolDock";
-import { ViewPill } from "./editor/ViewPill";
-import { useKeyboardShortcuts } from "@/ui/useKeyboardShortcuts";
+import type { Sync } from "@/sync/useSync";
+import { LOCAL_SYNC } from "@/sync/useSync";
+import { LeftPanel } from "@/components/editor/LeftPanel";
+import { RightPanel } from "@/components/editor/RightPanel";
+import { EmptyState, WebGLMissing } from "@/components/app/States";
+import { EditorHeader } from "@/components/editor/EditorHeader";
+import { Minimap } from "@/components/editor/Minimap";
+import { StoreyPill } from "@/components/editor/StoreyPill";
+import { ToolDock } from "@/components/editor/ToolDock";
+import { ViewPill } from "@/components/editor/ViewPill";
+import { useKeyboardShortcuts } from "@/components/editor/useKeyboardShortcuts";
 import { useT } from "@/i18n/useT";
-import { LinkImportNotice } from "@/ui/LinkImportNotice";
-import { SyncRejectNotice } from "@/ui/SyncRejectNotice";
-import { VersionPreviewBanner } from "@/ui/VersionPreviewBanner";
-import { WallPhotoEditor } from "@/ui/WallPhotoEditor";
+import { LinkImportNotice } from "@/components/editor/LinkImportNotice";
+import { SyncRejectNotice } from "@/components/editor/SyncRejectNotice";
+import { VersionPreviewBanner } from "@/components/editor/VersionPreviewBanner";
+import { WallPhotoEditor } from "@/components/editor/WallPhotoEditor";
 import type { LinkNotice } from "@/lib/linkImport";
 
 /** Widths of the side panels, px. */
@@ -29,9 +33,15 @@ const RIGHT_PANEL = 400;
  * with the tool card and the storeys at the top left, the view switch at the top, and the
  * minimap at the bottom left. The building name, undo and Export sit in the top bar.
  */
-export function EditorPage({ linkNotice = null }: { linkNotice?: LinkNotice | null } = {}) {
+export function EditorPage({
+  linkNotice = null,
+  sync = LOCAL_SYNC,
+}: {
+  linkNotice?: LinkNotice | null;
+  /** The project's connection, kept by App on every page of the project. */
+  sync?: Sync;
+} = {}) {
   useKeyboardShortcuts();
-  const sync = useSync();
   const webgl = useMemo(() => hasWebGL(), []);
   const hasStoreys = useEditorStore((s) => s.building.storeys.length > 0);
   const tool = useEditorStore((s) => s.tool);
@@ -45,27 +55,32 @@ export function EditorPage({ linkNotice = null }: { linkNotice?: LinkNotice | nu
     <div className="flex h-full" data-tool={tool}>
       <WallPhotoEditor />
       <EditorHeader syncStatus={sync.status} actor={sync.status === "local" ? null : sync} />
-      {panelsOpen && layersOpen && (
-        <div className="shrink-0" style={{ width: LEFT_PANEL }}>
+      <Presence show={panelsOpen && layersOpen} kind="float">
+        <Floating fade className="shrink-0" style={{ width: LEFT_PANEL }}>
           <LeftPanel syncStatus={sync.status} />
-        </div>
-      )}
+        </Floating>
+      </Presence>
       <div className="scene-ground relative min-w-0 flex-1 overflow-hidden">
         <main aria-label={t("a11y.scene")} className="absolute inset-0">
           {!hasStoreys ? <EmptyState /> : webgl ? <Viewport /> : <WebGLMissing />}
         </main>
-        {notice && (
-          <LinkImportNotice
-            notice={notice}
-            onDismiss={() => {
-              setNotice(null);
-            }}
-          />
-        )}
-        <VersionPreviewBanner />
-        {sync.rejection && (
-          <SyncRejectNotice rejection={sync.rejection} onDismiss={sync.dismissRejection} />
-        )}
+        {/* Under the view switch, which owns the top centre. */}
+        <ToastStack offset="below-bar">
+          <Presence value={notice} kind="float">
+            {(n) => (
+              <LinkImportNotice
+                notice={n}
+                onDismiss={() => {
+                  setNotice(null);
+                }}
+              />
+            )}
+          </Presence>
+          <VersionPreviewBanner />
+          <Presence value={sync.rejection} kind="float">
+            {(r) => <SyncRejectNotice rejection={r} onDismiss={sync.dismissRejection} />}
+          </Presence>
+        </ToastStack>
         {/* A container, so the cards rearrange by the room the panels leave, not by the window. */}
         <div className="@container pointer-events-none absolute inset-0 p-4">
           <div className="absolute top-4 left-4 flex items-start gap-2">
@@ -88,28 +103,30 @@ export function EditorPage({ linkNotice = null }: { linkNotice?: LinkNotice | nu
               }}
             />
           </div>
-          {hasStoreys && (
-            <div className="absolute bottom-4 left-4">
+          <Presence show={hasStoreys} kind="float">
+            <Floating className="absolute bottom-4 left-4">
               <Minimap />
-            </div>
-          )}
-          {mapVisible && hasStoreys && (
-            <a
-              href="https://www.openstreetmap.org/copyright"
-              target="_blank"
-              rel="noreferrer"
-              className="pointer-events-auto absolute right-4 bottom-2 rounded-soft bg-paper/85 px-2 py-0.5 text-xs text-muted hover:text-ink"
-            >
-              {t("map.attribution")}
-            </a>
-          )}
+            </Floating>
+          </Presence>
+          <Presence show={mapVisible && hasStoreys} kind="float">
+            <Floating className="absolute right-4 bottom-2">
+              <a
+                href="https://www.openstreetmap.org/copyright"
+                target="_blank"
+                rel="noreferrer"
+                className="pointer-events-auto rounded-soft bg-paper/85 px-2 py-0.5 text-xs text-muted hover:text-ink"
+              >
+                {t("map.attribution")}
+              </a>
+            </Floating>
+          </Presence>
         </div>
       </div>
-      {panelsOpen && (
-        <div className="shrink-0" style={{ width: RIGHT_PANEL }}>
+      <Presence show={panelsOpen} kind="float">
+        <Floating fade className="shrink-0" style={{ width: RIGHT_PANEL }}>
           <RightPanel />
-        </div>
-      )}
+        </Floating>
+      </Presence>
     </div>
   );
 }

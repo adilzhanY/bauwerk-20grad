@@ -19,6 +19,11 @@ export interface HistorySlice {
    */
   beginBatch: () => void;
   endBatch: () => void;
+  /**
+   * Forgets every undo and redo step. When another project opens: undo must never bring back
+   * the building of the project before.
+   */
+  clearHistory: () => void;
 }
 
 interface WithBuilding {
@@ -149,6 +154,9 @@ const historyImpl: HistoryImpl = (initializer) => (set, get, api) => {
       if (batchDepth === 0) return;
       batchDepth -= 1;
       if (batchDepth === 0) batchRecorded = false;
+    },
+    clearHistory: () => {
+      set({ past: [], future: [] } as unknown as Partial<S>);
     },
     withoutHistory: (fn) => {
       const previous = restoring;

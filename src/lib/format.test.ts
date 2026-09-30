@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { formatArea, formatMetres, formatNumber, parseNumber } from "./format";
+import {
+  formatArea,
+  formatBaumass,
+  formatMetres,
+  formatRelative,
+  formatNumber,
+  parseNumber,
+} from "./format";
 
 describe("formatNumber", () => {
   it("groups thousands by default in both languages", () => {
@@ -69,5 +76,29 @@ describe("formatNumber with fixed decimals", () => {
     expect(formatNumber(3.5, "de", 2, { fixed: true })).toBe("3,50");
     expect(formatNumber(3.5, "en", 2, { fixed: true })).toBe("3.50");
     expect(formatNumber(3.5, "de", 2)).toBe("3,5");
+  });
+});
+
+describe("formatBaumass", () => {
+  it("writes centimetres below a metre and metres above, without a unit", () => {
+    expect(formatBaumass(0.76, "de")).toBe("76");
+    expect(formatBaumass(3.51, "de")).toBe("3,51");
+    expect(formatBaumass(3.51, "en")).toBe("3.51");
+    expect(formatBaumass(13.88, "de")).toBe("13,88");
+    expect(formatBaumass(1, "de")).toBe("1,00");
+  });
+
+  it("raises a half centimetre", () => {
+    expect(formatBaumass(1.015, "de")).toBe("1,01\u2075");
+    expect(formatBaumass(0.365, "de")).toBe("36\u2075");
+  });
+});
+
+describe("formatRelative", () => {
+  const now = Date.parse("2026-09-28T12:00:00Z");
+  it("says how long ago, in both languages", () => {
+    expect(formatRelative("2026-09-28T10:00:00Z", "en", now)).toBe("2 hours ago");
+    expect(formatRelative("2026-09-27T12:00:00Z", "de", now)).toBe("gestern");
+    expect(formatRelative("2026-09-28T11:59:50Z", "en", now)).toBe("this minute");
   });
 });

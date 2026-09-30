@@ -154,3 +154,30 @@ describe("interiorWallAsWall", () => {
     expect(volume).toBeCloseTo(4 * 3 * 0.1 - 1 * 2.1 * 0.1, 6);
   });
 });
+
+describe("building only part of a wall", () => {
+  it("cuts the solid to the range and leaves the openings where they are", () => {
+    const wall = interiorWallAsWall({ a: { x: 0, y: 0 }, b: { x: 6, y: 0 } }, 0, 3, 0.1);
+    const door = {
+      id: "d",
+      wallIndex: 0,
+      interior: true,
+      kind: "door" as const,
+      offset: 2,
+      width: 0.9,
+      height: 2.1,
+      sill: 0,
+      constructionId: "d",
+    };
+    const whole = wallSolids(wall, [door]);
+    const cut = wallSolids(wall, [door], [0.3, 5.95]);
+    const xs = (prisms: typeof whole) => prisms.flatMap((p) => p.plan.map((q) => q.x));
+    expect(Math.min(...xs(whole))).toBeCloseTo(0, 9);
+    expect(Math.min(...xs(cut))).toBeCloseTo(0.3, 9);
+    expect(Math.max(...xs(cut))).toBeCloseTo(5.95, 9);
+    // The door's hole is where it was: the lintel over it spans 2 to 2.9 in both.
+    const lintel = (prisms: typeof whole) =>
+      prisms.find((p) => p.bottom > 0)?.plan.map((q) => Number(q.x.toFixed(6)));
+    expect(lintel(cut)).toEqual(lintel(whole));
+  });
+});

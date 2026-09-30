@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Line } from "@react-three/drei";
+import { Line } from "../Line";
 import type { ThreeEvent } from "@react-three/fiber";
 import { isCounterClockwise, isSimplePolygon, snapPoint } from "@/geometry/polygon";
 import { GRID_SIZE } from "@/geometry/types";

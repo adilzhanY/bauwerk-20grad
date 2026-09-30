@@ -77,6 +77,23 @@ export function openingsOverlap(a: Opening, b: Opening, eps = 1e-6): boolean {
   return a.offset < bEnd - eps && b.offset < aEnd - eps;
 }
 
+/**
+ * The openings of one wall that the building physics counts: each valid one, taken in the
+ * order they were placed, so an opening dropped over another does not remove the one that
+ * was there first. Only the later one is left out until it is moved clear.
+ */
+export function countedOpenings(
+  onWall: readonly Opening[],
+  wallLength: number,
+  storeyHeight: number,
+): Opening[] {
+  const counted: Opening[] = [];
+  for (const o of onWall)
+    if (validateOpening(o, { wallLength, storeyHeight, siblings: counted }).length === 0)
+      counted.push(o);
+  return counted;
+}
+
 export const isOpeningValid = (opening: Opening, ctx: OpeningContext): boolean =>
   validateOpening(opening, ctx).length === 0;
 
@@ -158,4 +175,45 @@ export function defaultOpening(
   return kind === "door"
     ? { kind, width: 1.0, height: 2.1, sill: 0 }
     : { kind, width: 1.2, height: 1.4, sill: 0.9 };
+}
+
+/** What a drag in the floor plan takes hold of: the whole opening, or one of its edges. */
+export type OpeningGrip = "move" | "start" | "end";
+
+/**
+ * The offset and width of `opening` while it is dragged in the floor plan. For "move", `u` is
+ * the offset the pointer asks for; for "start" and "end", where that edge should be, in
+ * metres along the wall. The result stays on the wall, clear of the openings beside it, at
+ * least MIN_OPENING_SIZE wide, and on the centimetre. An opening that already overlaps a
+ * neighbour is left as it is.
+ */
+export function dragOpening(
+  opening: Opening,
+  siblings: readonly Opening[],
+  wallLength: number,
+  grip: OpeningGrip,
+  u: number,
+): { offset: number; width: number } {
+  const start = opening.offset;
+  const end = opening.offset + opening.width;
+  let lo = 0;
+  let hi = wallLength;
+  for (const other of siblings) {
+    if (other.id === opening.id || !sameWall(other, opening)) continue;
+    const otherEnd = other.offset + other.width;
+    if (otherEnd <= start + 1e-6) lo = Math.max(lo, otherEnd);
+    else if (other.offset >= end - 1e-6) hi = Math.min(hi, other.offset);
+    else return { offset: start, width: opening.width };
+  }
+  const clamp = (v: number, min: number, max: number) => Math.min(Math.max(v, min), max);
+  const cm = Math.round(u * 100) / 100;
+  if (grip === "move") {
+    if (hi - lo < opening.width - 1e-9) return { offset: start, width: opening.width };
+    return { offset: round(clamp(cm, lo, hi - opening.width)), width: opening.width };
+  }
+  if (grip === "start") {
+    const offset = round(clamp(cm, lo, end - MIN_OPENING_SIZE));
+    return { offset, width: round(end - offset) };
+  }
+  return { offset: start, width: round(clamp(cm, start + MIN_OPENING_SIZE, hi) - start) };
 }

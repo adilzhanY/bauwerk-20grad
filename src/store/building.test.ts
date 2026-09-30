@@ -5,6 +5,7 @@ import { HISTORY_LIMIT } from "./history";
 import { isCounterClockwise } from "@/geometry/polygon";
 import { resetIds } from "@/lib/ids";
 import { exampleAltbau } from "@/lib/examples";
+import { PRESET_IDS } from "@/geometry/constructions";
 import type { Building } from "@/geometry/types";
 
 type Store = ReturnType<typeof createEditorStore>;
@@ -818,7 +819,8 @@ describe("footprint proposal", () => {
     store.getState().acceptProposal();
     const b = store.getState().building;
     expect(b.footprint).toHaveLength(4);
-    expect(b.storeys[0]?.interiorWalls).toHaveLength(2);
+    // The wall joining the other in a T splits it: three walls from joint to joint.
+    expect(b.storeys[0]?.interiorWalls).toHaveLength(3);
     expect(b.storeys[0]?.rooms).toHaveLength(3);
     expect(store.getState().proposal).toBeNull();
     expect(store.getState().past.length).toBe(entries + 1);
@@ -904,5 +906,102 @@ describe("applyWallOpenings", () => {
     ).toHaveLength(1);
     store.getState().undo();
     expect(store.getState().building).toBe(before);
+  });
+});
+
+describe("scenarios with a new heating system", () => {
+  it("keep it when created, change and clear it, and duplicate it", () => {
+    const s = () => store.getState();
+    const heating = { carrier: "heatPumpAir" as const, efficiency: 3, hotWater: 12.5 };
+    const id = s().addScenario("Heat pump", { overrides: {}, heating });
+    const find = (x: string) => s().building.scenarios?.find((sc) => sc.id === x);
+    expect(find(id)?.heating).toEqual(heating);
+    s().updateScenario(id, { heating: { ...heating, efficiency: 3.5 } });
+    expect(find(id)?.heating?.efficiency).toBe(3.5);
+    const copy = s().addScenario("Copy", find(id));
+    expect(find(copy)?.heating?.efficiency).toBe(3.5);
+    s().updateScenario(id, { heating: undefined });
+    expect(find(id) && "heating" in find(id)!).toBe(false);
+  });
+});
+
+describe("replaceWindows", () => {
+  const windows = () =>
+    store
+      .getState()
+      .building.storeys.flatMap((s) =>
+        s.openings.filter((o) => o.kind === "window").map((o) => ({ storey: s.id, ...o })),
+      );
+
+  it("reaches one window, a facade, a storey or the building, in one undo step each", () => {
+    const s = () => store.getState();
+    s().loadBuilding(exampleAltbau("en"));
+    const all = windows();
+    const exterior = all.filter((w) => !w.interior);
+    const first = exterior[0];
+    if (!first) throw new Error("no window");
+    const before = s().building;
+
+    s().replaceWindows({ kind: "opening", storeyId: first.storey, id: first.id }, "c_glazing_2010");
+    expect(windows().filter((w) => w.constructionId === "c_glazing_2010")).toHaveLength(1);
+    expect(s().building.constructions.filter((c) => c.id === "c_glazing_2010")).toHaveLength(1);
+
+    s().replaceWindows({ kind: "wall", wallIndex: first.wallIndex }, "c_glazing_2010");
+    const facade = exterior.filter((w) => w.wallIndex === first.wallIndex);
+    expect(windows().filter((w) => w.constructionId === "c_glazing_2010")).toHaveLength(
+      facade.length,
+    );
+    // Added once, not per call.
+    expect(s().building.constructions.filter((c) => c.id === "c_glazing_2010")).toHaveLength(1);
+
+    s().replaceWindows({ kind: "building" }, PRESET_IDS.glazingTriple);
+    const after = windows();
+    expect(
+      after.filter((w) => !w.interior).every((w) => w.constructionId === PRESET_IDS.glazingTriple),
+    ).toBe(true);
+    // Windows in interior walls are not envelope and stay as they were.
+    for (const w of after.filter((x) => x.interior)) {
+      expect(w.constructionId).toBe(all.find((x) => x.id === w.id)?.constructionId);
+    }
+    expect(s().building.windowConstructionId).toBe(PRESET_IDS.glazingTriple);
+
+    s().undo();
+    s().undo();
+    s().undo();
+    expect(s().building).toBe(before);
+  });
+
+  it("names a new window type in the interface language, and renames it on a switch", () => {
+    const s = () => store.getState();
+    s().setLanguage("de");
+    s().replaceWindows({ kind: "building" }, "c_glazing_box");
+    const box = () => s().building.constructions.find((c) => c.id === "c_glazing_box");
+    expect(box()?.name).toBe("Kastenfenster, zwei Einfachscheiben");
+    s().setLanguage("en");
+    expect(box()?.name).toBe("Box window, two single panes");
+  });
+});
+
+describe("facade photos", () => {
+  it("are dropped when another building loads, so none lands on its walls", () => {
+    URL.revokeObjectURL = () => undefined;
+    const photos = createEditorStore();
+    photos.getState().setFacadePhoto(4, { url: "blob:pub", width: 10, height: 10 });
+    expect(Object.keys(photos.getState().facadePhotos)).toEqual(["4"]);
+    photos.getState().loadBuilding(exampleAltbau("en"));
+    expect(photos.getState().facadePhotos).toEqual({});
+  });
+});
+
+describe("facade colour", () => {
+  it("is set from a photo, undone in one step, and cleared back to neutral", () => {
+    const s = () => store.getState();
+    s().setFacadeColor("#c83c32");
+    expect(s().building.facadeColor).toBe("#c83c32");
+    s().undo();
+    expect(s().building.facadeColor).toBeUndefined();
+    s().setFacadeColor("#e6be5a");
+    s().setFacadeColor(null);
+    expect(s().building).not.toHaveProperty("facadeColor");
   });
 });

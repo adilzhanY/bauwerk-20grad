@@ -80,37 +80,57 @@ describe("migrations", () => {
     expect(tables.rows.every((t) => t.relrowsecurity)).toBe(true);
   });
 
-  it("on Supabase, create the profile with every sign up and refuse one without a free name", async () => {
-    // A stand-in for Supabase's auth.users, with the two columns the migration uses.
+  it("on a database that had Supabase Auth, drop its trigger and ties and keep the projects", async () => {
+    // A stand-in for Supabase's auth.users, with the two columns 004 used.
     await pool.query(
       "CREATE SCHEMA auth; CREATE TABLE auth.users (id uuid PRIMARY KEY, raw_user_meta_data jsonb)",
     );
     try {
       await ensureSchema(pool);
-      const signUp = (id: string, username: string | null) =>
-        pool.query("INSERT INTO auth.users (id, raw_user_meta_data) VALUES ($1, $2)", [
-          id,
-          JSON.stringify(username === null ? {} : { username }),
-        ]);
-      const ada = "22222222-2222-4222-8222-222222222222";
-      await signUp(ada, "Ada");
-      const profile = await pool.query("SELECT username FROM app.profiles WHERE id = $1", [ada]);
-      expect(profile.rows).toEqual([{ username: "Ada" }]);
-      // Taken in another case, missing, or not allowed: the sign up itself fails.
-      await expect(signUp("33333333-3333-4333-8333-333333333333", "ada")).rejects.toThrow();
-      await expect(signUp("44444444-4444-4444-8444-444444444444", null)).rejects.toThrow();
-      await expect(signUp("55555555-5555-4555-8555-555555555555", "a b")).rejects.toThrow();
-      expect((await pool.query("SELECT count(*)::int AS n FROM auth.users")).rows[0]).toEqual({
-        n: 1,
-      });
-      // A deleted account takes its profile with it.
-      await pool.query("DELETE FROM auth.users WHERE id = $1", [ada]);
-      expect((await pool.query("SELECT count(*)::int AS n FROM app.profiles")).rows[0]).toEqual({
-        n: 0,
-      });
+      const triggers = await pool.query(
+        "SELECT 1 FROM pg_trigger WHERE tgname = 'bauwerk_create_profile'",
+      );
+      expect(triggers.rowCount).toBe(0);
+      expect(await where("profiles")).toEqual([]);
+      // Owners and members now point at app.users.
+      const fks = await pool.query<{ target: string }>(
+        `SELECT confrelid::regclass::text AS target FROM pg_constraint
+          WHERE conname IN ('projects_owner_id_fkey', 'project_members_user_id_fkey')`,
+      );
+      expect(fks.rows.map((r) => r.target).sort()).toEqual(["app.users", "app.users"]);
     } finally {
-      // The other test files run on a database without auth, as locally.
       await empty();
     }
+  });
+
+  it("keep users to the rules even without the server: format, length, unique in any case", async () => {
+    await ensureSchema(pool);
+    const hash = "scrypt$32768$8$1$c2FsdA==$a2V5";
+    const add = (username: string, first = "Ada", last = "Lovelace", h = hash) =>
+      pool.query(
+        "INSERT INTO app.users (username, first_name, last_name, password_hash) VALUES ($1, $2, $3, $4)",
+        [username, first, last, h],
+      );
+    await add("ada_l");
+    await expect(add("ADA_L")).rejects.toThrow(/users_username_lower_idx/);
+    await expect(add("a b")).rejects.toThrow(/users_username_format/);
+    await expect(add("grace", "")).rejects.toThrow(/users_first_name_length/);
+    await expect(add("grace", " Grace")).rejects.toThrow(/users_first_name_length/);
+    await expect(add("grace", "Grace", "x".repeat(51))).rejects.toThrow(/users_last_name_length/);
+    await expect(add("grace", "Grace", "Hopper", "Plain-Password1")).rejects.toThrow(
+      /users_password_hash_format/,
+    );
+    // A deleted user takes their own data along.
+    const id = (await pool.query<{ id: string }>("SELECT id FROM app.users")).rows[0]?.id;
+    await pool.query(
+      "INSERT INTO app.user_bookmarks (user_id, gid) VALUES ($1, 'DEBE02YY40000BOo')",
+      [id],
+    );
+    await pool.query("DELETE FROM app.users WHERE id = $1", [id]);
+    expect((await pool.query("SELECT count(*)::int AS n FROM app.user_bookmarks")).rows[0]).toEqual(
+      {
+        n: 0,
+      },
+    );
   });
 });

@@ -1,87 +1,77 @@
 import { create } from "zustand";
-import type { Session } from "@supabase/supabase-js";
 import { colorFor } from "@/sync/colors";
-import { supabase, accountsEnabled } from "./supabase";
-import { authErrorKey } from "./errors";
-import type { MessageKey } from "@/i18n";
+import {
+  accountsMode,
+  currentAccount,
+  signInRequest,
+  signUpRequest,
+  storeToken,
+  storedToken,
+} from "./api";
+import type { AuthFailure } from "./api";
+import type { AccountData, SignIn, SignUp } from "./schema";
 
-export interface Account {
-  id: string;
-  email: string;
-  username: string;
+export interface Account extends AccountData {
+  /** The colour others see this person in, the same on every device. */
   color: string;
 }
 
 /**
  * Who is signed in. Its own small store: the session is not editor state and must not enter
- * the editor's undo history. "off" means the app was built without accounts.
+ * the editor's undo history. "off" means there are no accounts: no server, a server without
+ * them, or a server that cannot be reached; the app then works as a local editor.
  */
 interface AuthState {
   status: "off" | "loading" | "signedOut" | "signedIn";
   account: Account | null;
 }
 
-export const useAuth = create<AuthState>(() => ({
-  status: accountsEnabled ? "loading" : "off",
-  account: null,
-}));
+export const useAuth = create<AuthState>(() => ({ status: "loading", account: null }));
 
-function accountOf(session: Session | null): Account | null {
-  if (!session) return null;
-  const { id, email, user_metadata: meta } = session.user;
-  const username =
-    typeof (meta as { username?: unknown }).username === "string"
-      ? (meta as { username: string }).username
-      : fallbackName(email);
-  return { id, email: email ?? "", username, color: colorFor(id) };
+const toAccount = (data: AccountData): Account => ({ ...data, color: colorFor(data.id) });
+
+/** The full name, as others see it in presence and history. */
+export const fullName = (account: AccountData) => `${account.firstName} ${account.lastName}`;
+
+/** Asks the server whether there are accounts and whose the kept token is. Call once at start. */
+export async function startAuth(): Promise<void> {
+  const mode = await accountsMode();
+  if (mode !== true) {
+    useAuth.setState({ status: "off", account: null });
+    return;
+  }
+  if (!storedToken()) {
+    useAuth.setState({ status: "signedOut", account: null });
+    return;
+  }
+  const current = await currentAccount();
+  if (current === "invalid") {
+    storeToken(null);
+    useAuth.setState({ status: "signedOut", account: null });
+  } else if (current === null) {
+    // The server answered a moment ago but not now: keep the token, try again later.
+    useAuth.setState({ status: "signedOut", account: null });
+  } else {
+    useAuth.setState({ status: "signedIn", account: toAccount(current) });
+  }
 }
 
-/** Without a username in the account: the part of the email before @, or "user". */
-function fallbackName(email: string | undefined): string {
-  const local = email?.split("@")[0];
-  return local !== undefined && local !== "" ? local : "user";
+type Result = { ok: true } | ({ ok: false } & AuthFailure);
+
+async function settle(
+  request: Promise<Awaited<ReturnType<typeof signInRequest>>>,
+): Promise<Result> {
+  const result = await request;
+  if (!result.ok) return result;
+  storeToken(result.token);
+  useAuth.setState({ status: "signedIn", account: toAccount(result.account) });
+  return { ok: true };
 }
 
-/** Follows the session for the lifetime of the page. Call once at start. */
-export function startAuth(): void {
-  if (!supabase) return;
-  const apply = (session: Session | null) => {
-    const account = accountOf(session);
-    useAuth.setState({ status: account ? "signedIn" : "signedOut", account });
-  };
-  void supabase.auth.getSession().then(({ data }) => {
-    apply(data.session);
-  });
-  supabase.auth.onAuthStateChange((_event, session) => {
-    apply(session);
-  });
-}
+export const signIn = (values: SignIn) => settle(signInRequest(values));
+export const signUp = (values: SignUp) => settle(signUpRequest(values));
 
-/** Signs in; null on success, else the message to show. */
-export async function signIn(email: string, password: string): Promise<MessageKey | null> {
-  if (!supabase) return "auth.error.off";
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
-  return error ? authErrorKey(error) : null;
-}
-
-/** Creates the account and signs in. The username rides along for the profile trigger. */
-export async function signUp(
-  email: string,
-  password: string,
-  username: string,
-  usernameWasFree: boolean,
-): Promise<MessageKey | null> {
-  if (!supabase) return "auth.error.off";
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: { data: { username } },
-  });
-  if (error) return authErrorKey(error, usernameWasFree);
-  // With "Confirm email" on in Supabase there would be no session yet (TODO F.1: it is off).
-  return data.session ? null : "auth.error.confirmationOn";
-}
-
-export async function signOut(): Promise<void> {
-  await supabase?.auth.signOut();
+export function signOut(): void {
+  storeToken(null);
+  useAuth.setState({ status: "signedOut", account: null });
 }

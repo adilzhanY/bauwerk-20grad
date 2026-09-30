@@ -26,7 +26,13 @@ export async function createApp(
       bodyParser: false,
     },
   );
+  // Requests reach the server through Caddy on the local network: its X-Forwarded-For names
+  // the real address, which the sign in limits count. Only proxies on local and private
+  // networks are believed, so a client cannot fake its address from outside.
+  app.set("trust proxy", "loopback, linklocal, uniquelocal");
   app.useBodyParser("json", { limit: "5mb" });
+  // Facade photos and card pictures, sent as the raw image.
+  app.useBodyParser("raw", { type: "image/*", limit: "15mb" });
   app.useWebSocketAdapter(new IoAdapter(app));
   app.enableCors({ origin: true, exposedHeaders: ["ETag"] });
   if (clientServed()) app.useStaticAssets(DIST);

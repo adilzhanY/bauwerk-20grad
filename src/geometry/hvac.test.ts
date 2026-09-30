@@ -3,6 +3,9 @@ import { DEFAULT_ASSIGNMENT, PRESET_IDS, defaultConstructions } from "./construc
 import { computeEnergy } from "./energy";
 import { rect } from "./fixtures";
 import {
+  heatPumpReadiness,
+  radiatorOutputFactor,
+  requiredFlowTemperature,
   roomEnvelopeLoss,
   roomHeatLoads,
   suggestHeatPumpPower,
@@ -10,6 +13,8 @@ import {
   validateRadiator,
 } from "./hvac";
 import { computeRooms } from "./rooms";
+import { exampleAltbau } from "@/lib/examples";
+import { resetIds } from "@/lib/ids";
 import type { Building, Radiator, Segment } from "./types";
 
 let n = 0;
@@ -49,7 +54,7 @@ describe("roomEnvelopeLoss and roomHeatLoads", () => {
     );
     const loads = roomHeatLoads(b);
     expect(loads).toHaveLength(1);
-    expect(loads[0]!.load).toBeCloseTo((e.transmissionLoss + e.ventilationLoss) * 34, 3);
+    expect(loads[0]!.load).toBeCloseTo((e.transmissionLoss + 0.34 * 0.5 * e.heatedVolume) * 34, 3);
     expect(loads[0]!.coverage).toBe(0);
   });
 
@@ -59,7 +64,7 @@ describe("roomEnvelopeLoss and roomHeatLoads", () => {
     const loads = roomHeatLoads(b);
     expect(loads).toHaveLength(2);
     const total = loads.reduce((s, r) => s + r.load, 0);
-    expect(total).toBeCloseTo((e.transmissionLoss + e.ventilationLoss) * 34, 3);
+    expect(total).toBeCloseTo((e.transmissionLoss + 0.34 * 0.5 * e.heatedVolume) * 34, 3);
     const small = loads.find((r) => r.name.endsWith("1") || r.load < total / 2)!;
     expect(small.load).toBeLessThan(total / 2);
   });
@@ -95,7 +100,7 @@ describe("roomEnvelopeLoss and roomHeatLoads", () => {
     const energy = computeEnergy(b);
     expect(energy.heatedVolume).toBeGreaterThan(80 * 3);
     const total = roomHeatLoads(b).reduce((sum, room) => sum + room.load, 0);
-    expect(total).toBeCloseTo((energy.transmissionLoss + energy.ventilationLoss) * 34, 3);
+    expect(total).toBeCloseTo((energy.transmissionLoss + 0.34 * 0.5 * energy.heatedVolume) * 34, 3);
   });
 });
 
@@ -150,5 +155,48 @@ describe("validateRadiator", () => {
     s.radiators = [rad({ id: "other", offset: 1.5 })];
     expect(validateRadiator(rad({ offset: 1 }), s, 10)).toBe(false);
     expect(validateRadiator(rad({ offset: 3 }), s, 10)).toBe(true);
+  });
+});
+
+describe("heat pump readiness (flow temperature test)", () => {
+  it("gives the rated output at 75 °C and about half at 55 °C, by EN 442", () => {
+    expect(radiatorOutputFactor(75)).toBeCloseTo(1, 6);
+    // (29.72 / 49.83)^1.3 = 0.511
+    expect(radiatorOutputFactor(55)).toBeCloseTo(0.511, 3);
+    expect(radiatorOutputFactor(30)).toBe(0);
+    // A cooler room gets more from the same water.
+    expect(radiatorOutputFactor(55, 15)).toBeGreaterThan(radiatorOutputFactor(55, 20));
+  });
+
+  it("finds the lowest flow temperature that covers the room", () => {
+    // Twice the load installed: covered at about the temperature where the factor is 0.5.
+    const flow = requiredFlowTemperature(1000, 2000);
+    expect(flow).not.toBeNull();
+    expect(radiatorOutputFactor(flow ?? 0) * 2000).toBeGreaterThanOrEqual(1000);
+    expect(radiatorOutputFactor((flow ?? 0) - 0.2) * 2000).toBeLessThan(1000);
+    expect(flow).toBeLessThan(56);
+    expect(requiredFlowTemperature(1000, 1000)).toBeCloseTo(75, 0);
+    expect(requiredFlowTemperature(1000, 0)).toBeNull();
+    expect(requiredFlowTemperature(1000, 300)).toBeNull();
+  });
+
+  it("judges the demo Altbau: its radiators decide the flow temperature", () => {
+    resetIds();
+    const b = exampleAltbau("en");
+    const r = heatPumpReadiness(b);
+    expect(r.rooms.length).toBeGreaterThan(0);
+    const worst = Math.max(...r.rooms.map((x) => x.flow ?? 99));
+    expect(r.flow ?? 99).toBe(worst);
+    expect(r.ready).toBe(r.rooms.filter((x) => x.flow !== null && x.flow <= 55).length);
+    // Doubling every radiator can only lower the flow temperature.
+    const bigger = {
+      ...b,
+      storeys: b.storeys.map((s) => ({
+        ...s,
+        radiators: s.radiators?.map((rad) => ({ ...rad, power: rad.power * 2 })),
+      })),
+    };
+    const after = heatPumpReadiness(bigger);
+    expect(after.ready).toBeGreaterThanOrEqual(r.ready);
   });
 });

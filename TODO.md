@@ -1,5 +1,336 @@
 # TODO
 
+## Part 20: Accounts of our own, and the database rebuilt for every feature (2026-09-30)
+
+Asked for: sign up with first name, last name, a unique username, a strong password and its confirmation; sign in with username and password, no email; zod on every input; no way in for SQL injection; the avatar shows the initials of first and last name; every user's data in the database, on Supabase. Supabase Auth needs an email for every account, so accounts move into our own server and Supabase is only the Postgres database. This replaces sections F.1 to F.8 of Part 5 (email accounts through Supabase Auth); G (sharing) keeps working on the new users.
+
+### AA. Design
+
+- [x] AA.1 Read the code (two agents): what the database holds, what only the browser holds, how accounts work today.
+- [x] AA.2 Decide: users in `app.users` (first name, last name, username unique regardless of case, scrypt password hash), our server issues signed tokens (HS256 with `AUTH_SECRET`, `jose`), the browser never talks to Supabase. Recorded in DECISIONS.md.
+
+### AB. Shared rules (zod)
+
+- [x] AB.1 `src/auth/schema.ts`: first and last name (1 to 50 letters, spaces, apostrophes, hyphens), username (3 to 24 letters, digits, `_`, `-`), strong password (10 to 128 characters, lower and upper case, a digit, a symbol, not containing the username), confirmation equal to the password; sign up and sign in schemas. One file for the forms and the server; its messages are i18n keys.
+- [x] AB.2 Tests for every rule, the edge lengths, Unicode names, and hostile input.
+
+### AC. Database
+
+- [x] AC.1 Migration `006_users.sql`: `app.users (id, username, first_name, last_name, password_hash, created_at, updated_at)` with checks mirroring the zod rules and a unique index on `lower(username)`; drop `app.profiles`, the `auth.users` trigger and the foreign keys to `auth.users`; project owners and members now reference `app.users`. Row level security on, no grants for `anon` or `authenticated`.
+- [x] AC.2 Migration `007_user_data.sql`: per user settings (language, theme, projects view), bookmarked buildings, notes on LoD2 buildings, facade surveys: everything that today lives only in one browser.
+- [x] AC.3 Migration `008_project_summary.sql`: a stored summary per project (building id, class, end energy, address, stage), written with every change, so the projects list no longer loads every whole building.
+- [x] AC.4 Migration tests: an empty database, one with the old accounts tables, applying twice.
+
+### AD. Server
+
+- [x] AD.1 Passwords hashed with scrypt from `node:crypto` (random salt, parameters stored with the hash), compared in constant time; an unknown username costs the same time as a wrong password.
+- [x] AD.2 `POST /auth/sign-up`, `POST /auth/sign-in`, `GET /auth/me`, `GET /auth/username-available`; bodies parsed with the shared zod schemas; answers `invalid` (with the field and rule), `usernameTaken`, `credentials`, `tooMany`.
+- [x] AD.3 Tokens: HS256 with `AUTH_SECRET` (at least 32 characters), issuer and audience `bauwerk`, 7 days; the guard and the socket check them and load the user from `app.users`, so a deleted account stops at once. Without `AUTH_SECRET` the server runs open (development), and refuses to start in production unless `ACCOUNTS=off`.
+- [x] AD.4 Brute force: failed sign ins limited per username and per address (10 in 15 minutes), sign ups per address.
+- [x] AD.5 SQL injection: every query parameterised (checked by a test that greps the server for queries built from strings), plus tests that send injection strings through every auth route and find the tables intact.
+- [x] AD.6 `GET/PUT /me/settings`, `GET/PUT/DELETE /me/bookmarks/:gid`, `GET/PUT /me/buildings/:gid` (note and survey), each validated with zod.
+- [x] AD.7 Projects list reads the stored summary; owner shown by full name.
+- [x] AD.9 Found on the way: the server PDF report handed its building over under the old autosave key, which the app stopped reading on 2026-09-29, so every server made PDF showed an empty model. It now opens the building as a saved project.
+- [x] AD.8 Tests: sign up, duplicate username in any case, weak password, mismatch, sign in right and wrong, rate limit, token expired or forged, deleted user, user data round trip, another user's data unreachable.
+
+### AE. Client
+
+- [x] AE.1 Remove `@supabase/supabase-js`; `src/auth/api.ts` calls the server, the token kept in localStorage and sent as before.
+- [x] AE.2 Sign in form: username and password.
+- [x] AE.3 Create account form: first name, last name, username with the availability check, password with a live checklist of the rules, confirm password; errors under each field from zod as the user leaves it, all again on submit; the submit button waits while a request runs.
+- [x] AE.4 Avatar: initials of first and last name; the menu shows the full name and `@username`.
+- [x] AE.5 Signed in, settings, bookmarks, building notes and surveys load from the server and every change goes back to it; signed out they stay in the browser as today.
+- [x] AE.6 English and German complete; tests for both forms (every error, the checklist, submit, server errors), the avatar and the data sync.
+
+### AF. Setup and docs
+
+- [x] AF.1 `server/package.json` gets `zod` (the production image installs only the server's packages).
+- [x] AF.2 `deploy/.env.example`, `deploy/docker-compose.yml`, `deploy/Dockerfile.web`, `deploy/README.md`: `AUTH_SECRET` in, `SUPABASE_URL`, `SUPABASE_JWT_SECRET`, `VITE_SUPABASE_*` out; how to create the Supabase database and connect.
+- [x] AF.3 DEMO.md, DECISIONS.md, INFO.md where they speak of email accounts.
+- [x] AF.4 `npm run check` and the server tests green. Also checked end to end: the real server on an empty database, sign up, sign in, `/auth/me`, a weak password, a taken name, injection strings and the rate limit with curl.
+- [x] AF.5 Connected to the Supabase project (session pooler `aws-1-eu-central-1`, TLS verified against Supabase Root 2021 CA; the settings in `~/.config/bauwerk/supabase.env`, outside the repository). The migrations created the `app` schema there; `anon` and `authenticated` reach nothing in it.
+- [x] AF.6 `npm --prefix server run seed`: three accounts, four projects with history from two people, members, one user's settings, bookmarks, note and survey. Made through the server's own services; running it again adds nothing.
+- [ ] Manual check: create an account, sign out, sign in, a wrong password, the avatar, a bookmark and a note that follow the account to another browser.
+
+## Part 19: The energy calculation, done the way consultants count (2026-09-29)
+
+Planned on a Lavish page after a code audit and research (GEG, iSFP handbook, BAnz AT 04.12.2020 B1); the user chose all seven phases, the heating period method, GEG 2024 factors by default and the flat thermal bridge surcharge.
+
+- [x] P1 Fix the six errors: an overlapping opening no longer removes the one placed first; per m² values on A_N = 0.32 · V_e (storey height formula outside 2.5 to 3.0 m); a cold attic loses through the top floor ceiling at F_x 0.8; scenario windows and doors are costed from the openings that really change; rooms are found again on load and room areas always come from their outlines; detailed bridges skip party walls.
+- [x] P2 German method: air change 0.7 without airtightness test on 0.76 or 0.8 V_e; g-value per glazing and F_W 0.9; hot water with its own efficiency, 10 % distribution loss, auxiliary electricity; factor sets GEG 2024 and GModG 2027; flat ΔU_WB 0.10 (0.05, 0.03, 0.15) by default, detailed ψ·l as an option. The room heat load keeps 0.5 1/h (DIN EN 12831).
+- [x] P3 iSFP outputs: colour class on primary energy, CO2 per year, H'T against the GEG reference building with the Effizienzhaus levels, low temperature readiness as a headline.
+- [x] P4 After every edit the Energy tab shows what moved: A_N, window area, H_T, end and primary energy, CO2.
+- [x] P5 Scenario packages: per roadmap step primary energy with its colour, CO2, Sowieso costs, expected energy cost after it; heating bonus by date (16 % now, falling from February 2027).
+- [x] P6 Consumption check: bills entered or the iSFP typical consumption; savings and costs come from the expected use. Heat pumps get the factor of the same heat through a gas boiler.
+- [x] P7 Default U-values by building age (tables 2 and 3 of the 2020 rules): year, wall kind and window kind give the whole envelope in one undo step.
+- [ ] Manual check: open Altbau Kreuzberg, move a wall, add a window, change a storey height and watch the note; switch bridges and factor sets; enter a consumption; apply age defaults for 1905; read the roadmap steps in both languages.
+
+## Part 18: IBM Plex Sans as the main font (2026-09-29)
+
+- [x] Chosen from five candidates (IBM Plex Sans, Inter, Instrument Sans, Archivo, Jost) on a Lavish page: every text but numbers is IBM Plex Sans; values and measurements stay Geist Mono. Geist removed.
+- [ ] Manual check: Plex is a little wider than Geist; look at the header, chips, the right panel and the German labels for text that now wraps or truncates.
+
+## Part 17: Interior wall types and thickness (2026-09-29)
+
+- [x] Every interior wall has a type, a construction of kind "interiorWall" with a layer stack: drywall 10 cm, partition 11.5 cm (the default), load-bearing 24 cm and 36.5 cm. Buildings saved before get the presets on load.
+- [x] Each wall's own thickness is used everywhere: plan poche, 3D solid, IFC, pieceRange, moving, drawing, chains and clear room sizes. Pieces keep their type; walls of different types do not join.
+- [x] The right panel picks the type of a selected wall and shows its thickness; the layers stay editable under Constructions.
+- [x] Floor plan import: the service sends each wall's measured thickness, the editor gives the wall the nearest type, and the preview draws each wall as thick as it was measured. On BOo the middle and cross walls come out load-bearing 24 cm, the rest partitions.
+- [x] Energy: a wall between a heated and an unheated room loses by its own type's U-value (DIN EN ISO 6946, 0.13 on both faces) instead of a flat 1.0. The Altbau example's middle and stairwell walls are load-bearing 24 cm.
+- [ ] Manual check: read BOo's plan, apply it, pick the middle wall (24 cm) and a partition, switch a type and see the plan, 3D and room sizes follow; put a drywall against the stairwell and watch the heat loss drop.
+
+## Part 16: Walls from joint to joint, moved sideways (2026-09-29)
+
+- [x] Interior walls are kept as pieces from joint to joint: split where a wall joins or crosses, joined where two meet straight with nothing else there (geometry/wallGraph.ts); doors follow their piece, and a door that reached past a joint slides back onto it.
+- [x] Drawn where they are seen: between the faces they meet, straight through a joint where the wall goes on, filled at corners; never into the exterior walls. Chains stop at the face of a wall on their side.
+- [x] A picked wall moves sideways by dragging it; its ends slide along the walls they meet and those grow or shorten to stay joined; refused over another wall, onto an opening or out of the building, with a red cross; one undo step. End grips removed.
+- [x] A room takes a click only when its floor was hit, so a wall keeps its pick.
+- [ ] Manual check: in BOo's plan view pick the long wall of room 7 (only its piece lights up), drag it both ways, drag it onto a door (refused), undo.
+
+## Part 15: Measurements that stay (2026-09-29)
+
+- [x] The measure tool works like the wall tool: points snap to wall faces near a wall and are free anywhere else, in or around the building, to the centimetre; a line close to the building's directions locks straight, and wall to wall comes out square.
+- [x] A measurement is kept on the storey (in the building file, synced and undoable): a red line with a dot at each end and its length, in the plan and in 3D.
+- [x] Click one with the select tool to select it (thicker, blue label); Delete or Remove in the panel removes it; it is listed under Measurements in the layers tree with its length.
+- [ ] Manual check: measure wall to wall inside BOo and from a corner to a point outside, select one on the plan and in the tree, delete it, undo.
+
+## Part 14: Picking and reshaping interior walls (2026-09-29)
+
+- [x] A picked wall shows in a bright sky blue (the new --accent token) against the ink of the other walls in the plan.
+- [x] ~~A picked interior wall shows a grip at each end~~ replaced on 2026-09-29: a picked wall is the piece between two joints and moves sideways by dragging it (see Part 16).
+- [x] Walls ending on the moved wall slide along their own line to stay on it; doors keep their place; a move that would leave a wall hanging, cut a door, or end on an opening is refused with a red cross.
+- [x] No wall starts or ends on a window or door, drawn or moved: a red cross shows instead of the dot.
+- [ ] Manual check: in BOo's plan view, pick an interior wall, drag both ends (square and slanted, onto an exterior and an interior wall, onto a window), and undo.
+
+## Part 13: Drawing interior walls on walls (2026-09-29)
+
+- [x] The dot snaps to the face of the wall under the pointer (the inner face of an exterior wall, either face of an interior wall), sliding along it to the centimetre; no grid.
+- [x] A wall starts only on a wall and runs to the next wall it meets in the pointer's direction, so both ends always sit on a wall; it locks to right angles within 4 degrees and shows its clear length.
+- [x] Nothing out of the building, along its own wall, or shorter than 0.2 m between the faces; the preview turns red where no wall can run.
+- [x] Drawn on top of the floor plan in the plan view; the snap radius and dot size follow the zoom.
+- [ ] Manual check: in the plan view of BOo, draw a wall from an exterior wall to an interior wall, one square and one slanted, and check both rooms appear.
+
+## Part 12: Projects saved by hand (2026-09-29)
+
+- [x] A project exists only after Save; unsaved work lives in the tab and nowhere else (no copies by building id).
+- [x] Leaving unsaved work asks Save, Don't save or Cancel: through the app's links (router guard), and the browser's question on reload or close. Ctrl+S saves.
+- [x] A new project always starts fresh: no photos, floor plans, undo steps or model of another project, also of the same house.
+- [x] Each project keeps its facade photos and the floor plan image of each storey; the first Save uploads what was made before it. The server accepts the "model" and "plan-<storey>" pictures.
+- [x] After the first Save a server project syncs live on all its pages (the connection moved from the editor to App).
+- [ ] Manual check: start a new project of BOo, read the sample floor plan, leave to Projects (asked), Save, see the card, start another new project of BOo (clean), open the first one again (floor plan and photos back).
+
+## Part 11: One component library, one motion, one cursor (2026-09-29)
+
+- [x] Read the whole interface with four audits: duplicated components, appear and disappear, cursors, AI states.
+- [x] One library in `src/components/shared/`: the old photo editor copy of the controls merged into it; new Card, Notice, Toast, Popover with MenuItem, Floating, Hint, PageTitle, SectionLabel, CustomChip, Spinner, EnergyClassBadge; CustomIconButton with four square sizes replacing eight hand-made icon buttons.
+- [x] Folders: pages only in `src/pages/`, area parts in `src/components/<area>/`, shared in `src/components/shared/`; ESLint keeps imports flowing shared, area, page.
+- [x] Presence: one enter and exit for everything (220 ms, fade and rise; float for dialogs, menus, toasts; rows for the layers tree), applied to dialogs, menus, the select list, toasts, notices, hints, panel sections, the side panels and the minimap.
+- [x] Pointer cursor on every clickable element through one base rule; 3D hover cursors on the canvas through useCanvasCursor and HoverCursor.
+- [x] One AI look in `components/shared/ai/`: AiButton, AiCard, AiScan, AiIcon, AiBar, ai-pop, ai-draw and the --ai-* colours, used by SAM 3 in the photo editor, the floor plan reading and the underlay wall detection.
+- [x] Components section in CLAUDE.md; INFO.md controls and motion lines updated.
+- [ ] Manual check: open each page and panel, open and close dialogs, menus and the select list, expand the layers tree, run the AI on a photo and on the sample floor plan, and hover everything clickable.
+
+## Part 10: Plan view dimensions with arrows, editable by drag (2026-09-29)
+
+- [x] Every dimension ends in filled arrowheads instead of 45 degree ticks; short ones get the arrows outside, pointing in.
+- [x] Interior walls: a chain of their doors, or their length when they have none; the overall length of a wall with doors shows while it is selected.
+- [x] Rooms: a stamp with name, area and width by depth measured along the room's own walls, and clear spans wall to wall when the room has space on screen.
+- [x] Drag an opening along its wall, or drag either arrow of its dimension to resize that edge; neighbours and the wall ends stop it, centimetre steps, one undo step, every figure live.
+- [x] Inner chains break at every wall meeting them on the chain's side, as German plans do (DIN 1356, DIN 406): clear width, that wall's thickness, clear width; the wall's own ends stop at the faces it meets.
+- [ ] Manual check: plan view of BOo with the sample floor plan applied, drag a window and a door and both of their arrows, then undo.
+
+## Part 9: Interior walls from an old floor plan (2026-09-29)
+
+The LoD2 model gives the outline to the centimetre but nothing inside. An old floor plan drawing has the inside. Combine the two: fit the known outline onto the drawing, then read walls and doors only inside it.
+
+- [x] lod2-floorplan service (`lod2/lod2-floorplan/`): register the footprint on the drawing, walls from pairs of parallel lines, checked against Raster2Seq room boundaries, doors from ink gaps and model door marks.
+- [x] setup.sh with the pinned Raster2Seq commit and its patches; `--no-model` for the drawing alone. Started by `npm run dev` when installed, proxied at `/floorplan`.
+- [x] Synthetic check (`test_pipeline.py`): scale, walls and door within a few centimetres, no walls from dimension lines or stairs.
+- [x] Geometry: `floorPlanEdits` rounds to the centimetre, welds wall ends onto the outline and each other so rooms close, and places doors as interior openings.
+- [x] Store action `applyFloorPlan`: interior walls, doors and rooms of one storey in one undo step.
+- [x] Underlay tab: Read floor plan, the sample plan for BOo, preview over the drawing, Apply and Discard. English and German.
+- [x] BOo ground floor end to end: 6 walls, 8 rooms, 8 doors, facade windows untouched.
+- [ ] Manual check: open BOo, Underlay tab, Try the sample plan, Apply to the ground floor, and compare the rooms and door widths with the drawing.
+
+## Part 8: Projects as the start page (decided 2026-09-28)
+
+Design review: `.lavish/projects/projects-page.html`. The user chose: card grid as the default view with List and Map as switches; thumbnail from the facade photo, else a 3D model snapshot, else the footprint on the site plan; on each card the energy class, stage chip with progress bar, use and storeys, client name, last edited and member avatars; inside a project four steps along the top, Survey, Model, Variants, Report. "New search" stops being the start page.
+
+### Y. Projects page
+
+- [x] `/` shows the Projects page: app bar with Projects and Map, a project search (address, name, client), and "New project".
+- [x] Filter chips by stage (All, Survey, Variants, Report, Done) with counts; sort by last edited.
+- [x] Grid of cards, the first slot always "New project"; Grid / List / Map switch, the choice remembered per browser.
+- [x] Card: thumbnail, energy class badge, stage chip, address as title, use and storeys and client, four-part progress bar, last edited (relative). Avatars: only the owner so far (with accounts on); all members needs the member list in the project summary.
+- [x] List view: thumbnail, building, client, stage, class, end energy, edited. Not sortable by column yet (newest first).
+- [x] Map view: projects as pins coloured by energy class, list beside it.
+- [x] Empty state: one sentence, "New project", and the four example buildings.
+- [x] Without a server the projects live in the browser, and the page says so.
+
+### Z. Project data
+
+- [x] Projects list returns what the cards need, computed on the server with `geometry/project.ts`; pictures come from `/projects/:id/photos/:slot`.
+- [x] Client: a new optional field, asked for when the project is created. (Editing it later on the project page is still to do.)
+- [x] Stage: derived from what exists (photos applied, scenarios saved, report printed), with a manual override.
+- [x] Facade photos stored with the project (server; browser storage without one), so projects reopen with their photos and cards can show one.
+- [x] Thumbnail: the first facade photo, else a 3D model snapshot rendered when the project is saved, else the footprint on the site plan.
+
+### AA. New project
+
+- [x] One dialog, three ways in: address, a click on the map (today's start page, now /karte), or a photo whose GPS finds the building; plus "draw by hand". Plans and certificates later (the "Magic Box" in IDEAS.md).
+- [x] Optional project name and client; "Create project" opens the new project at step 1.
+- [x] Uses the one-project-per-building rule of Part 7 U: a building that already has a project opens that one.
+
+### AB. Inside a project
+
+- [x] A project bar: back to Projects, address, energy class, the four steps (Survey = building page, Model = editor, Variants = new full-width page with scenarios and energy, Report = the print view inside the app), and the stage menu. Share stays in the editor header.
+- [x] The step reached drives the card's stage; steps done show a check.
+- [ ] Old links keep working: `?project=` still opens the editor on that project and `/gebaeude/<id>` the building page, but neither jumps to the project's step bar yet for projects made before project facts existed.
+
+- [ ] Manual check, with `npm run dev`: New project by address (Methfesselstraße 8), by the map, and from the kY sample photo (it carries GPS); apply a facade photo; back to Projects and see the photo on the card; open it again and see the photo on its wall.
+- [ ] Manual check: a project without a photo shows its 3D view on the card after a minute in the editor, one without either shows its footprint.
+- [ ] Manual check: the Grid / List / Map switch, the stage chips and the search on a page with several projects; dark theme.
+
+## Part 7: Fixes after the demo on Leon's MacBook (2026-09-28)
+
+From `FIXES.md`. Each one starts by reproducing the bug the way a user meets it, and ends with a test that fails without the fix. Tick the item in `FIXES.md` too.
+
+### T. Scenario switch shows the wrong scenario
+
+- [x] Reproduce: two scenarios with different measures, switch from Scenario 1 to Scenario 2, and see the inputs keep Scenario 1's values.
+- [x] Find the cause: in the Energy panel only the big numbers followed the switch; the heating inputs, the construction choices and the GEG check read the building itself.
+- [x] Fix it so every input, number and chart under the switch shows the chosen scenario.
+- [x] Test: a component test that switches scenarios and checks the inputs.
+- [x] Second pass after the user showed the real place: in the Scenarios tab, the table chooses the scenario and the editor below shows only that one; its name has a Save button once changed. Test in `ScenariosPanel.test.tsx`.
+
+### U. A project per building
+
+- [x] Every building opened from the map gets its own project, found again by its building id (`lod2-<Gebäude-ID>`): opening it later reopens its project with its openings and edits. Without a server, a copy per building in the browser. Photos are not kept yet (they live only in the tab).
+- [x] Opening another building leaves the open project first (it also drops `?project=` from the address, which the router carried from page to page), then opens the new one; photos and selection are cleared on load.
+- [x] The project picker shows which building each project belongs to: its name is the building name with the Gebäude-ID; the server's project list now also returns the building id.
+- [x] Buildings drawn by hand or loaded from an example keep working as today (only the building page's two buttons go through projects).
+- [x] Tests: two buildings opened one after the other keep separate projects; reopening the first restores it; with a server the old project is left before the next building loads (`src/sync/buildingProject.test.ts`, server list test).
+
+### V. A photo is applied to the building it was taken of
+
+- [ ] Manual check: apply a photo to A, go to the map, open B, apply its photo, and see it on B; open A again and see A as it was.
+
+- [x] Cause found by tracing: `?project=A` stayed in the address, B loaded on the building page, and the editor page then joined A, whose server copy replaced B while B's photo stayed on the wall.
+- [x] "Apply to 3D model" applies into the photographed building's own project (U), never into whatever the editor has open.
+- [x] If the editor holds another building, it switches to the photographed building's project first and merges the wall into that.
+- [x] Test: the sequence ends with the change on B and A unchanged (`buildingProject.test.ts`).
+
+### W. The photo editor flashes between two images
+
+- [ ] Manual check: kY with its sample photo, after the AI finishes the editor stays still.
+- [x] Give the photo editor a fixed width that does not depend on the image, and fit the image inside it, so the layout cannot resize in a loop. (Cause: the wall column took its width from its own height times the image aspect; the toolbar wrapped, the height changed, and so on.)
+- [ ] Manual check: the straightened image shows correctly for portrait and landscape photos (BOo, kY).
+- [x] Test: the dialog has one fixed width and none taken from the image (jsdom has no layout, so the loop itself is checked by hand below).
+
+### X. Corners of the wall part that was chosen
+
+What testing on kY showed (2026-09-28): a first version found the "run" of walls facing the same way along the street and cut the chosen wall out of the fitted facade by its metres along the street. On the kY photo that cut landed inside the wrong block, and it was reverted. Two reasons: (1) LoD2 splits a front both along the street and in height: M621 is only the top 12.8 m of the tall middle block, while Dcig and xmLt run the full 24 m on the left; (2) SAM's facade outline covers the most visible block, not the whole street front. What works today: SAM finds the dominant block (for kY the tall middle one), with the chosen wall's width and height as the shape hint.
+
+- [ ] Build the street front as an elevation: every wall piece of every building part facing the same way, as a rectangle in (metres along the street, height above ground), in one coordinate frame (each part's mesh has its own origin).
+- [ ] Find the elevation's outline in the photo: the facade instances SAM returns, matched to the elevation's blocks by their height steps (the tall block is the tallest), not only the largest mask.
+- [ ] Fit the corners to the matched block, then cut the chosen piece out of it by its rectangle (along the street and in height) through the block's homography.
+- [ ] Keep today's behaviour when the chosen wall is its whole front (BOo, Atr).
+- [ ] Test with the kY photo, drawn on the photo and looked at: the corners of the chosen piece sit on its real edges, for the tall middle block and for a lower side part.
+
+## Part 6: What the Energieberater co-founder wants to see
+
+The presentation has a second co-founder, Bauingenieur and Energieberater, not a developer.
+He will judge the prototype by his daily work: take a building up (Aufmaß), bring it into his
+calculation software, compare renovation steps for a client, show the client what it costs,
+what it saves and what the state pays (BEG, KfW), and do it together with colleagues. The 3D
+view impresses him only when the numbers under it are the ones he would write into an iSFP.
+
+What Bauwerk has already: U-values from layer stacks, transmission and ventilation losses,
+heating demand and energy class, the GEG component check, room heat loads and heat pump size,
+radiators, scenarios with investment and payback, an iSFP-style roadmap, a print report, IFC.
+What is missing is the part he talks about with clients: the heating system and its carrier,
+therefore end energy, primary energy and CO2; money (heating cost, CO2 cost, subsidy); the
+official limits for subsidised measures; and the area list his software wants.
+
+Numbers, as of September 2026 (sources in DECISIONS.md when built):
+
+- BEG EM building envelope (BAFA): 15 %, plus 5 % iSFP bonus only for eligible costs from
+  30,000 euro (since 21 July 2026, GModG). Technical minimums (TMA, residential): outer wall
+  U <= 0.20, roof and top ceiling <= 0.14, windows Uw <= 0.95, basement ceiling <= 0.25.
+- KfW 458 heating: 30 % base; 16 % climate speed bonus and up to 40 % income bonus for
+  owner-occupiers only; at most 70 % (80 % with income bonus).
+- CO2 price 2026: 55 to 65 euro per tonne (BEHG corridor), about 1.3 ct/kWh on gas.
+- Emission factors GEG Anlage 9 (g CO2-eq/kWh): gas 240, oil 310, liquid gas 270, wood 20,
+  grid electricity 560, district heat from gas CHP 180, from gas heating plant 300.
+- Primary energy factors GEG Anlage 4 (non-renewable): gas, oil, liquid gas 1.1, wood 0.2,
+  grid electricity 1.8, ambient heat 0.
+- CO2KostAufG: ten steps by kg CO2 per m2 living area and year, landlord share 0 % below 12,
+  then 10 % more per 5 kg, 95 % from 52.
+- Prices 2026: gas about 11 ct/kWh, oil about 10 ct, heat pump tariff 21 to 27 ct, pellets
+  about 7 ct, district heat about 15 ct.
+
+### K. Heating system, end energy, primary energy, CO2
+
+- [x] K.1 The building gets a heating system: carrier (gas, oil, liquid gas, district heat,
+      pellets, heat pump air, heat pump ground, electric direct) and a generator efficiency
+      (condensing boiler, old boiler, heat pump seasonal COP), with presets and editable
+      values. Hot water as a flat share per m2. Undoable, synced, exported.
+      (Also: the energy class is now read off the end energy, as on an Energieausweis for
+      residential buildings, everywhere: panel, scenarios, print, IFC, GeoJSON.)
+- [x] K.2 Pure `src/geometry/supply.ts` with tests: end energy = (heating demand + hot water)
+      / efficiency; primary energy and CO2 from the GEG factors; per m2 living area.
+- [x] K.3 The Energy panel shows end energy, primary energy and CO2 (t/a and kg/m2a) beside
+      the heating demand, now and for the viewed scenario.
+
+### L. Money: heating cost, CO2 cost, who pays it
+
+- [x] L.1 Energy prices per carrier (defaults above, editable in the settings) and the CO2
+      price; yearly heating cost = end energy x price, CO2 cost shown on its own line.
+- [x] L.2 CO2KostAufG: the step from kg CO2/m2a and the landlord and tenant share in euro.
+- [x] L.3 Scenarios and roadmap use real costs with the carrier instead of the flat
+      0.12 euro/kWh, including a heating system change as a measure (gas to heat pump).
+
+### M. Subsidy: BEG EM and KfW 458
+
+- [x] M.1 TMA check per measure: every envelope measure of a scenario says whether its new
+      U-value meets the BEG minimum, so whether it can be subsidised at all.
+- [x] M.2 Subsidy per scenario: 15 % on eligible envelope costs (+5 % with iSFP from
+      30,000 euro), heating 30 % (+ bonuses when owner-occupied), capped; investment,
+      subsidy, own share and payback on the own share.
+- [x] M.3 Owner-occupied or rented, number of dwellings (Wohneinheiten) and whether an iSFP
+      exists: three inputs on the building, used by M.2 and L.2.
+
+### N. Area list for the calculation software (Aufmaß)
+
+- [x] N.1 A table of the thermal envelope: every element type (outer wall, window, door,
+      roof, top ceiling, floor, party wall) by orientation (N, NE, ... NW), gross and net area,
+      U-value, H_T share. This is what he types into Hottgenroth or Dämmwerk today.
+- [x] N.2 CSV download of the table, German number format, and the same table in the print.
+
+### O. Windows, the everyday change
+
+- [x] O.1 A window catalogue by type and age (single glazing, box window, old double
+      glazing 1970 to 1994, insulating glass 1995 to 2010, triple glazing) with typical Uw.
+- [x] O.2 Change windows in one go: this window, all on this facade, all on this storey, the
+      whole building; one undo step, one sync batch.
+
+### P. Heat pump readiness
+
+- [x] P.1 For every room: does its radiator give the room heat load at 55 degrees flow
+      temperature (radiator exponent 1.3 against 75/65/20)? The share of rooms that are ready,
+      and the rooms that need a bigger radiator. The question every client asks now.
+
+### Q. Working together on site
+
+- [x] Q.1 Notes on elements (a wall, a window, a room): text and author, synced like edits,
+      a list in the panel, a pin in 3D. "Fenster 3 undicht", "Feuchte in der Kellerecke".
+
+### S. The presentation
+
+- [x] S.1 DEMO.md: an eight-minute path for the Energieberater: address, building, a facade
+      photo, windows replaced, heating from gas to heat pump, costs and subsidy before and
+      after, the area list, a colleague joining and leaving a note.
+
 ## Part 5: Hosted demo with accounts
 
 Goal: the fused app runs on a rented server under its own domain with HTTPS, not on this PC. People sign up with email, password and a username, and anyone who is signed in can open a shared project link and edit with the others. Accounts, projects, versions and memberships live in Supabase. The public GitHub repository keeps showing the portfolio version.
@@ -55,6 +386,8 @@ Order matters. R and D give a working hosted demo without accounts; E, F and G a
 - [x] E.7 The server tests keep running against a local Postgres; nothing in `npm run check` or CI touches Supabase.
 
 ### F. Accounts: email, password, username
+
+Replaced on 2026-09-30 by Part 20: accounts of our own with username and password, Supabase only as the database.
 
 - [ ] F.1 Supabase Auth: the email provider on, "Confirm email" off, sign ups allowed, minimum password length 8, site URL `https://<domain>`. Default rate limits kept. (Yours, in the Supabase dashboard, after E.1.)
 - [x] F.2 Usernames: `app.profiles (id uuid primary key references auth.users on delete cascade, username text not null, created_at timestamptz not null default now())`, a check that the username is 3 to 24 letters, digits, `_` or `-`, and a unique index on `lower(username)`, so `Ada` and `ada` cannot both exist. A `security definer` trigger function on `auth.users` inserts the profile from `raw_user_meta_data->>'username'`; the client passes it in `signUp({ email, password, options: { data: { username } } })`. (`server/migrations/004_accounts.sql`; the trigger is tested against a stand-in `auth.users`: a sign up creates the profile, a missing, invalid or taken name fails it, a deleted account takes its profile along.)

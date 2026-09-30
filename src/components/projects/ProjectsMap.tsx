@@ -1,0 +1,79 @@
+import { useEffect, useRef } from "react";
+import maplibregl from "maplibre-gl";
+import "maplibre-gl/dist/maplibre-gl.css";
+import { ENERGY_CLASS_COLORS } from "@/geometry/energy";
+import type { ProjectCard } from "@/projects/projects";
+import { fallBackWhenStyleFails, LIGHT_STYLE } from "@/components/map/mapStyle";
+
+/** Berlin, for an office without located projects. */
+const BERLIN: [number, number] = [13.405, 52.52];
+
+/**
+ * The projects as pins on the city, each in the colour of its energy class. A pin opens its
+ * project; `selected` is ringed. Projects without a position (drawn by hand, not placed) are
+ * only in the list beside the map.
+ */
+export function ProjectsMap({
+  cards,
+  selected,
+  onSelect,
+}: {
+  cards: ProjectCard[];
+  selected: string | null;
+  onSelect: (card: ProjectCard) => void;
+}) {
+  const box = useRef<HTMLDivElement>(null);
+  const map = useRef<maplibregl.Map | null>(null);
+  const markers = useRef<maplibregl.Marker[]>([]);
+
+  useEffect(() => {
+    if (!box.current) return;
+    const m = new maplibregl.Map({
+      container: box.current,
+      style: LIGHT_STYLE,
+      center: BERLIN,
+      zoom: 11,
+      attributionControl: { compact: true },
+    });
+    fallBackWhenStyleFails(m);
+    map.current = m;
+    return () => {
+      m.remove();
+      map.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    const m = map.current;
+    if (!m) return;
+    for (const marker of markers.current) marker.remove();
+    const placed = cards.filter((c) => c.summary.origin);
+    markers.current = placed.map((card) => {
+      const origin = card.summary.origin as { lon: number; lat: number };
+      const pin = document.createElement("button");
+      pin.type = "button";
+      pin.textContent = card.summary.energyClass;
+      pin.title = card.summary.title;
+      pin.setAttribute("aria-label", card.summary.title);
+      pin.className = "project-pin";
+      pin.style.background = ENERGY_CLASS_COLORS[card.summary.energyClass];
+      if (card.buildingId === selected) pin.dataset.selected = "true";
+      pin.addEventListener("click", () => {
+        onSelect(card);
+      });
+      return new maplibregl.Marker({ element: pin, anchor: "bottom" })
+        .setLngLat([origin.lon, origin.lat])
+        .addTo(m);
+    });
+    if (placed.length > 0) {
+      const bounds = new maplibregl.LngLatBounds();
+      for (const c of placed) {
+        const o = c.summary.origin as { lon: number; lat: number };
+        bounds.extend([o.lon, o.lat]);
+      }
+      m.fitBounds(bounds, { padding: 80, maxZoom: 17, duration: 0 });
+    }
+  }, [cards, selected, onSelect]);
+
+  return <div ref={box} className="h-full w-full" />;
+}

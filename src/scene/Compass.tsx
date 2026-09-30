@@ -1,4 +1,5 @@
-import { Html, Line } from "@react-three/drei";
+import { Html } from "@react-three/drei";
+import { Line } from "./Line";
 import { northInPlan, planToLatLon, toUtm } from "@/geometry/geo";
 import { formatNumber } from "@/lib/format";
 import { bounds, centroid } from "@/geometry/polygon";

@@ -2,15 +2,16 @@ import { Grid } from "@react-three/drei";
 import { Canvas } from "@react-three/fiber";
 import { useMemo } from "react";
 import { useT } from "@/i18n/useT";
+import { useSceneColors } from "@/scene/useSceneColors";
 import { apiUrl } from "../api/client.ts";
-import { Spinner } from "../components/CustomButton.tsx";
+import { Spinner } from "@/components/shared/Spinner";
 import { useStore } from "../state/store.ts";
 import { NeighbourMeshes, SelectionOutline, SurfaceMeshes } from "./BuildingMeshes.tsx";
 import { CameraRig, NorthArrow } from "./CameraRig.tsx";
 import { SceneMessage, SceneProgress, SelectedWallCaption } from "./SceneOverlays.tsx";
 import { TerrainSurface } from "./TerrainSurface.tsx";
 import { focusOf } from "./geometry.ts";
-import { BACKGROUND, NEIGHBOUR_BRIGHTNESS } from "./materials.ts";
+import { NEIGHBOUR_BRIGHTNESS } from "./materials.ts";
 import { useOrthoTexture } from "./useOrthoTexture.ts";
 import { useSceneContext } from "./useSceneContext.ts";
 
@@ -20,6 +21,7 @@ import { useSceneContext } from "./useSceneContext.ts";
  */
 export function Scene() {
   const t = useT();
+  const scene = useSceneColors();
   const detail = useStore((s) => s.building);
   const editorOpen = useStore((s) => s.photoEditorOpen);
   const neighbours = useStore((s) => s.neighbours);
@@ -93,7 +95,7 @@ export function Scene() {
         dpr={[1, 2]}
         frameloop={editorOpen ? "never" : "always"}
       >
-        <color attach="background" args={[BACKGROUND]} />
+        <color attach="background" args={[scene.siteBg]} />
         {/*
           One regime, because the lights no longer touch any imagery.
         
@@ -126,8 +128,8 @@ export function Scene() {
             args={[radius * 8, radius * 8]}
             cellSize={1}
             sectionSize={10}
-            cellColor="#c4c6bd"
-            sectionColor="#a9aba2"
+            cellColor={scene.siteGrid}
+            sectionColor={scene.siteGridStrong}
             fadeDistance={radius * 10}
             infiniteGrid
             position={[0, -0.02, 0]}

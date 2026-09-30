@@ -7,8 +7,9 @@
  *
  * When the editor already holds this building, perhaps edited since, only that edge changes:
  * its openings on every storey are replaced by the survey's, with their sources, and
- * everything else stays as the consultant left it. Otherwise the editor gets the whole
- * building, as "Sanierungsplanung starten" does.
+ * everything else stays as the consultant left it, apart from windows an older version guessed
+ * on facades nobody photographed (source "catalogue"): nobody measured or drew those, so they
+ * go. Otherwise the editor gets the whole building, as "Sanierungsplanung starten" does.
  */
 import type { Building, Opening } from "@/geometry/types";
 
@@ -40,11 +41,17 @@ export function takeOverWall(
     return { building: survey, edge, merged: false };
   }
   const onEdge = (o: Opening) => !o.interior && o.wallIndex === edge;
+  const guessed = (o: Opening) => current.sources?.[`opening:${o.id}`]?.kind === "catalogue";
   const sources = { ...current.sources };
+  for (const o of current.storeys.flatMap((s) => s.openings).filter(guessed)) {
+    // eslint-disable-next-line @typescript-eslint/no-dynamic-delete -- sources are keyed by opening id
+    delete sources[`opening:${o.id}`];
+  }
   const storeys = current.storeys.map((storey) => {
     // Storeys match by id; a storey the consultant added has no survey counterpart.
     const surveyed = survey.storeys.find((s) => s.id === storey.id);
-    if (!surveyed) return storey;
+    const kept = storey.openings.filter((o) => !guessed(o));
+    if (!surveyed) return { ...storey, openings: kept };
     for (const old of storey.openings.filter(onEdge)) {
       // eslint-disable-next-line @typescript-eslint/no-dynamic-delete -- sources are keyed by opening id
       delete sources[`opening:${old.id}`];
@@ -54,7 +61,7 @@ export function takeOverWall(
       const source = survey.sources?.[`opening:${o.id}`];
       if (source) sources[`opening:${o.id}`] = source;
     }
-    return { ...storey, openings: [...storey.openings.filter((o) => !onEdge(o)), ...taken] };
+    return { ...storey, openings: [...kept.filter((o) => !onEdge(o)), ...taken] };
   });
   return { building: { ...current, storeys, sources }, edge, merged: true };
 }

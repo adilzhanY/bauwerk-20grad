@@ -1,21 +1,23 @@
 import { sharedEdgeSet } from "./shared";
 import {
-  AIR_CHANGE_RATE,
   AIR_HEAT_CAPACITY,
   FX_GROUND_FLOOR,
   FX_UNHEATED_ROOM,
-  INTERIOR_WALL_U,
   computeEnergy,
   interiorWallPieces,
   isRoomHeated,
-  roofSlopeFactor,
+  roofEnvelope,
+  roomArea,
   roomsAround,
 } from "./energy";
-import { findConstruction } from "./constructions";
-import { openingsOn, validateOpening } from "./openings";
+import { findConstruction, interiorWallType } from "./constructions";
+import { countedOpenings, openingsOn } from "./openings";
 import { distance, edges, pointInPolygon, pointOnSegment } from "./polygon";
 import type { Building, Radiator, Room, Storey } from "./types";
 import type { EnergySummary } from "./energy";
+
+/** Air change for the heat load, 1/h: the DIN EN 12831 minimum for living rooms. */
+export const HEAT_LOAD_AIR_CHANGE = 0.5;
 
 /**
  * Heat load and equipment sizing, simplified after DIN EN 12831:
@@ -71,14 +73,12 @@ export function roomEnvelopeLoss(building: Building, storey: Storey, room: Room)
     }
     if (spans.length === 0) continue;
     const length = spans.reduce((s, [x0, x1]) => s + (x1 - x0), 0);
-    const onWall = openingsOn(storey.openings, e.index);
     let openingArea = 0;
-    for (const o of onWall) {
-      if (
-        validateOpening(o, { wallLength: e.length, storeyHeight: storey.height, siblings: onWall })
-          .length > 0
-      )
-        continue;
+    for (const o of countedOpenings(
+      openingsOn(storey.openings, e.index),
+      e.length,
+      storey.height,
+    )) {
       const centre = o.offset + o.width / 2;
       if (!spans.some(([x0, x1]) => centre >= x0 - 1e-6 && centre <= x1 + 1e-6)) continue;
       openingArea += o.width * o.height;
@@ -87,9 +87,13 @@ export function roomEnvelopeLoss(building: Building, storey: Storey, room: Room)
     loss += wallU * Math.max(0, length * storey.height - openingArea);
   }
   const index = building.storeys.findIndex((s) => s.id === storey.id);
-  if (index === 0) loss += FX_GROUND_FLOOR * u(building.floorConstructionId) * room.area;
-  if (index === building.storeys.length - 1)
-    loss += u(building.roofConstructionId) * room.area * roofSlopeFactor(building);
+  const floor = roomArea(room);
+  if (index === 0) loss += FX_GROUND_FLOOR * u(building.floorConstructionId) * floor;
+  if (index === building.storeys.length - 1) {
+    // Through the roof, or through the top floor ceiling under a cold attic.
+    const top = roofEnvelope(building);
+    loss += top.fx * u(building.roofConstructionId) * floor * top.factor;
+  }
   // Interior wall pieces between this room and an unheated neighbour.
   for (const piece of interiorWallPieces(fp, storey.interiorWalls)) {
     const between = roomsAround(piece, storey.rooms);
@@ -97,7 +101,8 @@ export function roomEnvelopeLoss(building: Building, storey: Storey, room: Room)
     const other =
       between[0].id === room.id ? between[1] : between[1].id === room.id ? between[0] : null;
     if (!other || isRoomHeated(other, building.zones)) continue;
-    loss += FX_UNHEATED_ROOM * INTERIOR_WALL_U * distance(piece.a, piece.b) * storey.height;
+    const pieceU = interiorWallType(building.constructions, piece).uValue;
+    loss += FX_UNHEATED_ROOM * pieceU * distance(piece.a, piece.b) * storey.height;
   }
   return loss;
 }
@@ -128,12 +133,13 @@ export function roomHeatLoads(building: Building): RoomHeatLoad[] {
       const deltaT = (zone?.temperature ?? 20) - DESIGN_OUTDOOR_TEMPERATURE;
       const transmission = roomEnvelopeLoss(building, storey, room);
       // The room's share of the storey's heated volume, attic included on the top storey.
+      const floor = roomArea(room);
       const volume =
         envelope && envelope.heatedFloorArea > 0
-          ? envelope.heatedVolume * (room.area / envelope.heatedFloorArea)
-          : room.area * storey.height;
-      const ventilation = AIR_HEAT_CAPACITY * AIR_CHANGE_RATE * volume;
-      const bridges = energy.bridgeLoss * (room.area / heatedArea);
+          ? envelope.heatedVolume * (floor / envelope.heatedFloorArea)
+          : floor * storey.height;
+      const ventilation = AIR_HEAT_CAPACITY * HEAT_LOAD_AIR_CHANGE * volume;
+      const bridges = energy.bridgeLoss * (floor / heatedArea);
       const load = (transmission + ventilation + bridges) * deltaT;
       const installed = radiatorPowerByRoom.get(room.id) ?? 0;
       out.push({
@@ -190,4 +196,108 @@ export function buildingHeatLoad(
   energy: Pick<EnergySummary, "transmissionLoss" | "ventilationLoss">,
 ): number {
   return (energy.transmissionLoss + energy.ventilationLoss) * (20 - DESIGN_OUTDOOR_TEMPERATURE);
+}
+
+/**
+ * Heat pump readiness, the flow temperature test energy consultants do before recommending a
+ * heat pump. A radiator's output falls with the water temperature by EN 442:
+ *   Φ / Φ_rated = (ΔT_ln / ΔT_ln,rated)^n,  ΔT_ln = (θ_flow − θ_return) / ln((θ_flow − θ_room) / (θ_return − θ_room))
+ * with n = 1.3 and the rating at 75/65/20 °C, the design values radiators are sold with. A
+ * room is ready when its radiators still cover its heat load at the flow temperature a heat
+ * pump runs efficiently with, 55 °C, return 10 K lower.
+ */
+export const RADIATOR_EXPONENT = 1.3;
+export const RATED_FLOW = 75;
+export const RATED_RETURN = 65;
+export const RATED_ROOM = 20;
+/** Flow temperature up to which a heat pump runs efficiently in an existing building. */
+export const HEAT_PUMP_FLOW = 55;
+/** Flow minus return, K. */
+export const FLOW_SPREAD = 10;
+const MAX_FLOW = 90;
+
+const lmtd = (flow: number, back: number, room: number) =>
+  (flow - back) / Math.log((flow - room) / (back - room));
+
+/** Share of its rated output a radiator gives at `flow` (return 10 K lower) in a room at `room` °C. */
+export function radiatorOutputFactor(flow: number, room = RATED_ROOM): number {
+  const back = flow - FLOW_SPREAD;
+  if (back <= room + 1e-6) return 0;
+  const rated = lmtd(RATED_FLOW, RATED_RETURN, RATED_ROOM);
+  return (lmtd(flow, back, room) / rated) ** RADIATOR_EXPONENT;
+}
+
+/**
+ * The lowest flow temperature at which radiators rated `installed` watts cover `load` watts
+ * in a room at `room` °C, to a tenth of a degree. Null when nothing is installed or even
+ * 90 °C is not enough.
+ */
+export function requiredFlowTemperature(
+  load: number,
+  installed: number,
+  room = RATED_ROOM,
+): number | null {
+  if (installed <= 0) return null;
+  if (load <= 0) return room + FLOW_SPREAD;
+  if (installed * radiatorOutputFactor(MAX_FLOW, room) < load) return null;
+  let low = room + FLOW_SPREAD;
+  let high = MAX_FLOW;
+  while (high - low > 0.05) {
+    const mid = (low + high) / 2;
+    if (installed * radiatorOutputFactor(mid, room) >= load) high = mid;
+    else low = mid;
+  }
+  return Math.ceil(high * 10) / 10;
+}
+
+export interface RoomReadiness {
+  roomId: string;
+  name: string;
+  load: number;
+  installed: number;
+  /** Flow temperature this room needs; null without radiators or when 90 °C is not enough. */
+  flow: number | null;
+  /** Rated radiator power the room would need to be covered at 55 °C. */
+  neededRated: number;
+}
+
+export interface HeatPumpReadiness {
+  /** Heated rooms that have radiators; the others cannot be judged. */
+  rooms: RoomReadiness[];
+  /** Heated rooms without a radiator. */
+  withoutRadiator: number;
+  /** The flow temperature the building needs: the highest of its rooms. Null when unknown. */
+  flow: number | null;
+  /** Rooms covered at 55 °C. */
+  ready: number;
+}
+
+export function heatPumpReadiness(building: Building): HeatPumpReadiness {
+  const loads = roomHeatLoads(building);
+  const roomTemperature = (roomId: string) => {
+    const room = building.storeys.flatMap((s) => s.rooms).find((r) => r.id === roomId);
+    return building.zones.find((z) => z.id === room?.zoneId)?.temperature ?? RATED_ROOM;
+  };
+  const rooms: RoomReadiness[] = loads
+    .filter((l) => l.installed > 0)
+    .map((l) => {
+      const room = roomTemperature(l.roomId);
+      const factor = radiatorOutputFactor(HEAT_PUMP_FLOW, room);
+      return {
+        roomId: l.roomId,
+        name: l.name,
+        load: l.load,
+        installed: l.installed,
+        flow: requiredFlowTemperature(l.load, l.installed, room),
+        neededRated: factor > 0 ? l.load / factor : Infinity,
+      };
+    });
+  const flows = rooms.map((r) => r.flow);
+  return {
+    rooms,
+    withoutRadiator: loads.length - rooms.length,
+    flow:
+      rooms.length === 0 || flows.some((f) => f === null) ? null : Math.max(...(flows as number[])),
+    ready: rooms.filter((r) => r.flow !== null && r.flow <= HEAT_PUMP_FLOW).length,
+  };
 }

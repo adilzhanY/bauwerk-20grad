@@ -12,7 +12,7 @@ import type { Server, Socket } from "socket.io";
 import { actorOf, batchOf } from "./projects.controller";
 import { colorFor } from "@/sync/colors";
 import { ProjectsService } from "./projects.service";
-import { AuthService, Unauthenticated } from "../auth/auth.service";
+import { AuthService, Unauthenticated, displayName } from "../auth/auth.service";
 import type { AuthUser } from "../auth/auth.service";
 import type { ProjectOps } from "./projects.service";
 
@@ -156,7 +156,7 @@ export class ProjectsGateway implements OnGatewayInit, OnGatewayDisconnect, OnMo
     socket.data = {
       projectId: body.projectId,
       clientId: body.clientId,
-      actor: user?.username ?? actorOf(body.actor),
+      actor: user ? displayName(user) : actorOf(body.actor),
       color: user ? colorFor(user.id) : body.color,
       selection: null,
       ...(user ? { user } : {}),

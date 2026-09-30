@@ -5,6 +5,8 @@ import type { Pool } from "pg";
 import { EXPORT_VERSION, checkBuildingShape, fromJson, validateBuilding } from "@/geometry/export";
 import type { ImportError } from "@/geometry/export";
 import type { Building } from "@/geometry/types";
+import { projectSummary } from "@/geometry/project";
+import type { ProjectSummary as CardSummary } from "@/geometry/project";
 import { applyOps } from "@/sync/ops";
 import type { Op } from "@/sync/ops";
 import { DB } from "../db";
@@ -23,8 +25,12 @@ export interface ProjectSummary {
   name: string;
   version: number;
   updatedAt: string;
-  /** The owner's username, with accounts on. */
+  /** The owner's full name, with accounts on. */
   owner?: string;
+  /** The id of the building inside, so a building opened from the map finds its project. */
+  buildingId: string;
+  /** What the Projects page shows on the card. */
+  summary: CardSummary;
 }
 
 export type WriteResult =
@@ -71,6 +77,40 @@ export interface ProjectOps {
   ops: Op[];
 }
 
+/**
+ * A picture's slot: a footprint edge number (its facade photo), the Projects page thumbnail,
+ * the 3D view ("model"), or the floor plan a storey was read from ("plan-<storey id>").
+ */
+export const PHOTO_SLOT = /^(\d{1,3}|thumbnail|model|plan-[A-Za-z0-9_-]{1,64})$/;
+
+export interface PhotoInput {
+  slot: string;
+  mime: string;
+  width: number;
+  height: number;
+  data: Buffer;
+}
+
+export interface PhotoMeta {
+  slot: string;
+  width: number;
+  height: number;
+  updatedAt: string;
+}
+
+/** A stored card: the Projects page summary and the building's own id. */
+type StoredCard = CardSummary & { buildingId: string };
+
+interface ListRow {
+  id: string;
+  name: string;
+  version: number;
+  updated_at: Date;
+  summary: StoredCard | null;
+  building: Building | null;
+  owner: string | null;
+}
+
 interface Row {
   id: string;
   name: string;
@@ -112,25 +152,49 @@ export class ProjectsService {
    * owner's name; with accounts off, all of them.
    */
   async list(user?: AuthUser): Promise<ProjectSummary[]> {
+    // The building comes along only for a project whose stored card is older than it.
     const res = user
-      ? await this.pool.query<Row & { owner: string | null }>(
-          `SELECT p.id, p.name, p.version, p.updated_at, o.username AS owner
+      ? await this.pool.query<ListRow>(
+          `SELECT p.id, p.name, p.version, p.updated_at, p.summary,
+                  CASE WHEN p.summary_version = p.version THEN NULL ELSE p.building END AS building,
+                  o.first_name || ' ' || o.last_name AS owner
              FROM app.projects p
              JOIN app.project_members m ON m.project_id = p.id AND m.user_id = $1
-             LEFT JOIN app.profiles o ON o.id = p.owner_id
+             LEFT JOIN app.users o ON o.id = p.owner_id
             ORDER BY p.updated_at DESC`,
           [user.id],
         )
-      : await this.pool.query<Row & { owner: string | null }>(
-          "SELECT id, name, version, updated_at, NULL AS owner FROM app.projects ORDER BY updated_at DESC",
+      : await this.pool.query<ListRow>(
+          `SELECT p.id, p.name, p.version, p.updated_at, p.summary,
+                  CASE WHEN p.summary_version = p.version THEN NULL ELSE p.building END AS building,
+                  NULL AS owner
+             FROM app.projects p
+            ORDER BY p.updated_at DESC`,
         );
-    return res.rows.map((r) => ({
-      id: r.id,
-      name: r.name,
-      version: r.version,
-      updatedAt: r.updated_at.toISOString(),
-      ...(r.owner ? { owner: r.owner } : {}),
-    }));
+    const out: ProjectSummary[] = [];
+    for (const r of res.rows) {
+      let card = r.summary;
+      if (r.building) {
+        card = { buildingId: r.building.id, ...projectSummary(r.building) };
+        // Only if nobody changed the project meanwhile: a card never runs ahead of its version.
+        await this.pool.query(
+          "UPDATE app.projects SET summary = $1, summary_version = $2 WHERE id = $3 AND version = $2",
+          [JSON.stringify(card), r.version, r.id],
+        );
+      }
+      if (!card) continue;
+      const { buildingId, ...summary } = card;
+      out.push({
+        id: r.id,
+        name: r.name,
+        version: r.version,
+        updatedAt: r.updated_at.toISOString(),
+        buildingId,
+        summary,
+        ...(r.owner ? { owner: r.owner } : {}),
+      });
+    }
+    return out;
   }
 
   /**
@@ -372,5 +436,55 @@ export class ProjectsService {
       [id],
     );
     return Number(res.rows[0]?.n ?? 0);
+  }
+
+  /** Saves (or replaces) one picture of a project. False when the project does not exist. */
+  async putPhoto(id: string, photo: PhotoInput): Promise<boolean> {
+    if (!isUuid(id)) return false;
+    const res = await this.pool.query(
+      `INSERT INTO app.project_photos (project_id, slot, mime, width, height, data)
+       SELECT $1, $2, $3, $4, $5, $6 WHERE EXISTS (SELECT 1 FROM app.projects WHERE id = $1)
+       ON CONFLICT (project_id, slot)
+       DO UPDATE SET mime = $3, width = $4, height = $5, data = $6, updated_at = now()`,
+      [id, photo.slot, photo.mime, photo.width, photo.height, photo.data],
+    );
+    return (res.rowCount ?? 0) > 0;
+  }
+
+  /** The pictures a project has, without their bytes. */
+  async listPhotos(id: string): Promise<PhotoMeta[]> {
+    if (!isUuid(id)) return [];
+    const res = await this.pool.query<{
+      slot: string;
+      width: number;
+      height: number;
+      updated_at: Date;
+    }>(
+      "SELECT slot, width, height, updated_at FROM app.project_photos WHERE project_id = $1 ORDER BY slot",
+      [id],
+    );
+    return res.rows.map((r) => ({
+      slot: r.slot,
+      width: r.width,
+      height: r.height,
+      updatedAt: r.updated_at.toISOString(),
+    }));
+  }
+
+  async getPhoto(id: string, slot: string): Promise<{ mime: string; data: Buffer } | null> {
+    if (!isUuid(id)) return null;
+    const res = await this.pool.query<{ mime: string; data: Buffer }>(
+      "SELECT mime, data FROM app.project_photos WHERE project_id = $1 AND slot = $2",
+      [id, slot],
+    );
+    return res.rows[0] ?? null;
+  }
+
+  async removePhoto(id: string, slot: string): Promise<void> {
+    if (!isUuid(id)) return;
+    await this.pool.query("DELETE FROM app.project_photos WHERE project_id = $1 AND slot = $2", [
+      id,
+      slot,
+    ]);
   }
 }

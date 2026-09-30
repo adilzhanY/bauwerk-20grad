@@ -8,7 +8,7 @@ import { bounds } from "@/geometry/polygon";
 import { useEditorStore } from "@/store/building";
 import { selectTotalHeight } from "@/store/selectors";
 import { useCameraHeading } from "./cameraHeading";
-import { viewPosition } from "./viewPosition";
+import { shouldApplyView, viewPosition } from "./viewPosition";
 
 const STOREY_ANIMATION_MS = 300;
 const VIEW_ANIMATION_MS = 450;
@@ -98,8 +98,17 @@ export function Camera() {
     tween.current = { from: controls.target.clone(), to, start: performance.now() };
   }, [controls, activeStoreyId, activeMidpoint, planView]);
 
+  // The last view choice applied, so switching the floor plan on or off (which replaces the
+  // controls) does not replay it onto the plan's own camera.
+  const appliedNonce = useRef(0);
+  const orthographic = "isOrthographicCamera" in camera && camera.isOrthographicCamera;
   useEffect(() => {
-    if (!controls || cameraView.nonce === 0) return;
+    if (
+      !controls ||
+      !shouldApplyView(cameraView.nonce, appliedNonce.current, planView, orthographic)
+    )
+      return;
+    appliedNonce.current = cameraView.nonce;
     const { min, max } = bounds(footprint);
     const centre = planToWorld({ x: (min.x + max.x) / 2, y: (min.y + max.y) / 2 }, height / 2);
     const size = Math.max(max.x - min.x, max.y - min.y, height, 4);
@@ -113,7 +122,7 @@ export function Camera() {
     };
     // Only a new choice moves the camera, not an edit to the building while a view is shown.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cameraView.nonce, controls]);
+  }, [cameraView.nonce, controls, planView, orthographic]);
 
   const look = useRef(new Vector3());
   useFrame(() => {
@@ -127,7 +136,9 @@ export function Camera() {
     }
 
     const v = viewTween.current;
-    if (v && controls) {
+    // The floor plan's camera is placed by the plan view; a glide still running is dropped.
+    if (v && planView) viewTween.current = null;
+    if (v && controls && !planView) {
       const k = Math.min(1, (performance.now() - v.start) / VIEW_ANIMATION_MS);
       const eased = 1 - Math.pow(1 - k, 3);
       camera.position.lerpVectors(v.fromPosition, v.toPosition, eased);

@@ -25,6 +25,19 @@ export function formatNumber(
 export const formatMetres = (value: number, language: Language): string =>
   `${formatNumber(value, language, 2)} m`;
 
+/**
+ * A dimension figure as German construction drawings write it (DIN 1356): no unit, below one
+ * metre in centimetres ("76"), from one metre in metres with two decimals ("3,51"), and a
+ * half centimetre as a raised 5 ("1,01⁵"). Rounded to the half centimetre.
+ */
+export function formatBaumass(value: number, language: Language): string {
+  const halves = Math.round(value * 200);
+  const cm = Math.floor(halves / 2);
+  const half = halves % 2 === 1 ? "\u2075" : "";
+  if (cm < 100) return `${String(cm)}${half}`;
+  return `${formatNumber(cm / 100, language, 2, { fixed: true })}${half}`;
+}
+
 export const formatArea = (value: number, language: Language): string =>
   `${formatNumber(value, language, 2)} m²`;
 
@@ -47,4 +60,27 @@ export function parseNumber(text: string, language?: Language): number | null {
   if (normalised === "") return null;
   const value = Number(normalised);
   return Number.isFinite(value) ? value : null;
+}
+
+/** "2 hours ago", "gestern": how long ago `iso` was, in the language's own words. */
+export function formatRelative(iso: string, language: Language, now = Date.now()): string {
+  const seconds = (new Date(iso).getTime() - now) / 1000;
+  const rtf = new Intl.RelativeTimeFormat(locale(language), { numeric: "auto" });
+  const steps: [Intl.RelativeTimeFormatUnit, number][] = [
+    ["minute", 60],
+    ["hour", 3600],
+    ["day", 86400],
+    ["week", 604800],
+    ["month", 2629800],
+    ["year", 31557600],
+  ];
+  let unit: Intl.RelativeTimeFormatUnit = "second";
+  let size = 1;
+  for (const [u, s] of steps) {
+    if (Math.abs(seconds) >= s) {
+      unit = u;
+      size = s;
+    }
+  }
+  return unit === "second" ? rtf.format(0, "minute") : rtf.format(Math.round(seconds / size), unit);
 }

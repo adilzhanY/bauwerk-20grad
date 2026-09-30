@@ -1,4 +1,7 @@
+import { normalizeWalls } from "@/geometry/wallGraph";
 import { create } from "zustand";
+import { asOpening } from "@/geometry/floorPlanImport";
+import type { FloorPlanEdits } from "@/geometry/floorPlanImport";
 import { placeAfterSplit, sharedAfterRemove, sharedAfterSplit } from "@/geometry/shared";
 import { planToLatLon } from "@/geometry/geo";
 import { resizeRectangle } from "@/geometry/box";
@@ -16,6 +19,7 @@ import type {
   Construction,
   HeatPump,
   Id,
+  InteriorWall,
   Layer,
   Opening,
   Radiator,
@@ -25,7 +29,13 @@ import type {
   Storey,
   Vec2,
   Zone,
+  Economics,
+  HeatingSystem,
+  NoteTarget,
+  ProjectInfo,
 } from "@/geometry/types";
+import { heatingOf } from "@/geometry/supply";
+import { windowConstruction, windowType } from "@/geometry/windows";
 import type { DragPreview } from "@/sync/presence";
 import {
   DEFAULT_STOREY_HEIGHT,
@@ -34,7 +44,13 @@ import {
   HEATED_TEMPERATURE,
   UNHEATED_TEMPERATURE,
 } from "@/geometry/types";
-import { DEFAULT_ASSIGNMENT, defaultConstructions } from "@/geometry/constructions";
+import {
+  DEFAULT_ASSIGNMENT,
+  defaultConstructions,
+  withInteriorWallTypes,
+} from "@/geometry/constructions";
+import { AGE_IDS, ageConstructions } from "@/geometry/ageDefaults";
+import type { AgeChoice } from "@/geometry/ageDefaults";
 import { uValueFromLayers } from "@/geometry/layers";
 import { roofOf } from "@/geometry/roof";
 import {
@@ -46,7 +62,7 @@ import {
 import { computeRooms } from "@/geometry/rooms";
 import { defaultRoomName, defaultStoreyName, detectLanguage } from "@/i18n";
 import { localizeBuilding } from "@/i18n/localizeBuilding";
-import { loadBuilding, loadLanguage, loadTheme } from "@/lib/storage";
+import { initialBuilding, loadLanguage, loadTheme } from "@/lib/storage";
 import type { Language } from "@/i18n";
 import { createId } from "@/lib/ids";
 import { clampUiState, history } from "./history";
@@ -68,7 +84,8 @@ export type Selection =
   | { kind: "roof" }
   | { kind: "radiator"; storeyId: Id; id: Id }
   | { kind: "heatPump"; id: Id }
-  | { kind: "pipe"; storeyId: Id; id: Id };
+  | { kind: "pipe"; storeyId: Id; id: Id }
+  | { kind: "measurement"; storeyId: Id; id: Id };
 
 /**
  * The camera views of the view switch: the free 3D view, straight down from the top, and the
@@ -110,6 +127,11 @@ export interface EditorState {
    * browser session: an image is not part of the building and is not shared.
    */
   facadePhotos: Record<number, FacadePhoto>;
+  /**
+   * The floor plan image each storey was read from, by storey id: kept with the project like
+   * the facade photos. UI state, not part of the building file.
+   */
+  floorPlanImages: Record<string, FacadePhoto>;
   showFacadePhotos: boolean;
   /** 0 shows the facade photos fully, 100 hides them. Percent, for all photos. */
   facadePhotoTransparency: number;
@@ -117,6 +139,11 @@ export interface EditorState {
   projectId: string | null;
   /** Orthographic top-down view of the active storey. UI state. */
   planView: boolean;
+  /**
+   * Set when a floor plan read by the AI was applied to a storey: the plan view plays its
+   * reveal once, from `startedAt` (performance.now()), then clears it. UI state.
+   */
+  planReveal: { storeyId: Id; startedAt: number } | null;
   /** Colour band on wall tops keyed to the construction U-value. UI state. */
   showUValueBands: boolean;
   /** Floor plan image on the ground. Local to this browser, never exported. UI state. */
@@ -162,6 +189,13 @@ export interface Underlay {
   opacity: number;
 }
 
+/** Which windows a window type change reaches. */
+export type WindowScope =
+  | { kind: "opening"; storeyId: Id; id: Id }
+  | { kind: "wall"; wallIndex: number }
+  | { kind: "storey"; storeyId: Id }
+  | { kind: "building" };
+
 /** A straightened facade photo: an object URL of the image and its size in pixels. */
 export interface FacadePhoto {
   url: string;
@@ -205,6 +239,28 @@ export interface EditorActions {
   renameBuilding: (name: string) => void;
   setOrigin: (origin: GeoOrigin | undefined) => void;
   setBridgeDetail: (detail: "good" | "poor") => void;
+  /**
+   * How the energy balance is counted: thermal bridge method and ΔU_WB, the primary energy
+   * factor set, the living area for the consumption check. Undefined clears a value.
+   */
+  setEnergyMethod: (
+    patch: Partial<Pick<Building, "bridgeMethod" | "bridgeSurcharge" | "factorSet" | "livingArea">>,
+  ) => void;
+  /**
+   * Gives the envelope the default U-values of its age (geometry/ageDefaults.ts): wall, roof,
+   * floor, and every exterior window and door. One undo step.
+   */
+  applyAgeDefaults: (choice: AgeChoice) => void;
+  /**
+   * Gives every window in `scope` the window type `typeId` (geometry/windows.ts), adding the
+   * type to the building's constructions when it is new. The whole building also makes it
+   * the default for new windows. One undo step.
+   */
+  replaceWindows: (scope: WindowScope, typeId: string) => void;
+  /** Changes the heating system; missing fields keep their value (or the default system's). */
+  setHeating: (patch: Partial<HeatingSystem>) => void;
+  /** Changes prices, CO2 price, occupancy, dwellings or the iSFP flag. */
+  setEconomics: (patch: Partial<Economics>) => void;
   setRoof: (patch: Partial<Roof>) => void;
   /** Mark a footprint edge as a party wall against a heated neighbour, or clear it. */
   setEdgeShared: (edgeIndex: number, shared: boolean) => void;
@@ -216,6 +272,9 @@ export interface EditorActions {
   removeHeatPump: (id: Id) => void;
   addPipe: (storeyId: Id, points: Vec2[]) => Id;
   removePipe: (storeyId: Id, id: Id) => void;
+  /** Keeps a distance measured on the storey; returns its id. */
+  addMeasurement: (storeyId: Id, a: Vec2, b: Vec2) => Id;
+  removeMeasurement: (storeyId: Id, id: Id) => void;
   /** Replaces the footprint, for a GeoJSON import. Rooms are recomputed. */
   setFootprint: (footprint: Vec2[], origin?: GeoOrigin) => void;
   /** Resizes a rectangular footprint about its centre; openings are clamped into their walls. */
@@ -230,6 +289,18 @@ export interface EditorActions {
   updateOpening: (storeyId: Id, openingId: Id, patch: Partial<Omit<Opening, "id">>) => void;
   removeOpening: (storeyId: Id, openingId: Id) => void;
   addInteriorWall: (storeyId: Id, segment: Segment) => void;
+  /**
+   * Replaces a storey's interior walls and openings with an edit of them (a wall end moved,
+   * geometry/wallDrawing.ts) and finds its rooms again.
+   */
+  applyWallEdit: (storeyId: Id, edit: { walls: InteriorWall[]; openings: Opening[] }) => void;
+  /** Gives interior wall `index` a type (a construction of kind "interiorWall"). */
+  setInteriorWallType: (storeyId: Id, index: number, constructionId: Id) => void;
+  /**
+   * A read floor plan on one storey: its interior walls and interior doors are replaced by the
+   * plan's, rooms follow. One undo step. See geometry/floorPlanImport.ts.
+   */
+  applyFloorPlan: (storeyId: Id, edits: FloorPlanEdits) => void;
   removeInteriorWall: (storeyId: Id, index: number) => void;
   renameRoom: (storeyId: Id, roomId: Id, name: string) => void;
   assignRoomToZone: (storeyId: Id, roomId: Id, zoneId: Id | undefined) => void;
@@ -256,9 +327,17 @@ export interface EditorActions {
   removeScenario: (id: Id) => void;
   setPresence: (presence: Presence[]) => void;
   setHistoryPreview: (preview: HistoryPreview | null) => void;
+  /** Writes a note on `target`, signed with `author`. Returns its id. */
+  addNote: (target: NoteTarget, text: string, author: string) => Id;
+  /** Marks a note as dealt with, or open again. */
+  setNoteDone: (id: Id, done: boolean) => void;
+  removeNote: (id: Id) => void;
   setPhotoWall: (edge: number | null) => void;
   /** Keeps (or with null forgets) the straightened photo of a facade. Frees the replaced one. */
   setFacadePhoto: (edge: number, photo: FacadePhoto | null) => void;
+  setFloorPlanImage: (storeyId: Id, image: FacadePhoto | null) => void;
+  /** Drops every facade photo and floor plan image: a new project starts without any. */
+  clearProjectMedia: () => void;
   setShowFacadePhotos: (on: boolean) => void;
   setFacadePhotoTransparency: (percent: number) => void;
   /**
@@ -270,8 +349,13 @@ export interface EditorActions {
   /** Updates one other tab's presence, when it is known. */
   patchPresence: (clientId: string, patch: Partial<Omit<Presence, "clientId">>) => void;
   setProjectId: (projectId: string | null) => void;
+  /** The facade colour read from a photo, or null for the neutral wall colour. */
+  setFacadeColor: (color: string | null) => void;
+  /** Changes the project facts the Projects page shows: client, stage, report time. */
+  setProjectInfo: (patch: Partial<ProjectInfo>) => void;
   duplicateStorey: (storeyId: Id) => void;
   setPlanView: (on: boolean) => void;
+  endPlanReveal: () => void;
   setShowUValueBands: (on: boolean) => void;
   setUnderlay: (underlay: Underlay | null) => void;
   setMeasurement: (measurement: { a: Vec2; b: Vec2 } | null) => void;
@@ -359,7 +443,18 @@ function findStorey(building: Building, storeyId: Id): Storey | undefined {
 }
 
 /** Rooms are derived. Recompute them whenever the footprint or the interior walls change. */
+/**
+ * Keeps interior walls as pieces from joint to joint (geometry/wallGraph.ts): split where a
+ * wall joins or crosses another, joined where two meet straight with nothing else there.
+ */
+function tidyWalls(storey: Storey): void {
+  const tidy = normalizeWalls({ walls: storey.interiorWalls, openings: storey.openings });
+  storey.interiorWalls = tidy.walls;
+  storey.openings = tidy.openings;
+}
+
 function refreshRooms(storey: Storey, footprint: readonly Vec2[], language: Language): void {
+  tidyWalls(storey);
   storey.rooms = computeRooms(footprint, storey.interiorWalls, storey.rooms, {
     createId: () => createId("room"),
     defaultName: (i) => defaultRoomName(i, language),
@@ -401,15 +496,17 @@ export function createEditorStore(initial?: Partial<EditorState>) {
           historyPreview: null,
           photoWall: null,
           facadePhotos: {},
+          floorPlanImages: {},
           showFacadePhotos: true,
           facadePhotoTransparency: 0,
           projectId: null,
           planView: false,
+          planReveal: null,
           showUValueBands: false,
           underlay: null,
           measurement: null,
           proposal: null,
-          theme: initial?.theme ?? "system",
+          theme: initial?.theme ?? "light",
           // The plain grid is the default ground; the map is an option in the settings.
           showMap: false,
           showBridges: false,
@@ -559,6 +656,9 @@ export function createEditorStore(initial?: Partial<EditorState>) {
               case "pipe":
                 actions.removePipe(selection.storeyId, selection.id);
                 break;
+              case "measurement":
+                actions.removeMeasurement(selection.storeyId, selection.id);
+                break;
               case "wall":
               case "room":
               case "roof":
@@ -671,6 +771,30 @@ export function createEditorStore(initial?: Partial<EditorState>) {
             return id;
           },
 
+          addMeasurement: (storeyId, a, b) => {
+            const id = createId("measure");
+            set((state) => {
+              const storey = findStorey(state.building, storeyId);
+              if (!storey) return;
+              storey.measurements ??= [];
+              storey.measurements.push({ id, a: { ...a }, b: { ...b } });
+              // The last distance measured is also what the underlay's scale reads.
+              state.measurement = { a: { ...a }, b: { ...b } };
+            });
+            return id;
+          },
+
+          removeMeasurement: (storeyId, id) => {
+            set((state) => {
+              const storey = findStorey(state.building, storeyId);
+              if (!storey?.measurements) return;
+              storey.measurements = storey.measurements.filter((m) => m.id !== id);
+              if (storey.measurements.length === 0) delete storey.measurements;
+              if (state.selection?.kind === "measurement" && state.selection.id === id)
+                state.selection = null;
+            });
+          },
+
           removePipe: (storeyId, id) => {
             set((state) => {
               const storey = findStorey(state.building, storeyId);
@@ -701,6 +825,91 @@ export function createEditorStore(initial?: Partial<EditorState>) {
           setBridgeDetail: (detail) => {
             set((state) => {
               state.building.bridgeDetail = detail;
+            });
+          },
+
+          setEnergyMethod: (patch) => {
+            set((state) => {
+              const b = state.building;
+              if ("bridgeMethod" in patch) {
+                if (patch.bridgeMethod) b.bridgeMethod = patch.bridgeMethod;
+                else delete b.bridgeMethod;
+              }
+              if ("bridgeSurcharge" in patch) {
+                if (patch.bridgeSurcharge !== undefined) b.bridgeSurcharge = patch.bridgeSurcharge;
+                else delete b.bridgeSurcharge;
+              }
+              if ("factorSet" in patch) {
+                if (patch.factorSet) b.factorSet = patch.factorSet;
+                else delete b.factorSet;
+              }
+              if ("livingArea" in patch) {
+                if (patch.livingArea !== undefined) b.livingArea = patch.livingArea;
+                else delete b.livingArea;
+              }
+            });
+          },
+
+          applyAgeDefaults: (choice) => {
+            set((state) => {
+              const b = state.building;
+              const defaults = ageConstructions(choice, state.language);
+              b.constructions = [
+                ...b.constructions.filter((c) => !defaults.some((d) => d.id === c.id)),
+                ...defaults,
+              ];
+              b.wallConstructionId = AGE_IDS.wall;
+              b.roofConstructionId = AGE_IDS.roof;
+              b.floorConstructionId = AGE_IDS.floor;
+              b.windowConstructionId = AGE_IDS.window;
+              b.doorConstructionId = AGE_IDS.door;
+              for (const storey of b.storeys)
+                for (const o of storey.openings)
+                  if (!o.interior)
+                    o.constructionId = o.kind === "window" ? AGE_IDS.window : AGE_IDS.door;
+              b.yearBuilt = choice.year;
+            });
+          },
+
+          replaceWindows: (scope, typeId) => {
+            const type = windowType(typeId);
+            if (!type) return;
+            set((state) => {
+              const b = state.building;
+              if (!b.constructions.some((c) => c.id === type.id)) {
+                b.constructions.push(windowConstruction(type, state.language));
+              }
+              for (const storey of b.storeys) {
+                if (scope.kind === "storey" && storey.id !== scope.storeyId) continue;
+                if (scope.kind === "opening" && storey.id !== scope.storeyId) continue;
+                for (const o of storey.openings) {
+                  if (o.kind !== "window") continue;
+                  if (scope.kind === "opening" && o.id !== scope.id) continue;
+                  // Windows in interior walls are not envelope; only a direct pick changes one.
+                  if (o.interior && scope.kind !== "opening") continue;
+                  if (scope.kind === "wall" && (o.interior || o.wallIndex !== scope.wallIndex))
+                    continue;
+                  o.constructionId = type.id;
+                }
+              }
+              if (scope.kind === "building") b.windowConstructionId = type.id;
+            });
+          },
+
+          setHeating: (patch) => {
+            set((state) => {
+              state.building.heating = { ...heatingOf(state.building), ...patch };
+            });
+          },
+
+          setEconomics: (patch) => {
+            set((state) => {
+              const current = state.building.economics ?? {};
+              state.building.economics = {
+                ...current,
+                ...patch,
+                ...(patch.prices ? { prices: { ...current.prices, ...patch.prices } } : {}),
+              };
             });
           },
 
@@ -824,6 +1033,58 @@ export function createEditorStore(initial?: Partial<EditorState>) {
               if (!storey) return;
               storey.interiorWalls.push({ a: { ...segment.a }, b: { ...segment.b } });
               refreshRooms(storey, state.building.footprint, state.language);
+            });
+          },
+
+          applyWallEdit: (storeyId, edit) => {
+            set((state) => {
+              const storey = findStorey(state.building, storeyId);
+              if (!storey) return;
+              storey.interiorWalls = edit.walls.map((w) => ({
+                ...w,
+                a: { ...w.a },
+                b: { ...w.b },
+              }));
+              storey.openings = edit.openings.map((o) => ({ ...o }));
+              refreshRooms(storey, state.building.footprint, state.language);
+            });
+          },
+
+          applyFloorPlan: (storeyId, edits) => {
+            set((state) => {
+              const storey = findStorey(state.building, storeyId);
+              if (!storey) return;
+              storey.interiorWalls = edits.interiorWalls.map((w) => ({
+                ...w,
+                a: { ...w.a },
+                b: { ...w.b },
+              }));
+              storey.openings = [
+                ...storey.openings.filter((o) => !o.interior),
+                ...edits.doors.map((door) => ({
+                  ...asOpening(door, createId("opening")),
+                  constructionId: state.building.doorConstructionId,
+                })),
+              ];
+              refreshRooms(storey, state.building.footprint, state.language);
+              if (
+                state.selection &&
+                "storeyId" in state.selection &&
+                state.selection.storeyId === storeyId
+              )
+                state.selection = null;
+              state.planReveal = { storeyId, startedAt: performance.now() };
+            });
+          },
+
+          setInteriorWallType: (storeyId, index, constructionId) => {
+            set((state) => {
+              const wall = findStorey(state.building, storeyId)?.interiorWalls[index];
+              const known = state.building.constructions.some(
+                (c) => c.id === constructionId && c.category === "interiorWall",
+              );
+              if (!wall || !known) return;
+              wall.constructionId = constructionId;
             });
           },
 
@@ -999,8 +1260,31 @@ export function createEditorStore(initial?: Partial<EditorState>) {
           },
 
           loadBuilding: (next) => {
+            // Photos belong to the walls of the building they were taken of, keyed by wall
+            // number: another building must not show them on its own walls. The same building
+            // loaded again (with its project facts, or merged) keeps them.
+            const other = next.id !== get().building.id;
+            if (other)
+              for (const photo of [
+                ...Object.values(get().facadePhotos),
+                ...Object.values(get().floorPlanImages),
+              ])
+                URL.revokeObjectURL(photo.url);
             set((state) => {
+              if (other) {
+                state.facadePhotos = {};
+                state.floorPlanImages = {};
+                state.photoWall = null;
+              }
               state.building = localizeBuilding(next, state.language);
+              // Interior wall types came later: a building from before gets the presets.
+              state.building.constructions = withInteriorWallTypes(
+                state.building.constructions,
+                state.language,
+              );
+              // Walls from a file or an older project, as pieces from joint to joint, and rooms
+              // found again from them: a stored room outline or area is never trusted as is.
+              refreshAllRooms(state.building, state.language);
               state.activeStoreyId = state.building.storeys[0]?.id ?? null;
               state.activeZoneId = null;
               state.selection = null;
@@ -1048,7 +1332,11 @@ export function createEditorStore(initial?: Partial<EditorState>) {
                 name: defaultStoreyName(index + 1, state.language),
                 height: source.height,
                 openings: source.openings.map((o) => ({ ...o, id: createId("opening") })),
-                interiorWalls: source.interiorWalls.map((w) => ({ a: { ...w.a }, b: { ...w.b } })),
+                interiorWalls: source.interiorWalls.map((w) => ({
+                  ...w,
+                  a: { ...w.a },
+                  b: { ...w.b },
+                })),
                 rooms: source.rooms.map((r) => ({
                   ...r,
                   id: createId("room"),
@@ -1063,6 +1351,12 @@ export function createEditorStore(initial?: Partial<EditorState>) {
           setPlanView: (on) => {
             set((state) => {
               state.planView = on;
+            });
+          },
+
+          endPlanReveal: () => {
+            set((state) => {
+              state.planReveal = null;
             });
           },
 
@@ -1205,6 +1499,30 @@ export function createEditorStore(initial?: Partial<EditorState>) {
             });
           },
 
+          setFloorPlanImage: (storeyId, image) => {
+            const previous = get().floorPlanImages[storeyId];
+            if (previous && previous.url !== image?.url) URL.revokeObjectURL(previous.url);
+            set((state) => {
+              if (image) state.floorPlanImages[storeyId] = image;
+              else {
+                state.floorPlanImages = Object.fromEntries(
+                  Object.entries(state.floorPlanImages).filter(([key]) => key !== storeyId),
+                );
+              }
+            });
+          },
+
+          clearProjectMedia: () => {
+            const { facadePhotos, floorPlanImages } = get();
+            for (const photo of [...Object.values(facadePhotos), ...Object.values(floorPlanImages)])
+              URL.revokeObjectURL(photo.url);
+            set((state) => {
+              state.facadePhotos = {};
+              state.floorPlanImages = {};
+              state.photoWall = null;
+            });
+          },
+
           setFacadePhotoTransparency: (percent) => {
             set((state) => {
               state.facadePhotoTransparency = Math.min(100, Math.max(0, percent));
@@ -1232,6 +1550,37 @@ export function createEditorStore(initial?: Partial<EditorState>) {
             });
           },
 
+          addNote: (target, text, author) => {
+            const id = createId("note");
+            set((state) => {
+              state.building.notes ??= [];
+              state.building.notes.push({
+                id,
+                target,
+                text: text.trim().slice(0, 4000),
+                author,
+                createdAt: new Date().toISOString(),
+              });
+            });
+            return id;
+          },
+
+          setNoteDone: (id, done) => {
+            set((state) => {
+              const note = state.building.notes?.find((n) => n.id === id);
+              if (!note) return;
+              if (done) note.done = true;
+              else delete note.done;
+            });
+          },
+
+          removeNote: (id) => {
+            set((state) => {
+              if (!state.building.notes) return;
+              state.building.notes = state.building.notes.filter((n) => n.id !== id);
+            });
+          },
+
           setHistoryPreview: (preview) => {
             set((state) => {
               state.historyPreview = preview;
@@ -1242,6 +1591,22 @@ export function createEditorStore(initial?: Partial<EditorState>) {
             set((state) => {
               const entry = state.presence.find((p) => p.clientId === clientId);
               if (entry) Object.assign(entry, patch);
+            });
+          },
+
+          setFacadeColor: (color) => {
+            set((state) => {
+              if (color) state.building.facadeColor = color;
+              else delete state.building.facadeColor;
+            });
+          },
+
+          setProjectInfo: (patch) => {
+            set((state) => {
+              // An undefined value clears the fact (the stage back to automatic); JSON drops it.
+              state.building.project = JSON.parse(
+                JSON.stringify({ ...state.building.project, ...patch }),
+              ) as ProjectInfo;
             });
           },
 
@@ -1294,6 +1659,7 @@ export function createEditorStore(initial?: Partial<EditorState>) {
                 overrides: { ...from?.overrides },
                 bridgeDetail: from?.bridgeDetail,
                 roof: from?.roof,
+                ...(from?.heating ? { heating: { ...from.heating } } : {}),
               });
             });
             return id;
@@ -1307,6 +1673,10 @@ export function createEditorStore(initial?: Partial<EditorState>) {
               if (patch.overrides !== undefined) s.overrides = { ...patch.overrides };
               if ("bridgeDetail" in patch) s.bridgeDetail = patch.bridgeDetail;
               if ("roof" in patch) s.roof = patch.roof;
+              if ("heating" in patch) {
+                if (patch.heating) s.heating = { ...patch.heating };
+                else delete s.heating;
+              }
             });
           },
 
@@ -1360,6 +1730,6 @@ export function createEditorStore(initial?: Partial<EditorState>) {
 const startLanguage = loadLanguage() ?? detectLanguage();
 export const useEditorStore = createEditorStore({
   language: startLanguage,
-  building: loadBuilding() ?? undefined,
-  theme: loadTheme() ?? "system",
+  building: initialBuilding() ?? undefined,
+  theme: loadTheme() ?? "light",
 });

@@ -58,8 +58,6 @@ interface State {
   selectedWall: WallRef | null;
   /** Whether the photo editor overlay is open. */
   photoEditorOpen: boolean;
-  /** True when the editor was opened by "Detect openings": it asks for a photo and runs on it. */
-  photoEditorAuto: boolean;
 
   setView: (v: MapView) => void;
   setHovered: (gid: string | null) => void;
@@ -71,10 +69,6 @@ interface State {
   toggleAerialBasemap: () => void;
   selectWall: (wall: WallRef | null) => void;
   openPhotoEditor: () => void;
-  /** Open the editor and start the automatic detection as soon as a photo is chosen. */
-  openPhotoEditorAuto: () => void;
-  /** The editor calls this once it has picked the request up. */
-  clearPhotoEditorAuto: () => void;
   closePhotoEditor: () => void;
   highlightPlane: (gid: string, idx: number) => void;
   clearHighlight: () => void;
@@ -195,7 +189,6 @@ export const useStore = create<State>((set, get) => {
     highlightedPlane: null,
     selectedWall: null,
     photoEditorOpen: false,
-    photoEditorAuto: false,
 
     setView: (v) => {
       set({ view: v });
@@ -241,16 +234,10 @@ export const useStore = create<State>((set, get) => {
       set({ selectedWall });
     },
     openPhotoEditor: () => {
-      set({ photoEditorOpen: true, photoEditorAuto: false });
-    },
-    openPhotoEditorAuto: () => {
-      set({ photoEditorOpen: true, photoEditorAuto: true });
-    },
-    clearPhotoEditorAuto: () => {
-      set({ photoEditorAuto: false });
+      set({ photoEditorOpen: true });
     },
     closePhotoEditor: () => {
-      set({ photoEditorOpen: false, photoEditorAuto: false });
+      set({ photoEditorOpen: false });
     },
     highlightPlane: (gid, idx) => {
       set({ highlightedPlane: { gid, idx } });

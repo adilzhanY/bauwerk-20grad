@@ -19,7 +19,7 @@
  * Property sets: Pset_WallCommon, Pset_WindowCommon, Pset_DoorCommon with
  * IsExternal and ThermalTransmittance; Pset_SpaceCommon with NetPlannedArea.
  */
-import { findConstruction } from "./constructions";
+import { findConstruction, interiorWallThickness } from "./constructions";
 import { effectiveWallThickness } from "./layers";
 import { buildRoof } from "./roof";
 import { evaluateAll } from "./scenarios";
@@ -29,7 +29,7 @@ import { area, sub } from "./polygon";
 import { NULL, DERIVED, StepWriter, bool, enm, ifcGuid, list, real, ref, str, typed } from "./step";
 import type { Attr } from "./step";
 import type { Building, Opening, Room, Storey, Vec2 } from "./types";
-import { buildWalls, interiorWallAsWall, INTERIOR_WALL_THICKNESS } from "./walls";
+import { buildWalls, interiorWallAsWall } from "./walls";
 import type { Wall } from "./walls";
 
 export interface IfcOptions {
@@ -269,8 +269,9 @@ export function toIfc(building: Building, options: IfcOptions = {}): string {
     }
 
     // Interior walls.
+    const thicknessOf = interiorWallThickness(building.constructions);
     storey.interiorWalls.forEach((segment, i) => {
-      const wall = interiorWallAsWall(segment, i, storey.height, INTERIOR_WALL_THICKNESS);
+      const wall = interiorWallAsWall(segment, i, storey.height, thicknessOf(segment));
       const placement = localPlacement(ctx, storeyPlacement, 0);
       const solid = extrudedSolid(ctx, wall.quad, 0, storey.height);
       const ifcWall = w.add("IFCWALL", [

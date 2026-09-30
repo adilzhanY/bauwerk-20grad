@@ -2,7 +2,8 @@
  * Short unique ids. In production they are random. Under Vitest they are a
  * counter, so snapshots and deep-equal assertions are stable across runs.
  */
-const deterministic = import.meta.env.MODE === "test";
+// Outside Vite (the server's seed script under tsx) there is no import.meta.env.
+const deterministic = (import.meta.env as ImportMetaEnv | undefined)?.MODE === "test";
 let counter = 0;
 
 export function createId(prefix = "id"): string {

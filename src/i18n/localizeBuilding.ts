@@ -1,4 +1,6 @@
+import { ageConstructionName } from "@/geometry/ageDefaults";
 import { defaultConstructions } from "@/geometry/constructions";
+import { windowConstruction, windowType } from "@/geometry/windows";
 import type { Building, Construction } from "@/geometry/types";
 import { defaultRoomName, defaultStoreyName } from "./index";
 import type { Language } from "./index";
@@ -70,8 +72,22 @@ function roomName(value: string, language: Language): string {
 }
 
 function constructionName(construction: Construction, language: Language): Construction {
-  const english = defaultConstructions("en").find((item) => item.id === construction.id);
-  const german = defaultConstructions("de").find((item) => item.id === construction.id);
+  const age = [
+    ageConstructionName(construction.id, "en"),
+    ageConstructionName(construction.id, "de"),
+  ];
+  if (age[0] && age[1] && age.includes(construction.name))
+    return {
+      ...construction,
+      name: ageConstructionName(construction.id, language) ?? construction.name,
+    };
+  const catalogue = windowType(construction.id);
+  const english =
+    defaultConstructions("en").find((item) => item.id === construction.id) ??
+    (catalogue ? windowConstruction(catalogue, "en") : undefined);
+  const german =
+    defaultConstructions("de").find((item) => item.id === construction.id) ??
+    (catalogue ? windowConstruction(catalogue, "de") : undefined);
   if (!english || !german) return construction;
   const name =
     construction.name === english.name || construction.name === german.name

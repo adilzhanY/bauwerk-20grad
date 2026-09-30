@@ -4,8 +4,18 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="dark" />
+    <meta name="color-scheme" content="light dark" />
     <title>Bauwerk</title>
+    <script>
+      // Stamp the theme before the first paint so a dark system does not flash before the app
+      // loads. Light unless a stored choice says otherwise; "system" leaves it to the media query.
+      try {
+        var theme = localStorage.getItem("bauwerk.theme") || "light";
+        if (theme !== "system") document.documentElement.dataset.theme = theme;
+      } catch (e) {
+        document.documentElement.dataset.theme = "light";
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

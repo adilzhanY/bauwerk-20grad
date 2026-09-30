@@ -68,8 +68,6 @@ export function buildWalls(footprint: readonly Vec2[], thickness: number, height
   });
 }
 
-export const INTERIOR_WALL_THICKNESS = 0.1;
-
 /**
  * An interior wall in the same shape as an exterior one, so openings, solids and
  * the scene treat both alike. The segment is the wall's centre line; the "outer"
@@ -79,7 +77,8 @@ export function interiorWallAsWall(
   segment: Segment,
   index: number,
   height: number,
-  thickness = INTERIOR_WALL_THICKNESS,
+  /** Metres, from the wall's type (geometry/constructions.ts interiorWallThickness). */
+  thickness: number,
 ): Wall {
   const d = sub(segment.b, segment.a);
   const length = Math.hypot(d.x, d.y);
@@ -131,7 +130,16 @@ interface Column {
   cuts: { v0: number; v1: number }[];
 }
 
-export function wallSolids(wall: Wall, openings: readonly Opening[]): WallPrism[] {
+export function wallSolids(
+  wall: Wall,
+  openings: readonly Opening[],
+  /**
+   * The part of the wall that is built, metres along it: all of it, or for an interior wall
+   * where it is seen (wallGraph.pieceRange), so it does not run into the walls it meets.
+   * Only the solid is cut; the wall's length and its openings are unchanged.
+   */
+  range: [number, number] = [0, wall.length],
+): WallPrism[] {
   const valid = openings.filter((o) =>
     isOpeningValid(o, { wallLength: wall.length, storeyHeight: wall.height, siblings: openings }),
   );
@@ -149,8 +157,14 @@ export function wallSolids(wall: Wall, openings: readonly Opening[]): WallPrism[
   }
   if (cursor < wall.length - 1e-9) columns.push({ u0: cursor, u1: wall.length, cuts: [] });
 
+  const [from, to] = range;
   const prisms: WallPrism[] = [];
-  for (const c of columns) {
+  for (const column of columns) {
+    const c = { ...column, u0: Math.max(column.u0, from), u1: Math.min(column.u1, to) };
+    // The first and last columns stretch to a range that reaches past the wall's ends.
+    if (column.u0 <= 1e-9) c.u0 = from;
+    if (column.u1 >= wall.length - 1e-9) c.u1 = to;
+    if (c.u1 - c.u0 <= 1e-9) continue;
     const plan = wallPlanSlice(wall, c.u0, c.u1);
     const cut = c.cuts[0];
     if (!cut) {

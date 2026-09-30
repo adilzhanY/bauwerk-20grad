@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { loginPath } from "@/app/router";
-import { useAuth } from "@/auth/store";
-import { accessToken, accountsEnabled, authHeaders } from "@/auth/supabase";
+import { fullName, useAuth } from "@/auth/store";
+import { accessToken, authHeaders } from "@/auth/api";
+import type { ProjectSummary as CardSummary } from "@/geometry/project";
 import type { Building } from "@/geometry/types";
 import { useEditorStore } from "@/store/building";
 import type { HistoryPreview } from "@/store/building";
@@ -13,6 +14,11 @@ export interface ProjectSummary {
   name: string;
   version: number;
   updatedAt: string;
+  /** The id of the building inside; older servers leave it out. */
+  buildingId?: string;
+  /** What the Projects page shows on the card; older servers leave it out. */
+  summary?: CardSummary;
+  owner?: string;
 }
 
 const ACTOR_KEY = "bauwerk.actor";
@@ -21,7 +27,7 @@ const ACTOR_KEY = "bauwerk.actor";
  * Who this tab is. Kept per tab (sessionStorage), so two tabs side by side are two people,
  * and a reload keeps the name.
  */
-function actorIdentity(): { actor: string; color: string } {
+export function actorIdentity(): { actor: string; color: string } {
   try {
     const saved = sessionStorage.getItem(ACTOR_KEY);
     if (saved) return JSON.parse(saved) as { actor: string; color: string };
@@ -129,13 +135,30 @@ export async function createProject(): Promise<string | null> {
  * Connects the store to the project named in the URL. Without VITE_API_URL this
  * hook does nothing and the app stays a local, localStorage-backed editor.
  */
-export function useSync(): {
+/** The open project's connection, as the pages show it. */
+export interface Sync {
   status: SyncStatus | "local";
   actor: string;
   color: string;
   rejection: Rejection | null;
   dismissRejection: () => void;
-} {
+}
+
+/** No connection: a page shown without a project on the server. */
+export const LOCAL_SYNC: Sync = {
+  status: "local",
+  actor: "",
+  color: "",
+  rejection: null,
+  dismissRejection: () => undefined,
+};
+
+/**
+ * Keeps the project named in the address connected. Run once, by App, so a project stays
+ * live on all its pages, not only in the editor: opening a project from the Projects page
+ * waits for it to join.
+ */
+export function useSync(): Sync {
   const [status, setStatus] = useState<SyncStatus | "local">(syncEnabled ? "connecting" : "local");
   const [rejection, setRejection] = useState<Rejection | null>(null);
   const [tabIdentity] = useState(actorIdentity);
@@ -144,7 +167,7 @@ export function useSync(): {
   const account = useAuth((s) => s.account);
   // Signed in, people are their account: the name and colour everyone else sees too.
   const identity = useMemo(
-    () => (account ? { actor: account.username, color: account.color } : tabIdentity),
+    () => (account ? { actor: fullName(account), color: account.color } : tabIdentity),
     [account, tabIdentity],
   );
 
@@ -163,16 +186,18 @@ export function useSync(): {
   useEffect(() => {
     const cfg = syncConfigFromEnv();
     if (!cfg || !urlProject) return;
-    if (accountsEnabled && authStatus !== "signedIn") {
+    // Until the server has said whether there are accounts, wait.
+    if (authStatus === "loading") return;
+    if (authStatus === "signedOut") {
       // A shared link needs an account: sign in, then come back to it.
-      if (authStatus === "signedOut") window.location.assign(loginPath());
+      window.location.assign(loginPath());
       return;
     }
     const client = new SyncClient(useEditorStore, {
       ...cfg,
       projectId: urlProject,
       ...identity,
-      ...(accountsEnabled ? { token: accessToken } : {}),
+      ...(authStatus !== "off" ? { token: accessToken } : {}),
     });
     const offStatus = client.onStatus(setStatus);
     const offReject = client.onReject(setRejection);
@@ -195,6 +220,36 @@ export function useSync(): {
       setRejection(null);
     },
   };
+}
+
+/**
+ * Disconnects from the open project at once, before anything else changes the building: a
+ * connected client would send the next building as an edit to this project.
+ */
+export function leaveProject(): void {
+  active?.stop();
+  active = null;
+  openProject(null);
+}
+
+/** Resolves once this tab has joined project `id` and shows its building. */
+export function whenJoined(id: string, timeoutMs = 15_000): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (useEditorStore.getState().projectId === id) {
+      resolve();
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      off();
+      reject(new Error(`project ${id} did not open`));
+    }, timeoutMs);
+    const off = useEditorStore.subscribe((state) => {
+      if (state.projectId !== id) return;
+      window.clearTimeout(timer);
+      off();
+      resolve();
+    });
+  });
 }
 
 /** Switches the URL and lets useSync reconnect. */

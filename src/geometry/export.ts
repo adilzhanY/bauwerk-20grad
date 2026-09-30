@@ -13,7 +13,17 @@ import {
   pointInPolygon,
   edges,
 } from "./polygon";
-import type { Building, Construction, Opening, Room, Storey, Zone } from "./types";
+import type {
+  Building,
+  Construction,
+  EnergyCarrier,
+  Opening,
+  ProjectStage,
+  Room,
+  Storey,
+  Zone,
+} from "./types";
+import { PROJECT_STAGES } from "./project";
 import { HEATED_TEMPERATURE } from "./types";
 
 export const EXPORT_VERSION = 1;
@@ -253,6 +263,18 @@ export function validateBuilding(b: Building): ImportError | null {
     const sp = `building.scenarios[${si}]`;
     const d = seen(sc.id, sp);
     if (d) return d;
+    if (
+      sc.heating &&
+      (!CARRIER_NAMES.includes(sc.heating.carrier) ||
+        !(sc.heating.efficiency > 0) ||
+        !(sc.heating.hotWater >= 0))
+    )
+      return { code: "invalidStructure", path: `${sp}.heating` };
+    if (
+      sc.bridgeSurcharge !== undefined &&
+      !(Number.isFinite(sc.bridgeSurcharge) && sc.bridgeSurcharge >= 0 && sc.bridgeSurcharge <= 1)
+    )
+      return { code: "invalidStructure", path: `${sp}.bridgeSurcharge` };
     for (const id of Object.values(sc.overrides) as (string | undefined)[]) {
       if (id !== undefined && !constructionIds.has(id))
         return { code: "unknownConstruction", path: sp };
@@ -299,6 +321,10 @@ export function validateBuilding(b: Building): ImportError | null {
       if (wallLength === undefined || !validateRadiator(rad, s, wallLength)) {
         return { code: "radiatorInvalid", path: rp };
       }
+    }
+    for (const [mi, m] of (s.measurements ?? []).entries()) {
+      const d6 = seen(m.id, `${sp}.measurements[${mi}]`);
+      if (d6) return d6;
     }
     for (const [pi, pipe] of (s.pipes ?? []).entries()) {
       const pp = `${sp}.pipes[${pi}]`;
@@ -417,6 +443,9 @@ function checkStorey(v: unknown, path: string): ImportError | null {
   for (const [i, w] of (s.interiorWalls as unknown[]).entries()) {
     const e = checkSegment(w, `${path}.interiorWalls[${i}]`);
     if (e) return e;
+    const type = (w as { constructionId?: unknown }).constructionId;
+    if (type !== undefined && !isString(type))
+      return bad(`${path}.interiorWalls[${i}].constructionId`);
   }
   for (const [i, r] of s.rooms.entries()) {
     const e = checkRoom(r, `${path}.rooms[${i}]`);
@@ -436,6 +465,14 @@ function checkStorey(v: unknown, path: string): ImportError | null {
       ) {
         return bad(`${path}.radiators[${i}]`);
       }
+    }
+  }
+  if (s.measurements !== undefined) {
+    if (!Array.isArray(s.measurements)) return bad(`${path}.measurements`);
+    for (const [i, m] of (s.measurements as unknown[]).entries()) {
+      if (!isRecord(m) || !isString(m.id)) return bad(`${path}.measurements[${i}]`);
+      const e = checkSegment(m, `${path}.measurements[${i}]`);
+      if (e) return e;
     }
   }
   if (s.pipes !== undefined) {
@@ -458,6 +495,19 @@ function checkZone(v: unknown, path: string): ImportError | null {
   return null;
 }
 
+const NOTE_TARGETS: readonly string[] = ["building", "wall", "opening", "room", "storey"];
+
+const CARRIER_NAMES: readonly string[] = [
+  "gas",
+  "oil",
+  "liquidGas",
+  "districtHeat",
+  "pellets",
+  "heatPumpAir",
+  "heatPumpGround",
+  "electric",
+] satisfies readonly EnergyCarrier[];
+
 /** The building has the shape of one (types and required fields), whatever its values. */
 export function checkBuildingShape(v: unknown, path: string): ImportError | null {
   if (!isRecord(v)) return bad(path);
@@ -468,6 +518,22 @@ export function checkBuildingShape(v: unknown, path: string): ImportError | null
   if (b.bridgeDetail !== undefined && b.bridgeDetail !== "good" && b.bridgeDetail !== "poor") {
     return bad(`${path}.bridgeDetail`);
   }
+  if (b.bridgeMethod !== undefined && b.bridgeMethod !== "flat" && b.bridgeMethod !== "detailed")
+    return bad(`${path}.bridgeMethod`);
+  if (b.factorSet !== undefined && b.factorSet !== "geg2024" && b.factorSet !== "gmodg2027")
+    return bad(`${path}.factorSet`);
+  if (
+    b.bridgeSurcharge !== undefined &&
+    (!isNumber(b.bridgeSurcharge) || b.bridgeSurcharge < 0 || b.bridgeSurcharge > 1)
+  )
+    return bad(`${path}.bridgeSurcharge`);
+  if (
+    b.yearBuilt !== undefined &&
+    (!isNumber(b.yearBuilt) || !Number.isInteger(b.yearBuilt) || b.yearBuilt < 1000)
+  )
+    return bad(`${path}.yearBuilt`);
+  if (b.livingArea !== undefined && (!isNumber(b.livingArea) || b.livingArea <= 0))
+    return bad(`${path}.livingArea`);
   if (b.roof !== undefined) {
     if (!isRecord(b.roof)) return bad(`${path}.roof`);
     const r = b.roof;
@@ -493,6 +559,68 @@ export function checkBuildingShape(v: unknown, path: string): ImportError | null
     if (!Array.isArray(b.sharedEdges)) return bad(`${path}.sharedEdges`);
     if (!b.sharedEdges.every((e) => isNumber(e) && Number.isInteger(e)))
       return bad(`${path}.sharedEdges`);
+  }
+  if (b.facadeColor !== undefined) {
+    if (!isString(b.facadeColor) || !/^#[0-9a-f]{6}$/i.test(b.facadeColor))
+      return bad(`${path}.facadeColor`);
+  }
+  if (b.project !== undefined) {
+    const pr = b.project;
+    if (!isRecord(pr)) return bad(`${path}.project`);
+    for (const k of ["gid", "address", "client", "reportAt", "localId"]) {
+      if (pr[k] !== undefined && !isString(pr[k])) return bad(`${path}.project.${k}`);
+    }
+    if (pr.stage !== undefined && !PROJECT_STAGES.includes(pr.stage as ProjectStage))
+      return bad(`${path}.project.stage`);
+  }
+  if (b.heating !== undefined) {
+    const h = b.heating;
+    if (!isRecord(h) || !CARRIER_NAMES.includes(h.carrier as string)) return bad(`${path}.heating`);
+    if (!isNumber(h.efficiency) || h.efficiency <= 0 || h.efficiency > 8)
+      return bad(`${path}.heating.efficiency`);
+    if (!isNumber(h.hotWater) || h.hotWater < 0) return bad(`${path}.heating.hotWater`);
+    if (
+      h.hotWaterEfficiency !== undefined &&
+      (!isNumber(h.hotWaterEfficiency) || h.hotWaterEfficiency <= 0 || h.hotWaterEfficiency > 8)
+    )
+      return bad(`${path}.heating.hotWaterEfficiency`);
+    if (
+      h.distributionLoss !== undefined &&
+      (!isNumber(h.distributionLoss) || h.distributionLoss < 0 || h.distributionLoss > 1)
+    )
+      return bad(`${path}.heating.distributionLoss`);
+  }
+  if (b.economics !== undefined) {
+    const e = b.economics;
+    if (!isRecord(e)) return bad(`${path}.economics`);
+    if (e.co2Price !== undefined && (!isNumber(e.co2Price) || e.co2Price < 0))
+      return bad(`${path}.economics.co2Price`);
+    if (e.dwellings !== undefined && (!isNumber(e.dwellings) || e.dwellings < 1))
+      return bad(`${path}.economics.dwellings`);
+    if (e.consumption !== undefined && (!isNumber(e.consumption) || e.consumption < 0))
+      return bad(`${path}.economics.consumption`);
+    for (const k of ["ownerOccupied", "isfp"]) {
+      if (e[k] !== undefined && typeof e[k] !== "boolean") return bad(`${path}.economics.${k}`);
+    }
+    if (e.prices !== undefined) {
+      if (!isRecord(e.prices)) return bad(`${path}.economics.prices`);
+      for (const [carrier, price] of Object.entries(e.prices)) {
+        if (!CARRIER_NAMES.includes(carrier) || !isNumber(price) || price < 0)
+          return bad(`${path}.economics.prices.${carrier}`);
+      }
+    }
+  }
+  if (b.notes !== undefined) {
+    if (!Array.isArray(b.notes)) return bad(`${path}.notes`);
+    for (const [i, n] of b.notes.entries()) {
+      const np = `${path}.notes[${i}]`;
+      if (!isRecord(n) || !isString(n.id) || !isString(n.author) || !isString(n.createdAt))
+        return bad(np);
+      if (!isString(n.text) || n.text.length > 4000) return bad(`${np}.text`);
+      if (n.done !== undefined && typeof n.done !== "boolean") return bad(`${np}.done`);
+      if (!isRecord(n.target) || !NOTE_TARGETS.includes(n.target.kind as string))
+        return bad(`${np}.target`);
+    }
   }
   if (b.sources !== undefined) {
     if (!isRecord(b.sources)) return bad(`${path}.sources`);
@@ -563,9 +691,11 @@ function checkConstruction(v: unknown, path: string): ImportError | null {
   if (!isRecord(v)) return bad(path);
   const c = v as Partial<Record<keyof Construction, unknown>>;
   if (!isString(c.id) || !isString(c.name)) return bad(path);
-  if (!["wall", "window", "door", "floor", "roof"].includes(c.category as string))
+  if (!["wall", "interiorWall", "window", "door", "floor", "roof"].includes(c.category as string))
     return bad(`${path}.category`);
   if (!isNumber(c.uValue)) return bad(`${path}.uValue`);
+  if (c.gValue !== undefined && (!isNumber(c.gValue) || c.gValue < 0 || c.gValue > 1))
+    return bad(`${path}.gValue`);
   if (c.layers !== undefined) {
     if (!Array.isArray(c.layers)) return bad(`${path}.layers`);
     for (const [i, l] of (c.layers as unknown[]).entries()) {

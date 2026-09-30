@@ -1,14 +1,14 @@
 # Deploying Bauwerk
 
-One small server runs everything except the Supabase database and SAM 3 (TODO Part 5).
+One small server runs everything except the Supabase database and SAM 3 (TODO Parts 5 and 20).
 Four containers from `deploy/docker-compose.yml`:
 
-| Service    | What                                                     | Reachable                   |
-| ---------- | -------------------------------------------------------- | --------------------------- |
-| `web`      | Caddy: HTTPS, the built app, and the reverse proxy below | ports 80 and 443            |
-| `lod2-api` | LoD2 tiles, building detail, search (`/api`)             | only through `web`          |
-| `server`   | collaboration server, REST and Socket.IO (`/collab`)     | only through `web`          |
-| `postgis`  | LoD2 data, and the projects until they move to Supabase  | only on the compose network |
+| Service    | What                                                       | Reachable                   |
+| ---------- | ---------------------------------------------------------- | --------------------------- |
+| `web`      | Caddy: HTTPS, the built app, and the reverse proxy below   | ports 80 and 443            |
+| `lod2-api` | LoD2 tiles, building detail, search (`/api`)               | only through `web`          |
+| `server`   | collaboration server, REST and Socket.IO (`/collab`)       | only through `web`          |
+| `postgis`  | LoD2 data, and the app database until it moves to Supabase | only on the compose network |
 
 Secrets live in `deploy/.env` on the server (ignored by git). `deploy/.env.example` lists every
 variable.
@@ -29,8 +29,9 @@ variable.
    git clone git@github.com:adilzhanY/bauwerk-20grad.git /srv/bauwerk
    ```
 4. **Settings.** `cp deploy/.env.example deploy/.env`, fill in `DOMAIN` and
-   `POSTGRES_PASSWORD` (`openssl rand -hex 24`), then `chmod 600 deploy/.env`. The example has
-   `ACCOUNTS=off` for this first deploy; remove it when Supabase is set up (`SUPABASE_URL`).
+   `POSTGRES_PASSWORD` (`openssl rand -hex 24`) and `AUTH_SECRET` (`openssl rand -base64 48`),
+   then `chmod 600 deploy/.env`. Without `AUTH_SECRET` the server refuses to start unless
+   `ACCOUNTS=off` says to run without accounts.
 5. **Start.**
    ```bash
    cd /srv/bauwerk
@@ -56,6 +57,48 @@ variable.
    Keep `lod2.dump`: it is the backup of this data.
 7. **Check** from the phone on mobile data: `https://<domain>`, a building search, the building
    page, the editor, Share, and a second device opening the link and editing live.
+
+## The database and accounts on Supabase
+
+Supabase is only the Postgres database. Accounts are Bauwerk's own (username and password,
+checked by the `server` container), so nothing in Supabase Auth is used or needs setting up,
+and the browser never talks to Supabase. Everything lives in the schema `app`: users, projects,
+their history, members and pictures, and each user's settings, bookmarks, notes and surveys.
+The server creates and updates the tables itself on start (`server/migrations/`).
+
+1. **Project.** supabase.com, New project, the free plan, region Frankfurt (`eu-central-1`).
+   Generate a long database password and keep it in the password manager. A free project
+   pauses after a week without use: open the dashboard the day before a demo.
+2. **Connection string.** Connect (top of the dashboard), "Session pooler" (it works over IPv4,
+   port 5432; the "Direct connection" host `db.<ref>.supabase.co` has only an IPv6 address on
+   the free plan and cannot be reached from a network without IPv6). Take the host exactly as
+   the dialog shows it: projects live on `aws-0-...` or `aws-1-...` poolers. Copy the URI, it looks like
+   `postgresql://postgres.<ref>:[YOUR-PASSWORD]@aws-1-eu-central-1.pooler.supabase.com:5432/postgres`,
+   and put the database password in place of `[YOUR-PASSWORD]` (characters such as `@`, `:`
+   or `/` in it must be written `%40`, `%3A`, `%2F`). That is `BAUWERK_DATABASE_URL`.
+3. **Certificate.** Database, Settings, SSL Configuration, "Download certificate". Its whole
+   text goes into `DATABASE_CA_CERT` (in double quotes, line breaks as `\n`), or, on this PC,
+   the path to the file. The server then checks Supabase's certificate instead of trusting it.
+4. **Keep the tables private.** Project Settings, Data API: `app` must not be among the exposed
+   schemas (by default only `public` and `graphql_public` are). The migrations also revoke
+   every right of Supabase's `anon` and `authenticated` roles and turn on row level security
+   without policies, so the public API key reaches nothing.
+5. **Secret.** `AUTH_SECRET`, at least 32 characters: `openssl rand -base64 48`. Changing it
+   later signs everybody out.
+6. **Start.** In `deploy/.env`: `BAUWERK_DATABASE_URL`, `DATABASE_CA_CERT`, `AUTH_SECRET`, and
+   no `ACCOUNTS=off`. Then `docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d server`.
+   `docker compose logs -f server` shows the migrations running once.
+7. **Check.** In the Supabase Table Editor choose the schema `app`: `users`, `projects`,
+   `project_events`, `project_members`, `project_photos`, `user_settings`, `user_bookmarks`,
+   `user_buildings`, `schema_migrations`. Create an account in the app: its row in `users` has
+   the names and a `scrypt$...` hash, never the password.
+
+The same database from this PC, before deploying:
+
+```bash
+BAUWERK_DATABASE_URL='postgresql://postgres.<ref>:<password>@aws-1-eu-central-1.pooler.supabase.com:5432/postgres' \
+DATABASE_CA_CERT=/path/to/prod-ca-2021.crt npm run dev
+```
 
 ## Every update
 
@@ -106,3 +149,30 @@ The server has no graphics card. For the rehearsal and the presentation, rent on
    openings". Stop the instance after the presentation; the button hides itself again.
 
 Start it an hour before: installing and the first model download take a while.
+
+## From this PC (no server, no rented card)
+
+The whole site can run on the development PC and reach the internet through a Cloudflare
+Tunnel: an outgoing connection, so no open ports, no router settings, and the home address
+stays hidden. The PC has to stay on.
+
+- `deploy/.env.pc` (ignored by git) overrides `deploy/.env`: Caddy on port 8088 over plain HTTP
+  (Cloudflare does the HTTPS), `VISION_URL=https://vision.bauwerk-demo.xyz` and its `VISION_KEY`.
+- The tunnel carries `bauwerk-demo.xyz` to `http://localhost:8088` and `vision.bauwerk-demo.xyz`
+  to `http://localhost:8790`. The vision service stays on loopback; the key keeps the public
+  vision address closed to everyone but the site's proxy.
+- Two user services, linked from `deploy/pc/`: `bauwerk-vision` (SAM 3, about 3.5 GB of
+  graphics memory) and `bauwerk-tunnel` (cloudflared, token in `~/.config/bauwerk/tunnel-token`).
+  While the tunnel runs, the PC does not suspend when idle. `npm run dev` uses the running
+  vision service instead of starting a second one.
+
+Start or update the site, then the services:
+
+```bash
+docker compose -f deploy/docker-compose.yml --env-file deploy/.env --env-file deploy/.env.pc up -d --build
+systemctl --user enable --now bauwerk-vision bauwerk-tunnel
+```
+
+The containers and both services come back by themselves after a restart. Check:
+`curl -s https://bauwerk-demo.xyz/vision/health`. Stop hosting with
+`systemctl --user disable --now bauwerk-tunnel bauwerk-vision`.

@@ -12,7 +12,6 @@ import {
   segmentsIntersect,
   signedArea,
   snapPoint,
-  snapToFootprintOrGrid,
 } from "./polygon";
 import type { Vec2 } from "./types";
 
@@ -151,17 +150,5 @@ describe("centroid, bounds, snapping", () => {
   it("snaps to the grid", () => {
     expect(snapPoint({ x: 1.24, y: 3.76 }, 0.5)).toEqual({ x: 1, y: 4 });
     expect(snapPoint({ x: 1.26, y: -0.3 }, 0.5)).toEqual({ x: 1.5, y: -0.5 });
-  });
-
-  it("snaps to footprint edge when within wall attachment zone", () => {
-    // 10x8 rect with 0.3m wall thickness and 0.5m grid
-    // Point near right wall (x=10): snaps exactly onto x=10 with y snapped to 0.5 grid
-    expect(snapToFootprintOrGrid({ x: 9.6, y: 4.1 }, rect, 0.3, 0.5)).toEqual({ x: 10, y: 4 });
-    // Point slightly outside right wall: snaps onto x=10
-    expect(snapToFootprintOrGrid({ x: 10.1, y: 3.9 }, rect, 0.3, 0.5)).toEqual({ x: 10, y: 4 });
-    // Point near left wall (x=0): snaps onto x=0
-    expect(snapToFootprintOrGrid({ x: 0.2, y: 2.6 }, rect, 0.3, 0.5)).toEqual({ x: 0, y: 2.5 });
-    // Point in the interior far from any edge: snaps to regular grid
-    expect(snapToFootprintOrGrid({ x: 5.2, y: 4.1 }, rect, 0.3, 0.5)).toEqual({ x: 5, y: 4 });
   });
 });

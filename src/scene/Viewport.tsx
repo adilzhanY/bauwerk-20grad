@@ -1,10 +1,13 @@
 import { useMemo } from "react";
+import { ModelSnapshot } from "./ModelSnapshot";
 import { Canvas, useThree } from "@react-three/fiber";
 import { GizmoHelper, GizmoViewport, OrbitControls, OrthographicCamera } from "@react-three/drei";
-import { Object3D } from "three";
+import { MOUSE, Object3D } from "three";
 import { bounds } from "@/geometry/polygon";
 import { planCamera } from "./planView";
 import { Dimensions } from "./Dimensions";
+import { HoverCursor } from "./HoverCursor";
+import { Measurements } from "./Measurements";
 import { PlanDrawing } from "./PlanDrawing";
 import { Underlay } from "./Underlay";
 import { MapUnderlay } from "./MapUnderlay";
@@ -26,11 +29,11 @@ import { Storey } from "./Storey";
 import { Ground } from "./Ground";
 import { RemoteCursors, ShareCursor } from "./RemoteCursors";
 import { FacadePhotos } from "./FacadePhotos";
+import { NotePins } from "./NotePins";
 import { PLAN_MIRROR } from "./three";
 import { Tools } from "./tools/Tools";
 import { Compass } from "./Compass";
 import { FacadeLines } from "./FacadeLines";
-import { BuildingName } from "./BuildingName";
 import { storeyElevation } from "@/store/selectors";
 import { colors } from "@/lib/colors";
 
@@ -40,6 +43,9 @@ interface ViewportProps {
 
 /** Room around the footprint for the plan's dimension lines, metres. */
 const PLAN_MARGIN = 0.5;
+/** Plan zoom limits: a share of the zoom that fits the building, and pixels per metre. */
+const PLAN_MIN_ZOOM = 0.5;
+const PLAN_MAX_PX_PER_METRE = 500;
 /**
  * The tool card, the storeys and the minimap at the left and the view switch at the top cover
  * this much, px, plus 80 px on every side for the dimension lines.
@@ -74,6 +80,7 @@ export function Viewport({ onSample }: ViewportProps = {}) {
       <Walkthrough />
       {isPlanView && <PlanViewCamera bounds={footprintBounds} elevation={activeElevation} />}
       <ShareCursor />
+      <HoverCursor />
       {/* Everything drawn is built in plan space; this group turns it into world space. */}
       <group scale={PLAN_MIRROR}>
         <Sun />
@@ -108,8 +115,9 @@ export function Viewport({ onSample }: ViewportProps = {}) {
           ))}
         {!isPlanView && <FacadeLines />}
         <FacadePhotos />
+        <NotePins />
+        <Measurements />
         <Compass />
-        <BuildingName />
         <RemoteCursors />
         <Tools />
       </group>
@@ -135,6 +143,7 @@ export function Viewport({ onSample }: ViewportProps = {}) {
         </GizmoHelper>
       )}
       {onSample && <FrameProbe onSample={onSample} />}
+      <ModelSnapshot />
     </Canvas>
   );
 }
@@ -174,9 +183,14 @@ function PlanViewCamera({
         target={plan.target}
         enableDamping
         dampingFactor={0.12}
-        minDistance={2}
-        maxDistance={150}
-        mouseButtons={{ LEFT: 0, MIDDLE: 1, RIGHT: 2 }}
+        // Out to half the fitted size, so the building never shrinks to a speck; in to
+        // 500 px per metre, a centimetre as 5 px, enough to place a door exactly.
+        minZoom={plan.zoom * PLAN_MIN_ZOOM}
+        maxZoom={Math.max(plan.zoom * 2, PLAN_MAX_PX_PER_METRE)}
+        // A plan is paper on a table: drag anywhere to slide it, and the wheel zooms into
+        // the spot under the pointer. Rotating stays off.
+        zoomToCursor
+        mouseButtons={{ LEFT: MOUSE.PAN, MIDDLE: MOUSE.DOLLY, RIGHT: MOUSE.PAN }}
       />
     </>
   );

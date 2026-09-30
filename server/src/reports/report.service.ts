@@ -7,8 +7,9 @@ import type { Building } from "@/geometry/types";
 
 /**
  * Prints the client's own print view to an A4 PDF: headless Chromium opens the
- * served client at `/?print=1` with the building placed in localStorage, exactly
- * where the app autosaves, so the PDF is the page the user's browser would print.
+ * served client at `/?print=1` with the building placed in localStorage as the saved project
+ * the editor had open (src/lib/storage.ts), so the PDF is the page the user's browser would
+ * print.
  * The server must serve the built client (see app.ts); without it the endpoint
  * reports 503.
  */
@@ -22,7 +23,8 @@ export class ReportService implements OnModuleDestroy {
     try {
       await context.addInitScript(
         ({ json, lang }: { json: string; lang: string }) => {
-          localStorage.setItem("bauwerk.building", json);
+          localStorage.setItem("bauwerk.project.print", json);
+          localStorage.setItem("bauwerk.openProject", "print");
           localStorage.setItem("bauwerk.language", lang);
           localStorage.setItem("bauwerk.theme", "light");
         },

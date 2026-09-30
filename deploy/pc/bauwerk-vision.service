@@ -1,0 +1,15 @@
+# SAM 3 for the hosted site, always on, on loopback behind the tunnel. VISION_KEY comes from
+# deploy/.env.pc, HF_TOKEN and HF_HOME from the repo-root .env, which server.py reads itself.
+[Unit]
+Description=Bauwerk vision service (SAM 3)
+After=network-online.target
+
+[Service]
+WorkingDirectory=%h/dev/bauwerk/lod2/lod2-vision
+EnvironmentFile=%h/dev/bauwerk/deploy/.env.pc
+ExecStart=%h/dev/bauwerk/lod2/lod2-vision/.venv/bin/python server.py
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

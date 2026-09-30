@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Line } from "@react-three/drei";
+import { Line } from "./Line";
 import { offsetPolygon } from "@/geometry/roof";
 import { colors } from "@/lib/colors";
 import { storeyElevation } from "@/store/selectors";

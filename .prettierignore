@@ -3,3 +3,6 @@ coverage
 node_modules
 package-lock.json
 /lod2
+
+# Agent worktrees and local Claude settings
+.claude/

@@ -5,7 +5,8 @@
  *   2. the LoD2 API
  *   3. the collaboration server (NestJS), on its own database in the same Postgres
  *   4. the vision service (SAM 3), only when its Python environment exists
- *   5. the app
+ *   5. the floor plan service (interior walls from a plan), only when it is installed
+ *   6. the app
  *
  * Every line is prefixed with the name of the process that wrote it. Ctrl+C stops them all.
  *
@@ -24,7 +25,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const envFile = join(root, ".env");
 if (existsSync(envFile)) process.loadEnvFile(envFile);
 
-const COLORS = { db: 90, api: 34, collab: 36, vision: 35, app: 32 };
+const COLORS = { db: 90, api: 34, collab: 36, vision: 35, plans: 33, app: 32 };
 const children = [];
 let stopping = false;
 
@@ -135,6 +136,14 @@ if (dbUp) {
       process.env.BAUWERK_DATABASE_URL ??
       `postgres://lod2:lod2@127.0.0.1:${process.env.LOD2_DB_PORT ?? "55433"}/bauwerk`,
     PORT: process.env.BAUWERK_SERVER_PORT ?? "8789",
+    // Accounts on, with a fixed secret for this machine only, so a session survives a
+    // restart. ACCOUNTS=off in the environment runs without accounts.
+    ...(process.env.ACCOUNTS === "off"
+      ? { ACCOUNTS: "off" }
+      : {
+          AUTH_SECRET:
+            process.env.AUTH_SECRET ?? "bauwerk-local-development-secret-never-in-production",
+        }),
   });
 } else {
   console.log(`${label("collab")} Skipped without the database. Editing stays local.`);
@@ -151,11 +160,37 @@ const visionPython = configuredPython
       ".venv",
       process.platform === "win32" ? "Scripts/python.exe" : "bin/python",
     );
-if (existsSync(visionPython)) {
+const visionPort = process.env.LOD2_VISION_PORT ?? "8790";
+const visionRunning = await fetch(`http://127.0.0.1:${visionPort}/health`).then(
+  () => true,
+  () => false,
+);
+if (visionRunning) {
+  // The always-on service of the hosted site (deploy/README.md, "From this PC"): share it.
+  console.log(`${label("vision")} Already running on port ${visionPort}, using that one.`);
+} else if (existsSync(visionPython)) {
   start("vision", "node", ["lod2/scripts/vision.mjs"]);
 } else {
   console.log(
     `${label("vision")} Not installed, skipped. Automatic window detection stays off (lod2/docs/LOD2.md, steps 6 to 8).`,
+  );
+}
+
+// 5. Floor plan service (interior walls from a plan drawing), when it is installed.
+const floorplanPython =
+  process.env.LOD2_FLOORPLAN_PYTHON ??
+  join(
+    root,
+    "lod2",
+    "lod2-floorplan",
+    ".venv",
+    process.platform === "win32" ? "Scripts/python.exe" : "bin/python",
+  );
+if (existsSync(floorplanPython)) {
+  start("plans", floorplanPython, ["lod2/lod2-floorplan/server.py"]);
+} else {
+  console.log(
+    `${label("plans")} Not installed, skipped. Floor plan import stays off (lod2/lod2-floorplan/README.md).`,
   );
 }
 

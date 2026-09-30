@@ -57,3 +57,43 @@ describe("takeOverWall", () => {
     expect(takeOverWall(null, building, 999)).toBeNull();
   });
 });
+
+describe("takeOverWall and guessed windows", () => {
+  it("drops the windows an older version guessed on unphotographed walls, keeps drawn ones", () => {
+    const { building, surfaceIndex } = surveyed();
+    const edge = surveyedEdge(building, surfaceIndex);
+    if (edge === null) throw new Error("the fixture wall has openings");
+    const other = (edge + 1) % building.footprint.length;
+    const first = building.storeys[0];
+    if (!first) throw new Error("fixture");
+    // The editor still holds the building from before: a guessed window on another wall, and
+    // a window the consultant drew there himself.
+    const guessed = {
+      id: "c9-s0-0",
+      wallIndex: other,
+      kind: "window" as const,
+      offset: 0.5,
+      width: 1,
+      height: 1.2,
+      sill: 0.9,
+      constructionId: building.windowConstructionId,
+    };
+    const drawn = { ...guessed, id: "drawn-1", offset: 3 };
+    const old: Building = {
+      ...building,
+      storeys: building.storeys.map((s, i) =>
+        i === 0 ? { ...s, openings: [...s.openings, guessed, drawn] } : s,
+      ),
+      sources: {
+        ...building.sources,
+        [`opening:${guessed.id}`]: { kind: "catalogue", note: "no photo" },
+      },
+    };
+    const taken = takeOverWall(old, building, surfaceIndex);
+    expect(taken?.merged).toBe(true);
+    const ids = taken?.building.storeys.flatMap((s) => s.openings.map((o) => o.id)) ?? [];
+    expect(ids).not.toContain("c9-s0-0");
+    expect(ids).toContain("drawn-1");
+    expect(taken?.building.sources?.["opening:c9-s0-0"]).toBeUndefined();
+  });
+});

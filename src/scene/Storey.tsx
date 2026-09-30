@@ -1,6 +1,8 @@
+import { pieceRange } from "@/geometry/wallGraph";
 import { useMemo } from "react";
 import { openingsOn, validateOpening } from "@/geometry/openings";
-import { INTERIOR_WALL_THICKNESS, buildWalls, interiorWallAsWall } from "@/geometry/walls";
+import { buildWalls, interiorWallAsWall } from "@/geometry/walls";
+import { interiorWallThickness } from "@/geometry/constructions";
 import { effectiveWallThickness } from "@/geometry/layers";
 import type { Building, Storey as StoreyData } from "@/geometry/types";
 import { colors } from "@/lib/colors";
@@ -90,8 +92,15 @@ export function Storey({ building, storey, elevation, active, display, ghostOpac
         );
       })}
       {storey.interiorWalls.map((segment, index) => {
+        // Built only where it is seen, like the plan draws it: not into the walls it meets.
+        const pieces = {
+          footprint: building.footprint,
+          exteriorThickness: effectiveWallThickness(building),
+          thicknessOf: interiorWallThickness(building.constructions),
+        };
+        const thickness = pieces.thicknessOf(segment);
         const onWall = openingsOn(storey.openings, index, true);
-        const wall = interiorWallAsWall(segment, index, storey.height);
+        const wall = interiorWallAsWall(segment, index, storey.height, thickness);
         return (
           <group key={index}>
             <InteriorWall
@@ -100,6 +109,8 @@ export function Storey({ building, storey, elevation, active, display, ghostOpac
               segment={segment}
               openings={onWall}
               height={storey.height}
+              thickness={thickness}
+              range={pieceRange(index, storey.interiorWalls, pieces)}
               elevation={elevation}
               active={active}
               display={display}
@@ -111,7 +122,7 @@ export function Storey({ building, storey, elevation, active, display, ghostOpac
                 storeyId={storey.id}
                 wall={wall}
                 opening={opening}
-                thickness={INTERIOR_WALL_THICKNESS}
+                thickness={thickness}
                 elevation={elevation}
                 active={active}
                 display={display}

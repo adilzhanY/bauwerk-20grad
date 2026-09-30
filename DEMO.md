@@ -1,13 +1,13 @@
 # Bauwerk in the office
 
-The script for the third interview at 20°, in their office. About twelve minutes, then their questions. Two browser windows on your laptop, one on theirs. English UI, light theme. Every step names the click and the sentence to say. Rehearse it twice; the second run is the one that fits.
+The script for the third interview at 20°, in their office. About sixteen minutes, then their questions. Two browser windows on your laptop, one on theirs. English UI, light theme. Every step names the click and the sentence to say. Rehearse it twice; the second run is the one that fits.
 
 ## Hosted variant (the version on the server)
 
 Everything below works the same on `https://<domain>` instead of the laptop, with these changes:
 
 - An hour before: start the rented graphics card and check `https://<domain>/vision/health` (`deploy/README.md`, last section). Without it the demo works, but openings are drawn by hand.
-- Your laptop is signed in with your account. The second person opens the shared link, signs up on the page it leads to (email, password, username, no confirmation mail), and lands in the project.
+- Your laptop is signed in with your account. The second person opens the shared link, signs up on the page it leads to (first name, last name, username, password twice), and lands in the project.
 - Step 10 (Share) copies a link that works from anywhere, no `--host`, no office network needed.
 - Keep the laptop version (`npm run dev`) and the screen recording ready in case the network fails.
 
@@ -51,12 +51,25 @@ Say: "This is Bauwerk. Your job posting describes a versioned, real-time, multi-
 16. History tab on the right: the versions with names and times. Click an older one: the banner, read-only. "Back to live". Say: "Versioned: every batch is a row in Postgres, any version can be rebuilt and restored as a new one."
 17. Say why it is not a CRDT: "A CRDT converges, but it does not know that two windows must not overlap. Because there is a server, it checks the merged building and refuses the batch that breaks it. A test plays a thousand random three-person sessions with lost connections, and every screen must end on the server's building."
 
-## 8:30 Export (1 min)
+## 8:30 What the consultant tells the client (4 min)
+
+This part is for the Energieberater. Switch the interface to **Deutsch** first (top bar, language): the panel then speaks his words, Endenergie, Primärenergie, Heizwärmebedarf, Hüllfläche, Vorlauftemperatur. Stay on the yellow house from the photo.
+
+E1. Right panel, **Energie** tab, **Heizung und Kosten**. The house heats with gas. Point at the scale: the class now comes from the Endenergie, as on an Energieausweis. Say: "Heating demand through a gas boiler with 0.92, plus hot water, gives the end energy. Primary energy and CO2 use the factors of GEG Annex 4 and 9. The heating cost includes the CO2 price, and it is shown on its own line, 60 euro per tonne with VAT, the way it is on the gas bill."
+E2. Switch **Selbst genutzt** off. The row **Vermieteranteil an den CO2-Kosten** appears. Say: "Rented: the CO2KostAufG step from the billed CO2 per square metre, and what the landlord pays." Switch it back on.
+E3. Select a window on the photographed facade. **Fenster tauschen**: choose **Fassade**, then **Dreifachverglasung**. Every window of that facade changes in one step. Say: "The old types carry the flat U-values of the rules for data collection in the existing stock: box window, insulating glass of the 70s and 80s, thermal glazing from 1995. One click for one window, a facade, a storey or the whole house."
+E4. **Szenarien** tab. Add a scenario: wall **gedämmt**, windows **Dreifach**, and **Energieträger: Wärmepumpe, Luft**. Its card lists every measure with its cost and whether the state pays: "U 0,19 erfüllt die BEG-Grenze von 0,20: 15 %", "KfW-Heizungsförderung 46 %". Below: Investition, Förderung, Eigenanteil, Amortisation des Eigenanteils. Say: "BEG EM with the TMA limits, the iSFP bonus only from 30,000 euro since the July change, KfW 458 with the climate speed bonus for owner-occupiers. The income bonus depends on the household, so it is left out and it says so."
+E5. Energie tab, **Wärmepumpen-Tauglichkeit** under the heat loads. Say: "The flow temperature test. Radiator output by EN 442 at 55 degrees: this is the temperature these radiators need, and these rooms need a bigger radiator, with the size." If the house has no radiators yet, place two with the heating tool (7) first.
+E6. **Hüllflächenaufstellung**: every element by direction, area, U, Fx and H_T. Press **CSV**. Say: "The table you type into Hottgenroth after a site visit, in German number format. It adds up to exactly the areas the heat loss uses."
+E7. Select a wall, **Notizen**: type "Riss über dem Kellerfenster", Enter. A pin appears on the facade, and in the second window at the same moment, signed with the name. Say: "Notes from the site visit belong to the element, and everyone in the project sees them."
+E8. Switch back to English.
+
+## 12:30 Export (1 min)
 
 18. Export menu, IFC. Say: "IFC4, written by hand, and read back in the test suite by IfcOpenShell: schema valid, every element's geometry builds, every window cuts a real opening in its wall."
 19. Export menu, printable report: the German document with the Energieausweis scale. Close it.
 
-## 9:30 The process (2 min)
+## 13:30 The process (2 min)
 
 20. Switch to DECISIONS.md. Pick three entries, each a place where the agent was plausible but wrong:
     - The collaboration server refused every invalid building. The first client test was refused for the wrong reason, which showed that the editor allows invalid openings on purpose. The rule became: the server only refuses a merge that breaks what the sender saw as valid.

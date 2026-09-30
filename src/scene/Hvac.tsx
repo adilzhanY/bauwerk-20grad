@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Line } from "@react-three/drei";
+import { Line } from "./Line";
 import type { ThreeEvent } from "@react-three/fiber";
 import { edges } from "@/geometry/polygon";
 import { effectiveWallThickness } from "@/geometry/layers";

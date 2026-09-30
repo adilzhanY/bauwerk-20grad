@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_ASSIGNMENT, PRESET_IDS, defaultConstructions } from "./constructions";
 import { computeEnergy, energyClass, orientationOf } from "./energy";
+import { applyScenario, fullEnvelopeScenario } from "./scenarios";
 import { lShape, rect } from "./fixtures";
 import { edges, pointInPolygon } from "./polygon";
 import { computeRooms } from "./rooms";
@@ -11,10 +12,16 @@ const U = (id: string) => presets.find((c) => c.id === id)!.uValue;
 const WALL = U(PRESET_IDS.wallBrick);
 const FLOOR = U(PRESET_IDS.floorBare);
 const ROOF = U(PRESET_IDS.roofBare);
+/** The dividing wall: the default partition, 24 m² of it, at F_x 0.5 to the unheated room. */
+const PARTITION = 0.5 * U(PRESET_IDS.interiorPartition) * 24;
 /** Uninsulated default: walls 36 m x 3 m = 108 m², floor 80 m² with F_x 0.6, roof 80 m². */
 const BASE = WALL * 108 + 0.6 * FLOOR * 80 + ROOF * 80;
-/** Usable internal gains for 80 m² of heated floor area. */
-const INTERNAL = 0.95 * 22 * 80;
+/** A_N of the 10 x 8 x 3 m storey: 0.32 x V_e = 0.32 x 240. */
+const A_N = 76.8;
+/** Usable internal gains on A_N. */
+const INTERNAL = 0.95 * 22 * A_N;
+/** H_V: 0.34 x n 0.7 x 0.76 V_e (one storey). */
+const VENTILATION = 0.34 * 0.7 * 0.76 * 240;
 
 let n = 0;
 const factory = { createId: () => `room_${++n}`, defaultName: (i: number) => `Room ${i}` };
@@ -61,17 +68,23 @@ describe("computeEnergy on the default 10 by 8 single storey", () => {
     expect(e.transmissionLoss - e.bridgeLoss).toBeCloseTo(BASE);
     expect(e.specificTransmissionLoss).toBeCloseTo(e.transmissionLoss / 268);
     expect(e.heatedVolume).toBeCloseTo(240);
-    expect(e.ventilationLoss).toBeCloseTo(0.34 * 0.5 * 240);
+    expect(e.heatedFloorArea).toBeCloseTo(80);
+    expect(e.referenceArea).toBeCloseTo(A_N);
+    // The flat thermal bridge surcharge: 0.10 W/(m²K) over the 268 m² envelope.
+    expect(e.bridgeMethod).toBe("flat");
+    expect(e.bridgeLoss).toBeCloseTo(26.8);
+    expect(e.ventilationLoss).toBeCloseTo(VENTILATION);
     expect(e.internalGains).toBeCloseTo(INTERNAL);
-    expect(e.heatingDemand).toBeCloseTo((BASE + e.bridgeLoss + 40.8) * 66 - INTERNAL);
+    expect(e.heatingDemand).toBeCloseTo((BASE + 26.8 + VENTILATION) * 66 - INTERNAL);
     expect(e.specificHeatingDemand).toBeCloseTo(
-      ((BASE + e.bridgeLoss + 40.8) * 66 - INTERNAL) / 80,
+      ((BASE + 26.8 + VENTILATION) * 66 - INTERNAL) / A_N,
     );
     expect(e.energyClass).toBe("H");
   });
 
-  it("the renovated scenario swaps every construction for the best in its category", () => {
-    const e = computeEnergy(building(), { renovated: true });
+  it("the full envelope variant swaps every construction for the best in its category", () => {
+    const b = building();
+    const e = computeEnergy(applyScenario(b, fullEnvelopeScenario(b)));
     const best =
       U(PRESET_IDS.wallInsulated) * 108 +
       0.6 * U(PRESET_IDS.floorInsulated) * 80 +
@@ -127,7 +140,7 @@ describe("computeEnergy on the default 10 by 8 single storey", () => {
     const e = computeEnergy(building(split, [], zones, { [leftIndex]: "cold" }));
     // Heated part is 6 x 8: walls 6 + 8 + 6 = 20 m x 3 m = 60 m², floor 48 m² with F_x 0.6,
     // roof 48 m², interior wall 8 x 3 x 1.0 with F_x 0.5 = 12.
-    const heatedBase = WALL * 60 + 0.6 * FLOOR * 48 + ROOF * 48 + 12;
+    const heatedBase = WALL * 60 + 0.6 * FLOOR * 48 + ROOF * 48 + PARTITION;
     expect(e.heatedFloorArea).toBeCloseTo(48);
     expect(e.transmissionLoss - e.bridgeLoss).toBeCloseTo(heatedBase);
     expect(e.elements.some((x) => x.category === "interiorWall")).toBe(true);
@@ -156,7 +169,7 @@ describe("computeEnergy on the default 10 by 8 single storey", () => {
     const warmWindow = window({ offset: 6 }); // x from 6 to 7.2, right room
     const a = computeEnergy(building(split, [coldWindow], zones, { [leftIndex]: "cold" }));
     const b = computeEnergy(building(split, [warmWindow], zones, { [leftIndex]: "cold" }));
-    const base = WALL * 60 + 0.6 * FLOOR * 48 + ROOF * 48 + 12;
+    const base = WALL * 60 + 0.6 * FLOOR * 48 + ROOF * 48 + PARTITION;
     expect(a.transmissionLoss - a.bridgeLoss).toBeCloseTo(base);
     expect(b.transmissionLoss - b.bridgeLoss).toBeCloseTo(base - WALL * 1.68 + 2.8 * 1.68);
     expect(a.solarGains).toBe(0);
@@ -177,7 +190,7 @@ describe("computeEnergy on the default 10 by 8 single storey", () => {
     const e = computeEnergy(b);
     const partitions = e.elements.filter((element) => element.category === "interiorWall");
     expect(partitions.reduce((sum, element) => sum + element.area, 0)).toBeCloseTo(8 * 3);
-    expect(partitions.reduce((sum, element) => sum + element.loss, 0)).toBeCloseTo(12);
+    expect(partitions.reduce((sum, element) => sum + element.loss, 0)).toBeCloseTo(PARTITION);
   });
 
   it("uses only heated surfaces in the specific transmission denominator", () => {
@@ -228,30 +241,59 @@ describe("orientation and energy class", () => {
 });
 
 describe("thermal bridges in the energy balance", () => {
-  it("adds Σ ψ·l with the poor set by default and the good set when renovated", () => {
+  it("adds ΔU_WB over the envelope by default: 0.10, 0.05 with good detailing, or as entered", () => {
     const e = computeEnergy(building());
+    expect(e.bridgeLoss).toBeCloseTo(0.1 * 268);
+    expect(e.transmissionLoss).toBeCloseTo(BASE + e.bridgeLoss);
+    expect(computeEnergy({ ...building(), bridgeDetail: "good" }).bridgeLoss).toBeCloseTo(
+      0.05 * 268,
+    );
+    expect(computeEnergy({ ...building(), bridgeSurcharge: 0.15 }).bridgeLoss).toBeCloseTo(
+      0.15 * 268,
+    );
+  });
+
+  it("adds Σ ψ·l with the detailed method, poor by default and good when detailed well", () => {
+    const e = computeEnergy({ ...building(), bridgeMethod: "detailed" });
     // 4 corners x 3 m x 0.15 + 36 m slab x 0.5 + 36 m roof x 0.3
     expect(e.bridgeLoss).toBeCloseTo(1.8 + 18 + 10.8);
-    expect(e.transmissionLoss).toBeCloseTo(BASE + e.bridgeLoss);
-    const r = computeEnergy(building(), { renovated: true });
-    expect(r.bridgeLoss).toBeCloseTo(12 * 0.05 + 36 * 0.1 + 36 * 0.1);
-    const good = computeEnergy({ ...building(), bridgeDetail: "good" });
-    expect(good.bridgeLoss).toBeCloseTo(r.bridgeLoss);
+    const good = computeEnergy({ ...building(), bridgeMethod: "detailed", bridgeDetail: "good" });
+    expect(good.bridgeLoss).toBeCloseTo(12 * 0.05 + 36 * 0.1 + 36 * 0.1);
+  });
+
+  it("leaves a party wall without bridges in the detailed method", () => {
+    const e = computeEnergy({ ...building(), bridgeMethod: "detailed", sharedEdges: [1] });
+    // Edge 1 (8 m) is shared: its two corners stay (each meets an outer wall), the slab and
+    // roof edges lose 8 m each.
+    expect(e.bridgeLoss).toBeCloseTo(1.8 + 28 * 0.5 + 28 * 0.3);
   });
 });
 
 describe("roof shape in the energy balance", () => {
-  it("a gable roof enlarges the roof area by 1 / cos(pitch) and a heated attic adds volume", () => {
+  it("under a cold attic the heat leaves through the top floor ceiling, at F_x 0.8", () => {
     const flat = computeEnergy(building());
     const gable = computeEnergy({
       ...building(),
       roof: { kind: "gable", pitch: 45, overhang: 0, ridgeAxis: "x" },
     });
-    expect(gable.storeys[0]!.roofArea).toBeCloseTo(80 / Math.cos(Math.PI / 4));
-    expect(
-      gable.transmissionLoss - gable.bridgeLoss - (flat.transmissionLoss - flat.bridgeLoss),
-    ).toBeCloseTo(ROOF * (80 / Math.cos(Math.PI / 4) - 80));
+    const ceiling = gable.elements.find((e) => e.category === "roof");
+    expect(ceiling?.ceiling).toBe(true);
+    expect(ceiling?.area).toBeCloseTo(80);
+    expect(ceiling?.loss).toBeCloseTo(0.8 * ROOF * 80);
     expect(gable.heatedVolume).toBeCloseTo(flat.heatedVolume);
+  });
+
+  it("a heated attic makes the sloped roof the envelope and adds its volume", () => {
+    const flat = computeEnergy(building());
+    const gable = computeEnergy({
+      ...building(),
+      roof: { kind: "gable", pitch: 45, overhang: 0, ridgeAxis: "x", heatedAttic: true },
+    });
+    expect(gable.storeys[0]!.roofArea).toBeCloseTo(80 / Math.cos(Math.PI / 4));
+    const roof = gable.elements.find((e) => e.category === "roof");
+    expect(roof?.area).toBeCloseTo(80 / Math.cos(Math.PI / 4));
+    expect(roof?.loss).toBeCloseTo(ROOF * (80 / Math.cos(Math.PI / 4)));
+    expect(flat.elements.find((e) => e.category === "roof")?.loss).toBeCloseTo(ROOF * 80);
     const attic = computeEnergy({
       ...building(),
       roof: { kind: "gable", pitch: 45, overhang: 0, ridgeAxis: "x", heatedAttic: true },
@@ -279,11 +321,54 @@ describe("solar gains", () => {
     const none = computeEnergy(building());
     expect(none.solarGains).toBe(0);
     const south = computeEnergy(building([], [window()])); // wall 0 faces south
-    expect(south.solarGains).toBeCloseTo(1.68 * 0.6 * 0.7 * 0.9 * 270 * 0.95);
+    // Double glazing g 0.75, F_W 0.9, F_F 0.7, F_S 0.9, south 270, utilisation 0.95.
+    expect(south.solarGains).toBeCloseTo(1.68 * 0.75 * 0.9 * 0.7 * 0.9 * 270 * 0.95);
     expect(south.heatingDemand).toBeCloseTo(
       (south.transmissionLoss + south.ventilationLoss) * 66 - south.solarGains - INTERNAL,
     );
     const north = computeEnergy(building([], [window({ wallIndex: 2, offset: 2 })]));
     expect(north.solarGains).toBeLessThan(south.solarGains);
+  });
+});
+
+describe("what a plan edit does to the balance", () => {
+  it("keeps the first window when a second is dropped over it", () => {
+    const first = window();
+    const over = window({ id: "w2", offset: 2.6 });
+    const one = computeEnergy(building([], [first]));
+    const both = computeEnergy(building([], [first, over]));
+    expect(both.windowArea).toBeCloseTo(one.windowArea);
+    expect(both.solarGains).toBeCloseTo(one.solarGains);
+    // Moved clear, it counts.
+    const clear = computeEnergy(building([], [first, window({ id: "w2", offset: 5 })]));
+    expect(clear.windowArea).toBeCloseTo(2 * one.windowArea);
+  });
+
+  it("divides by A_N, which follows the storey height outside 2.5 to 3.0 m", () => {
+    const low = computeEnergy(building());
+    expect(low.referenceArea).toBeCloseTo(0.32 * 240);
+    const tall = building();
+    tall.storeys[0]!.height = 3.4;
+    const e = computeEnergy(tall);
+    expect(e.heatedVolume).toBeCloseTo(80 * 3.4);
+    expect(e.referenceArea).toBeCloseTo((1 / 3.4 - 0.04) * 80 * 3.4);
+    expect(e.specificHeatingDemand).toBeCloseTo(e.heatingDemand / e.referenceArea);
+  });
+
+  it("takes room areas from their outlines, not from a stored number", () => {
+    const b = building();
+    const stale = {
+      ...b,
+      storeys: b.storeys.map((s) => ({ ...s, rooms: s.rooms.map((r) => ({ ...r, area: 999 })) })),
+    };
+    expect(computeEnergy(stale).heatedFloorArea).toBeCloseTo(80);
+  });
+
+  it("lets each glazing bring its own g-value: triple glazing lets in less sun", () => {
+    const double = computeEnergy(building([], [window()]));
+    const triple = computeEnergy(
+      building([], [window({ constructionId: PRESET_IDS.glazingTriple })]),
+    );
+    expect(triple.solarGains / double.solarGains).toBeCloseTo(0.5 / 0.75);
   });
 });

@@ -1,0 +1,9 @@
+# The service itself. The room model (Raster2Seq) brings PyTorch; see setup.sh.
+numpy<2
+opencv-python-headless
+scipy
+shapely
+pillow
+fastapi
+uvicorn
+python-multipart

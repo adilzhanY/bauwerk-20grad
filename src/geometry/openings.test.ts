@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   clampOpening,
+  dragOpening,
+  MIN_OPENING_SIZE,
   openingsOverlap,
   snapOffset,
   validateOpening,
@@ -169,5 +171,42 @@ describe("interior openings", () => {
     expect(exteriorOpenings([base, interior])).toEqual([base]);
     expect(openingsOn([base, interior], 0)).toEqual([base]);
     expect(openingsOn([base, interior], 0, true)).toEqual([interior]);
+  });
+});
+
+describe("dragging an opening in the floor plan", () => {
+  const base: Opening = {
+    id: "a",
+    wallIndex: 0,
+    kind: "window",
+    offset: 2,
+    width: 1,
+    height: 1.4,
+    sill: 0.9,
+    constructionId: "w",
+  };
+  const left: Opening = { ...base, id: "left", offset: 0.5, width: 1 };
+  const right: Opening = { ...base, id: "right", offset: 5, width: 1 };
+  const all = [left, base, right];
+
+  it("moves along the wall on the centimetre and stops at its neighbours", () => {
+    expect(dragOpening(base, all, 10, "move", 3.1234)).toEqual({ offset: 3.12, width: 1 });
+    expect(dragOpening(base, all, 10, "move", 0)).toEqual({ offset: 1.5, width: 1 });
+    expect(dragOpening(base, all, 10, "move", 9)).toEqual({ offset: 4, width: 1 });
+  });
+
+  it("resizes from either edge, keeping the other edge where it was", () => {
+    expect(dragOpening(base, all, 10, "start", 1.8)).toEqual({ offset: 1.8, width: 1.2 });
+    expect(dragOpening(base, all, 10, "end", 3.555)).toEqual({ offset: 2, width: 1.56 });
+    // Not past the neighbours, and never narrower than the smallest opening.
+    expect(dragOpening(base, all, 10, "start", 0)).toEqual({ offset: 1.5, width: 1.5 });
+    expect(dragOpening(base, all, 10, "end", 8)).toEqual({ offset: 2, width: 3 });
+    expect(dragOpening(base, all, 10, "end", 1)).toEqual({ offset: 2, width: MIN_OPENING_SIZE });
+  });
+
+  it("stays on the wall and leaves an overlapping opening alone", () => {
+    expect(dragOpening(base, [base], 4, "end", 9)).toEqual({ offset: 2, width: 2 });
+    const stuck = { ...left, offset: 2.5 };
+    expect(dragOpening(base, [base, stuck], 10, "move", 6)).toEqual({ offset: 2, width: 1 });
   });
 });

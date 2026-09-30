@@ -1,6 +1,6 @@
 import { pointInPolygon } from "@/geometry/polygon";
 import { computeRooms } from "@/geometry/rooms";
-import type { Building, Radiator, Segment, Storey, Vec2 } from "@/geometry/types";
+import type { Building, InteriorWall, Radiator, Segment, Storey, Vec2 } from "@/geometry/types";
 import { DEFAULT_WALL_THICKNESS, HEATED_TEMPERATURE, UNHEATED_TEMPERATURE } from "@/geometry/types";
 import { DEFAULT_ASSIGNMENT, PRESET_IDS, defaultConstructions } from "@/geometry/constructions";
 import { defaultRoomName, defaultStoreyName } from "@/i18n";
@@ -15,7 +15,7 @@ function storey(
   footprint: Vec2[],
   height: number,
   openings: Omit<Storey["openings"][number], "id" | "constructionId">[],
-  interiorWalls: Segment[],
+  interiorWalls: InteriorWall[],
   roomNames: Record<number, string> = {},
   roomZones: Record<number, string> = {},
 ): Storey {
@@ -334,11 +334,13 @@ export function exampleAltbau(language: Language): Building {
     height: 2.05,
     sill: 0,
   });
+  // Load-bearing brick, as the middle and stairwell walls of a Gründerzeit house are.
+  const bearing = PRESET_IDS.interiorBearing24;
   // Ground floor: shop at the street, hall and two flats behind it.
-  const groundWalls: Segment[] = [
-    { a: { x: 0, y: 5 }, b: { x: 14, y: 5 } },
-    { a: { x: 6, y: 5 }, b: { x: 6, y: 11 } },
-    { a: { x: 8, y: 5 }, b: { x: 8, y: 11 } },
+  const groundWalls: InteriorWall[] = [
+    { a: { x: 0, y: 5 }, b: { x: 14, y: 5 }, constructionId: bearing },
+    { a: { x: 6, y: 5 }, b: { x: 6, y: 11 }, constructionId: bearing },
+    { a: { x: 8, y: 5 }, b: { x: 8, y: 11 }, constructionId: bearing },
   ];
   const ground = storey(
     0,
@@ -368,9 +370,9 @@ export function exampleAltbau(language: Language): Building {
     { at: { x: 11, y: 8 }, name: de ? "Wohnung rechts" : "Flat right", zone: living },
   ]);
   // Upper floors: two flats around the stairwell.
-  const upperWalls: Segment[] = [
-    { a: { x: 6, y: 0 }, b: { x: 6, y: 11 } },
-    { a: { x: 8, y: 0 }, b: { x: 8, y: 11 } },
+  const upperWalls: InteriorWall[] = [
+    { a: { x: 6, y: 0 }, b: { x: 6, y: 11 }, constructionId: bearing },
+    { a: { x: 8, y: 0 }, b: { x: 8, y: 11 }, constructionId: bearing },
     { a: { x: 0, y: 5.5 }, b: { x: 6, y: 5.5 } },
     { a: { x: 8, y: 5.5 }, b: { x: 14, y: 5.5 } },
   ];

@@ -40,6 +40,7 @@ export function Wall({
   );
   const selected = useEditorStore((s) => sameSelection(s.selection, target));
   const hovered = useEditorStore((s) => sameSelection(s.hovered, target));
+  const facadeColor = useEditorStore((s) => s.building.facadeColor);
   const remoteColor = useEditorStore(
     (s) => s.presence.find((p) => sameSelection(p.selection, target))?.color ?? null,
   );
@@ -99,7 +100,8 @@ export function Wall({
 
   const color = selected
     ? colors.accent
-    : (remoteColor ?? (hovered ? colors.wallHover : shared ? colors.wallShared : colors.wall));
+    : (remoteColor ??
+      (hovered ? colors.wallHover : shared ? colors.wallShared : (facadeColor ?? colors.wall)));
 
   if (display === "outline") return <Outline geometry={geometry} position={[0, elevation, 0]} />;
   return (

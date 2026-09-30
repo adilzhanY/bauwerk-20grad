@@ -93,3 +93,28 @@ export function sourceRows(building: Building): ({ path: SourcePath } & SourceSt
     return status ? [{ path, ...status }] : [];
   });
 }
+
+/**
+ * The building without openings that were only ever guessed (source "catalogue"): an older
+ * hand-over put default windows on facades nobody photographed. Nobody measured or drew
+ * them, so they are removed wherever such a building comes back.
+ */
+export function withoutGuessedOpenings(building: Building): Building {
+  const guessed = (id: string) => building.sources?.[`opening:${id}`]?.kind === "catalogue";
+  const ids = building.storeys.flatMap((s) => s.openings.map((o) => o.id)).filter(guessed);
+  if (ids.length === 0) return building;
+  const gone = new Set(ids);
+  const sources = Object.fromEntries(
+    Object.entries(building.sources ?? {}).filter(
+      ([path]) => !gone.has(path.replace(/^opening:/, "")),
+    ),
+  );
+  return {
+    ...building,
+    sources,
+    storeys: building.storeys.map((s) => ({
+      ...s,
+      openings: s.openings.filter((o) => !gone.has(o.id)),
+    })),
+  };
+}

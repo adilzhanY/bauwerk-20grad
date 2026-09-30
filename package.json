@@ -28,11 +28,10 @@
     "check:ifc": "IFC_CHECK=1 vitest run src/geometry/ifc.openshell.test.ts"
   },
   "dependencies": {
-    "@fontsource-variable/geist": "^5.3.0",
     "@fontsource-variable/geist-mono": "^5.3.0",
+    "@fontsource-variable/ibm-plex-sans": "^5.3.0",
     "@react-three/drei": "^10.7.8",
     "@react-three/fiber": "^9.7.0",
-    "@supabase/supabase-js": "^2.117.2",
     "immer": "^10.1.8",
     "lod2-core": "file:lod2/lod2-core",
     "lucide-react": "^1.41.0",

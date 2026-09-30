@@ -33,3 +33,18 @@ export function viewPosition(
     .add(along(from, distance * 1.2))
     .setY(centre.y + distance * 0.06);
 }
+
+/**
+ * Whether a view choice (3D, top, an elevation) should move the camera now. A choice moves
+ * the camera once: not again when the controls are replaced, which happens every time the
+ * floor plan is switched on or off, and never while the floor plan's own top-down camera is
+ * the one on screen.
+ */
+export function shouldApplyView(
+  nonce: number,
+  lastApplied: number,
+  planView: boolean,
+  orthographic: boolean,
+): boolean {
+  return nonce !== 0 && nonce !== lastApplied && !planView && !orthographic;
+}

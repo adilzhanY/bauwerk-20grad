@@ -1,5 +1,5 @@
-import { uValueFromLayers } from "./layers";
-import type { Construction, ConstructionCategory, Layer } from "./types";
+import { totalThickness, uValueFromLayers } from "./layers";
+import type { Construction, ConstructionKind, Id, Layer, ThicknessOf } from "./types";
 
 /**
  * Default construction presets. Ids are stable so files written before the
@@ -23,13 +23,17 @@ export const PRESET_IDS = {
   floorInsulated: "c_floor_insulated",
   roofBare: "c_roof_bare",
   roofInsulated: "c_roof_insulated",
+  interiorDrywall: "c_iw_drywall",
+  interiorPartition: "c_iw_partition",
+  interiorBearing24: "c_iw_bearing_24",
+  interiorBearing365: "c_iw_bearing_365",
 } as const;
 
 type PresetKey = keyof typeof PRESET_IDS;
 
 const presetDefs: Record<
   PresetKey,
-  { category: ConstructionCategory; uValue: number; en: string; de: string }
+  { category: ConstructionKind; uValue: number; en: string; de: string }
 > = {
   wallBrick: {
     category: "wall",
@@ -68,6 +72,30 @@ const presetDefs: Record<
   },
   roofBare: { category: "roof", uValue: 1.47, en: "Roof, uninsulated", de: "Dach, ungedämmt" },
   roofInsulated: { category: "roof", uValue: 0.16, en: "Roof, insulated", de: "Dach, gedämmt" },
+  interiorDrywall: {
+    category: "interiorWall",
+    uValue: 0.4,
+    en: "Drywall, 10 cm",
+    de: "Trockenbauwand, 10 cm",
+  },
+  interiorPartition: {
+    category: "interiorWall",
+    uValue: 2.49,
+    en: "Partition wall, 11.5 cm",
+    de: "Trennwand, 11,5 cm",
+  },
+  interiorBearing24: {
+    category: "interiorWall",
+    uValue: 1.8,
+    en: "Load-bearing wall, 24 cm",
+    de: "Tragende Wand, 24 cm",
+  },
+  interiorBearing365: {
+    category: "interiorWall",
+    uValue: 1.41,
+    en: "Load-bearing wall, 36.5 cm",
+    de: "Tragende Wand, 36,5 cm",
+  },
 };
 
 /**
@@ -97,7 +125,10 @@ const materials = {
 
 type MaterialKey = keyof typeof materials;
 
-/** Layer stacks from outside to inside, thickness in millimetres. */
+/**
+ * Layer stacks from outside to inside, thickness in millimetres. Interior walls are the raw
+ * sizes German plans dimension (octametric brick: 11.5, 24, 36.5 cm), without plaster.
+ */
 const presetLayers: Partial<Record<PresetKey, [MaterialKey, number][]>> = {
   wallBrick: [
     ["render", 20],
@@ -137,6 +168,14 @@ const presetLayers: Partial<Record<PresetKey, [MaterialKey, number][]>> = {
     ["concrete", 150],
     ["screed", 50],
   ],
+  interiorDrywall: [
+    ["plasterboard", 12.5],
+    ["wool", 75],
+    ["plasterboard", 12.5],
+  ],
+  interiorPartition: [["brickSolid", 115]],
+  interiorBearing24: [["brickSolid", 240]],
+  interiorBearing365: [["brickSolid", 365]],
 };
 
 export function layersFor(key: PresetKey, language: "en" | "de"): Layer[] | undefined {
@@ -180,7 +219,7 @@ export const DEFAULT_ASSIGNMENT = {
 /** The construction with the lowest U-value in the same category: the "after renovation" choice. */
 export function bestInCategory(
   all: readonly Construction[],
-  category: ConstructionCategory,
+  category: ConstructionKind,
 ): Construction | undefined {
   return all
     .filter((c) => c.category === category)
@@ -195,4 +234,67 @@ export function findConstruction(
   id: string,
 ): Construction | undefined {
   return all.find((c) => c.id === id);
+}
+
+// Interior wall types -----------------------------------------------------------------------
+
+/** The type an interior wall has until one is chosen: a brick partition, 11.5 cm. */
+export const DEFAULT_INTERIOR_WALL: Id = PRESET_IDS.interiorPartition;
+
+/** The interior wall presets, for buildings saved before interior walls had types. */
+const INTERIOR_PRESETS = defaultConstructions("en").filter((c) => c.category === "interiorWall");
+
+/** Adds the interior wall presets a building's constructions lack, in `language`. */
+export function withInteriorWallTypes(
+  constructions: readonly Construction[],
+  language: "en" | "de",
+): Construction[] {
+  const missing = defaultConstructions(language).filter(
+    (c) => c.category === "interiorWall" && !constructions.some((x) => x.id === c.id),
+  );
+  return [...constructions, ...missing];
+}
+
+/** The type of an interior wall: its own, or the default partition when it has none. */
+export function interiorWallType(
+  constructions: readonly Construction[],
+  wall: { constructionId?: Id },
+): Construction {
+  const find = (id: Id) =>
+    constructions.find((c) => c.id === id && c.category === "interiorWall") ??
+    INTERIOR_PRESETS.find((c) => c.id === id);
+  const fallback = find(DEFAULT_INTERIOR_WALL);
+  const own = wall.constructionId === undefined ? undefined : find(wall.constructionId);
+  const type = own ?? fallback;
+  if (!type) throw new Error("The default interior wall preset is missing");
+  return type;
+}
+
+/** Below this a layer stack says nothing about the wall's size: the default partition is used. */
+const MIN_THICKNESS = 0.05;
+
+/** How thick each interior wall is, from its type's layers. */
+export function interiorWallThickness(constructions: readonly Construction[]): ThicknessOf {
+  const standard = totalThickness(interiorWallType([], {}).layers ?? []);
+  return (wall) => {
+    const t = totalThickness(interiorWallType(constructions, wall).layers ?? []);
+    return t >= MIN_THICKNESS ? t : standard;
+  };
+}
+
+/** The interior wall type closest in thickness to `metres`: a thickness read off a plan. */
+export function nearestInteriorWallType(
+  constructions: readonly Construction[],
+  metres: number,
+): Construction {
+  const thicknessOf = interiorWallThickness(constructions);
+  const types = withInteriorWallTypes(constructions, "en").filter(
+    (c) => c.category === "interiorWall",
+  );
+  return types.reduce((best, c) =>
+    Math.abs(thicknessOf({ constructionId: c.id }) - metres) <
+    Math.abs(thicknessOf({ constructionId: best.id }) - metres)
+      ? c
+      : best,
+  );
 }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Line } from "@react-three/drei";
+import { Line } from "./Line";
 import { DoubleSide, SRGBColorSpace, TextureLoader } from "three";
 import type { Texture } from "three";
 import { buildWalls } from "@/geometry/walls";
@@ -9,7 +9,7 @@ import { colors } from "@/lib/colors";
 import { useEditorStore } from "@/store/building";
 import type { FacadePhoto as Photo } from "@/store/building";
 import { yawFor } from "./three";
-import { WALL_PX_PER_METRE } from "@/lod2/ui/photo-editor/constants";
+import { WALL_PX_PER_METRE } from "@/components/photo-editor/constants";
 
 /** Just outside the wall's outer face, so the photo never fights the wall surface. */
 const OUT = 0.02;

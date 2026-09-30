@@ -1,4 +1,5 @@
 /// <reference types="vitest/config" />
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath, URL } from "node:url";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
@@ -14,6 +15,11 @@ export default defineConfig(({ mode }) => {
   const apiPort = env.LOD2_API_PORT || "8788";
   const visionPort = env.LOD2_VISION_PORT || "8790";
   const collabPort = env.BAUWERK_SERVER_PORT || "8789";
+  // When this PC also hosts the site, its vision service wants the key the site's proxy sends.
+  const pcEnv = "deploy/.env.pc";
+  const visionKey = existsSync(pcEnv)
+    ? /^VISION_KEY=(.+)$/m.exec(readFileSync(pcEnv, "utf8"))?.[1]?.trim()
+    : undefined;
   // The dev server talks to the collaboration server that `npm run dev` starts. A build
   // without VITE_API_URL (GitHub Pages) stays a local editor.
   if (mode === "development" && !env.VITE_API_URL) process.env.VITE_API_URL = "/collab";
@@ -32,9 +38,14 @@ export default defineConfig(({ mode }) => {
           ws: true,
           rewrite: (p: string) => p.replace(/^\/collab/, ""),
         },
+        "/floorplan": {
+          target: `http://127.0.0.1:${env.LOD2_FLOORPLAN_PORT || "8791"}`,
+          rewrite: (p: string) => p.replace(/^\/floorplan/, ""),
+        },
         "/vision": {
           target: `http://127.0.0.1:${visionPort}`,
           rewrite: (p: string) => p.replace(/^\/vision/, ""),
+          headers: visionKey ? { "X-Vision-Key": visionKey } : {},
         },
       },
     },
@@ -65,6 +76,7 @@ export default defineConfig(({ mode }) => {
       globals: true,
       environment: "jsdom",
       include: ["src/**/*.test.{ts,tsx}"],
+      setupFiles: ["src/test/setup.ts"],
       // The panel tests render the whole app with jsdom; CI runners need more than the 5 s default.
       testTimeout: 20000,
       coverage: { include: ["src/geometry/**", "src/store/**"] },

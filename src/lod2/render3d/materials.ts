@@ -35,6 +35,3 @@ export const COLORS: Record<SurfaceKind, string> = {
   closure: "#8b5cf6",
   unknown: "#9ca3af",
 };
-
-/** The scene's own background, and what distant geometry fades toward. */
-export const BACKGROUND = "#e9e9e3";

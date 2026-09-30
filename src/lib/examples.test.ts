@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { validateBuilding } from "@/geometry/export";
 import { computeEnergy } from "@/geometry/energy";
+import { applyScenario, fullEnvelopeScenario } from "@/geometry/scenarios";
 import { exampleAltbau, exampleBlock, exampleHouse, exampleTower } from "./examples";
 
 describe("example buildings", () => {
@@ -48,7 +49,11 @@ describe("example buildings", () => {
     expect(b.scenarios).toHaveLength(2);
     expect(b.roof?.kind).toBe("gable");
     const e = computeEnergy(b);
-    expect(e.energyClass).toBe("G");
-    expect(computeEnergy(b, { renovated: true }).specificHeatingDemand).toBeLessThan(80);
+    // The class is read off the end energy, as on an Energieausweis: a heating demand of
+    // about 237 kWh/(m²a) plus hot water through a gas boiler (0.92) is about 271, class H.
+    expect(e.energyClass).toBe("H");
+    expect(
+      computeEnergy(applyScenario(b, fullEnvelopeScenario(b))).specificHeatingDemand,
+    ).toBeLessThan(80);
   });
 });

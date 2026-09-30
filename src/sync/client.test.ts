@@ -1,3 +1,4 @@
+import { normalizeWalls } from "@/geometry/wallGraph";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Building } from "@/geometry/types";
 import { resetIds } from "@/lib/ids";
@@ -246,7 +247,15 @@ describe("SyncClient", () => {
     a.store.getState().loadBuilding(old);
     hub.flush();
     expect(hub.version).toBe(before + 1);
-    expect(sameJson(hub.building, old)).toBe(true);
+    // Loading tidies interior walls into pieces from joint to joint (geometry/wallGraph.ts).
+    const tidied = {
+      ...old,
+      storeys: old.storeys.map((s) => {
+        const t = normalizeWalls({ walls: s.interiorWalls, openings: s.openings });
+        return { ...s, interiorWalls: t.walls, openings: t.openings };
+      }),
+    };
+    expect(sameJson(hub.building, tidied)).toBe(true);
     a.store.getState().undo();
     hub.flush();
     expect(opening(hub.building, 1).offset).toBe(0.5);

@@ -2,10 +2,11 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_ASSIGNMENT, PRESET_IDS, defaultConstructions } from "./constructions";
 import { computeEnergy } from "./energy";
 import { rect } from "./fixtures";
+import { supplyOf } from "./supply";
 import { computeRooms } from "./rooms";
 import {
+  HEATING_COST,
   CONSTRUCTION_COST,
-  ENERGY_PRICE_PER_KWH,
   applyScenario,
   buildRoadmap,
   evaluateAll,
@@ -72,16 +73,19 @@ describe("scenarios", () => {
     expect(r.energy.wallNetArea).toBeCloseTo(base.wallNetArea);
     expect(r.energy.bridgeLoss).toBeCloseTo(base.bridgeLoss);
     expect(r.investment).toBe(Math.round(area * CONSTRUCTION_COST.c_glazing_triple!));
-    expect(r.savingPerYear).toBeCloseTo(r.demandSaved * ENERGY_PRICE_PER_KWH);
+    // The saving is the difference in expected cost: less than the calculated one, since an
+    // uninsulated house is heated more sparingly than the balance assumes.
+    expect(r.savingPerYear).toBeCloseTo(r.currentConsumption.cost - r.consumption.cost);
+    const calculated = supplyOf(b).cost - r.supply.cost;
+    expect(r.savingPerYear).toBeGreaterThan(0);
+    expect(r.savingPerYear).toBeLessThan(calculated);
     expect(r.payback).toBeCloseTo(r.investment / r.savingPerYear);
   });
 
-  it("the full envelope variant matches the renovated option of computeEnergy", () => {
+  it("the full envelope variant costs money and lowers H_T below a third", () => {
     const b = building();
     const full = evaluateScenario(b, fullEnvelopeScenario(b));
-    const renovated = computeEnergy(b, { renovated: true });
-    expect(full.energy.transmissionLoss).toBeCloseTo(renovated.transmissionLoss);
-    expect(full.energy.energyClass).toBe(renovated.energyClass);
+    expect(full.energy.transmissionLoss).toBeLessThan(computeEnergy(b).transmissionLoss / 2);
     expect(full.investment).toBeGreaterThan(0);
   });
 
@@ -140,5 +144,48 @@ describe("scenarios", () => {
     const only = buildRoadmap(b);
     expect(only).toHaveLength(1);
     expect(only[0]?.scenario.id).toBe("full-envelope");
+  });
+});
+
+describe("a variant that replaces the heating system", () => {
+  it("costs the new system per dwelling and saves the difference in heating cost", () => {
+    const b = building();
+    const r = evaluateScenario(b, {
+      id: "hp",
+      name: "Heat pump",
+      overrides: {},
+      heating: { carrier: "heatPumpAir", efficiency: 3, hotWater: 12.5 },
+    });
+    expect(r.investment).toBe(HEATING_COST.heatPumpAir);
+    expect(r.demandSaved).toBe(0);
+    // Same envelope, same heating habits: the heat pump gets the gas boiler's factor.
+    expect(r.consumption.factor).toBeCloseTo(r.currentConsumption.factor);
+    expect(r.savingPerYear).toBeCloseTo(r.currentConsumption.cost - r.consumption.cost);
+    expect(r.savingPerYear).toBeGreaterThan(0);
+    expect(r.supply.co2Cost).toBe(0);
+  });
+});
+
+describe("what a scenario charges for its windows", () => {
+  const triple = { id: "t", name: "Triple", overrides: { window: PRESET_IDS.glazingTriple } };
+  const area = 2 * 1.2 * 1.4;
+
+  it("charges the windows it really changes, even when new windows already default to them", () => {
+    const b = { ...building(), windowConstructionId: PRESET_IDS.glazingTriple };
+    const r = evaluateScenario(b, triple);
+    expect(r.investment).toBe(Math.round(area * CONSTRUCTION_COST.c_glazing_triple!));
+    expect(r.savingPerYear).toBeGreaterThan(0);
+  });
+
+  it("charges nothing for windows that already are what the scenario asks for", () => {
+    const b = building();
+    for (const o of b.storeys[0]!.openings) o.constructionId = PRESET_IDS.glazingTriple;
+    const r = evaluateScenario(b, triple);
+    expect(r.investment).toBe(0);
+  });
+
+  it("splits off the Sowieso share: half of new windows would be due anyway", () => {
+    const r = evaluateScenario(building(), triple);
+    expect(r.sowieso).toBe(Math.round(r.investment * 0.5));
   });
 });

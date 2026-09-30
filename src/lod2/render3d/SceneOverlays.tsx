@@ -2,9 +2,9 @@ import { useEditorStore } from "@/store/building";
 import { useT } from "@/i18n/useT";
 import { useStore, wallKey } from "../state/store.ts";
 import { useSurvey } from "../state/survey.ts";
-import { useFormat } from "../ui/format.ts";
+import { useFormat } from "@/lod2/format";
 import { wallAzimuth } from "lod2-core/wall";
-import { Spinner } from "../components/CustomButton.tsx";
+import { Spinner } from "@/components/shared/Spinner";
 import { useSelectedSurface, wallAboveGround } from "../state/selectedWall.ts";
 
 /** Bottom-right of the 3D view: which wall is selected, where it faces, how big it is. */

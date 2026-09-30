@@ -34,7 +34,9 @@ afterAll(async () => {
 
 beforeEach(async () => {
   resetIds();
-  await pool.query("TRUNCATE app.project_members, app.project_events, app.projects, app.profiles");
+  await pool.query(
+    "TRUNCATE app.project_photos, app.project_members, app.project_events, app.projects, app.users CASCADE",
+  );
 });
 
 const house = (): Building => exampleHouse("en");
@@ -68,7 +70,8 @@ describe("REST", () => {
   });
 
   it("creates, reads, lists and deletes a project", async () => {
-    const created = await json("POST", "/projects", { building: house() });
+    const building = house();
+    const created = await json("POST", "/projects", { building });
     expect(created.status).toBe(201);
     const project = (await created.json()) as { id: string; version: number; name: string };
     expect(project.version).toBe(1);
@@ -78,11 +81,63 @@ describe("REST", () => {
     expect(got.status).toBe(200);
     expect(((await got.json()) as { building: Building }).building.storeys).toHaveLength(2);
 
-    const list = (await (await json("GET", "/projects")).json()) as { id: string }[];
+    const list = (await (await json("GET", "/projects")).json()) as {
+      id: string;
+      buildingId: string;
+    }[];
     expect(list.map((p) => p.id)).toEqual([project.id]);
+    // Which building each project holds, so a building opened from the map finds its own.
+    expect(list[0]?.buildingId).toBe(building.id);
+    // And the card's summary, computed on the server with the browser's own code.
+    expect((list[0] as unknown as { summary: { title: string } }).summary.title).toBe(
+      building.name,
+    );
 
     expect((await json("DELETE", `/projects/${project.id}`)).status).toBe(204);
     expect((await json("GET", `/projects/${project.id}`)).status).toBe(404);
+  });
+
+  it("stores a project's photos and gives them back, and drops them with the project", async () => {
+    const created = await json("POST", "/projects", { building: house() });
+    const { id } = (await created.json()) as { id: string };
+    const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 0xff, 0xd9]);
+    const put = (slot: string, headers: Record<string, string>) =>
+      fetch(`${base}/projects/${id}/photos/${slot}`, { method: "PUT", headers, body: jpeg });
+    const image = { "content-type": "image/jpeg", "x-width": "640", "x-height": "480" };
+
+    expect((await put("2", image)).status).toBe(204);
+    expect((await put("thumbnail", image)).status).toBe(204);
+    expect((await put("model", image)).status).toBe(204);
+    expect((await put("plan-storey_a1", image)).status).toBe(204);
+    // Only edge numbers, the thumbnail, the 3D view and a storey's floor plan are slots, and
+    // the size must be given.
+    expect((await put("roof", image)).status).toBe(400);
+    expect((await put("plan-", image)).status).toBe(400);
+    expect((await put("3", { "content-type": "image/jpeg" })).status).toBe(400);
+    expect((await put("3", { ...image, "content-type": "text/plain" })).status).toBe(400);
+
+    const list = (await (await json("GET", `/projects/${id}/photos`)).json()) as {
+      slot: string;
+      width: number;
+    }[];
+    expect(list.map((p) => [p.slot, p.width])).toEqual([
+      ["2", 640],
+      ["model", 640],
+      ["plan-storey_a1", 640],
+      ["thumbnail", 640],
+    ]);
+    const back = await fetch(`${base}/projects/${id}/photos/2`);
+    expect(back.headers.get("content-type")).toContain("image/jpeg");
+    expect(new Uint8Array(await back.arrayBuffer())).toEqual(jpeg);
+
+    expect((await json("DELETE", `/projects/${id}/photos/2`)).status).toBe(204);
+    expect((await fetch(`${base}/projects/${id}/photos/2`)).status).toBe(404);
+    expect((await json("DELETE", `/projects/${id}`)).status).toBe(204);
+    const left = await pool.query(
+      "SELECT count(*)::int AS n FROM app.project_photos WHERE project_id = $1",
+      [id],
+    );
+    expect(left.rows[0]).toEqual({ n: 0 });
   });
 
   it("rejects an invalid building with 422 and the geometry error", async () => {

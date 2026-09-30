@@ -12,12 +12,16 @@ import {
   NotFoundException,
   Param,
   Post,
+  Put,
   Req,
+  Res,
 } from "@nestjs/common";
+import type { Response } from "express";
 import { parseOps } from "@/sync/ops";
 import type { AuthedRequest } from "../auth/auth.guard";
+import { displayName } from "../auth/auth.service";
 import type { AuthUser } from "../auth/auth.service";
-import { ProjectsService } from "./projects.service";
+import { PHOTO_SLOT, ProjectsService } from "./projects.service";
 import type { BatchResult, WriteResult } from "./projects.service";
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -59,9 +63,9 @@ export const actorOf = (header: unknown) =>
 /** The user of a request (with accounts on), or undefined (accounts off). */
 const userOf = (request: AuthedRequest): AuthUser | undefined => request.user;
 
-/** The name recorded for a write: the username when signed in, else the client's header. */
+/** The name recorded for a write: the full name when signed in, else the client's header. */
 const nameOf = (request: AuthedRequest, header: string | undefined) =>
-  request.user?.username ?? actorOf(header);
+  request.user ? displayName(request.user) : actorOf(header);
 
 @Controller("projects")
 export class ProjectsController {
@@ -152,5 +156,66 @@ export class ProjectsController {
     const result = await this.projects.remove(id, userOf(request));
     if (result === "notFound") throw new NotFoundException();
     if (result === "forbidden") throw new ForbiddenException({ error: "notOwner" });
+  }
+
+  /** A picture as the raw image body, its size in the X-Width and X-Height headers. */
+  @Put(":id/photos/:slot")
+  @HttpCode(204)
+  async putPhoto(
+    @Param("id") id: string,
+    @Param("slot") slot: string,
+    @Req() request: AuthedRequest,
+    @Headers("content-type") mime?: string,
+    @Headers("x-width") width?: string,
+    @Headers("x-height") height?: string,
+  ) {
+    const data: unknown = request.body;
+    const w = Number(width);
+    const h = Number(height);
+    if (
+      !PHOTO_SLOT.test(slot) ||
+      !mime?.startsWith("image/") ||
+      !Buffer.isBuffer(data) ||
+      data.length === 0 ||
+      !Number.isInteger(w) ||
+      !Number.isInteger(h) ||
+      w <= 0 ||
+      h <= 0
+    ) {
+      throw new BadRequestException({ error: "invalidPhoto" });
+    }
+    await this.allow(id, request);
+    if (!(await this.projects.putPhoto(id, { slot, mime, width: w, height: h, data })))
+      throw new NotFoundException();
+  }
+
+  @Get(":id/photos")
+  async photos(@Param("id") id: string, @Req() request: AuthedRequest) {
+    await this.allow(id, request);
+    return this.projects.listPhotos(id);
+  }
+
+  @Get(":id/photos/:slot")
+  async photo(
+    @Param("id") id: string,
+    @Param("slot") slot: string,
+    @Req() request: AuthedRequest,
+    @Res() response: Response,
+  ) {
+    await this.allow(id, request);
+    const photo = PHOTO_SLOT.test(slot) ? await this.projects.getPhoto(id, slot) : null;
+    if (!photo) throw new NotFoundException();
+    response.type(photo.mime).send(photo.data);
+  }
+
+  @Delete(":id/photos/:slot")
+  @HttpCode(204)
+  async removePhoto(
+    @Param("id") id: string,
+    @Param("slot") slot: string,
+    @Req() request: AuthedRequest,
+  ) {
+    await this.allow(id, request);
+    if (PHOTO_SLOT.test(slot)) await this.projects.removePhoto(id, slot);
   }
 }

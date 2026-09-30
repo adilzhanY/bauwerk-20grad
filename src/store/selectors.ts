@@ -34,6 +34,8 @@ export function selectionExists(building: Building, selection: Selection | null)
       return building.heatPumps?.some((h) => h.id === selection.id) ?? false;
     case "pipe":
       return storey(selection.storeyId)?.pipes?.some((p) => p.id === selection.id) ?? false;
+    case "measurement":
+      return storey(selection.storeyId)?.measurements?.some((m) => m.id === selection.id) ?? false;
   }
 }
 

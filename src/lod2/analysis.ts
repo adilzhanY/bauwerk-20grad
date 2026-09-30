@@ -1,7 +1,7 @@
 /**
  * Everything the building page shows about one building part, computed with the editor's own
  * code: the part and its surveyed facades become a Bauwerk building (lod2-core writes it,
- * facades without a photo get the official default windows), and Bauwerk's energy balance,
+ * a facade has openings only where a photo shows them), and Bauwerk's energy balance,
  * heat load and the roof's PV estimate run on it. The same building is what "Sanierungsplanung
  * starten" loads into the editor, so the page and the editor never disagree.
  */
@@ -61,7 +61,10 @@ export function analyzePart(
     walls,
     neighbours: neighbourFootprints(neighbours),
     utmZone: UTM_ZONE,
-    fillMissingWindows: true,
+    // Openings only where a photo shows them. A facade nobody photographed may or may not
+    // have windows; guessing them from the default rule put windows on side and back walls
+    // that have none, so an unphotographed wall stays closed until someone measures it.
+    fillMissingWindows: false,
   });
   if (!result.ok) return { ok: false, reason: result.reason };
   // Through the editor's own importer, so the page computes on exactly what the editor loads.

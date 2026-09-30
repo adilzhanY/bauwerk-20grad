@@ -1,17 +1,23 @@
+import { useSync } from "@/sync/useSync";
+import { SaveBeforeLeaveDialog } from "@/components/app/SaveBeforeLeaveDialog";
 import { useEffect, useState } from "react";
-import { Shell } from "@/app/Shell";
+import { Shell } from "@/components/app/Shell";
 import { useRouter } from "@/app/router";
 import { useT } from "@/i18n/useT";
 import type { LinkNotice } from "@/lib/linkImport";
-import { BuildingPage } from "@/pages/building/BuildingPage";
+import { BuildingPage } from "@/pages/BuildingPage";
 import { EditorPage } from "@/pages/EditorPage";
 import { StartPage } from "@/pages/StartPage";
+import { ProjectBar } from "@/components/app/ProjectBar";
+import { ProjectsPage } from "@/pages/ProjectsPage";
+import { ReportPage } from "@/pages/ReportPage";
+import { VariantsPage } from "@/pages/VariantsPage";
 import { LoginPage } from "@/pages/LoginPage";
 import type { RenderSample } from "@/scene/FrameProbe";
 import { useEditorStore } from "@/store/building";
-import { BenchPage } from "@/ui/BenchPage";
-import { PrintView } from "@/ui/PrintView";
-import { TooNarrow } from "@/ui/States";
+import { BenchPage } from "@/pages/BenchPage";
+import { PrintView } from "@/components/report/PrintView";
+import { TooNarrow } from "@/components/app/States";
 
 const MIN_WIDTH = 1440;
 
@@ -30,16 +36,20 @@ function useWindowWidth(): number {
 }
 
 /**
- * The app: the shell with its navigation rail around one of three pages, start (search and
- * map), building and editor. The printable report and the bench page stay full screen.
+ * The app: the shell around one page. It starts on the Projects page; the map finds a
+ * building; inside a project the building page, the editor, the variants and the report are
+ * its four steps, with the step bar above them. The printable report and the bench page stay full screen.
  */
 export function App({ linkNotice = null }: { linkNotice?: LinkNotice | null } = {}) {
   const width = useWindowWidth();
   const route = useRouter((s) => s.route);
   const language = useEditorStore((s) => s.language);
   const buildingName = useEditorStore((s) => s.building.name);
+  const projectGid = useEditorStore((s) => s.building.project?.gid);
+  const inProject = useEditorStore((s) => s.building.project !== undefined);
   const t = useT();
   const [sample, setSample] = useState<RenderSample | null>(null);
+  const sync = useSync();
 
   useEffect(() => {
     document.documentElement.lang = language;
@@ -55,11 +65,22 @@ export function App({ linkNotice = null }: { linkNotice?: LinkNotice | null } = 
     return <BenchPage sample={sample} onSample={setSample} />;
   if (width < MIN_WIDTH) return <TooNarrow />;
 
+  // The step bar shows inside a project; on a building page only for that project's building.
+  const showBar =
+    inProject &&
+    (route.page === "building"
+      ? route.gid === projectGid
+      : route.page === "editor" || route.page === "variants" || route.page === "report");
+
   return (
-    <Shell>
-      {route.page === "start" && <StartPage />}
+    <Shell bar={showBar ? <ProjectBar /> : undefined}>
+      <SaveBeforeLeaveDialog />
+      {route.page === "projects" && <ProjectsPage />}
+      {route.page === "map" && <StartPage />}
       {route.page === "building" && <BuildingPage key={route.gid} gid={route.gid} />}
-      {route.page === "editor" && <EditorPage linkNotice={linkNotice} />}
+      {route.page === "editor" && <EditorPage linkNotice={linkNotice} sync={sync} />}
+      {route.page === "variants" && <VariantsPage />}
+      {route.page === "report" && <ReportPage />}
       {route.page === "login" && <LoginPage />}
     </Shell>
   );

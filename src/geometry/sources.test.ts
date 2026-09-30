@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sourceRows, sourceStatus, sourceValue } from "./sources";
+import { sourceRows, sourceStatus, sourceValue, withoutGuessedOpenings } from "./sources";
 import type { Building } from "./types";
 import { buildingFromBox } from "./box";
 
@@ -70,5 +70,30 @@ describe("value sources", () => {
     expect(sourceValue(b, "opening:w5-o0")).toEqual([0, "window", 1, 1.2, 1.5, 0.9]);
     expect(sourceValue(b, "unknown")).toBeNull();
     expect(sourceRows(b).map((r) => r.path)).toEqual(["storeys", "opening:w5-o0"]);
+  });
+});
+
+describe("withoutGuessedOpenings", () => {
+  it("removes openings with a catalogue source and their sources, and nothing else", async () => {
+    const { exampleHouse } = await import("@/lib/examples");
+    const b = exampleHouse("en");
+    const [first, second] = b.storeys[0]?.openings ?? [];
+    if (!first || !second) throw new Error("fixture");
+    const old = {
+      ...b,
+      sources: {
+        [`opening:${first.id}`]: { kind: "catalogue" as const },
+        [`opening:${second.id}`]: { kind: "photo" as const },
+        footprint: { kind: "lod2" as const },
+      },
+    };
+    const clean = withoutGuessedOpenings(old);
+    const ids = clean.storeys.flatMap((s) => s.openings.map((o) => o.id));
+    expect(ids).not.toContain(first.id);
+    expect(ids).toContain(second.id);
+    expect(Object.keys(clean.sources ?? {}).sort()).toEqual(
+      [`opening:${second.id}`, "footprint"].sort(),
+    );
+    expect(withoutGuessedOpenings(b)).toBe(b);
   });
 });

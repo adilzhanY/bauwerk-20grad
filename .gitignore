@@ -24,4 +24,9 @@ lod2/**/.scratch/
 lod2/**/*.tsbuildinfo
 lod2/lod2-vision/.venv
 lod2/lod2-vision/.sam3/
+lod2/lod2-floorplan/.venv
+lod2/lod2-floorplan/.raster2seq/
 __pycache__/
+
+# Worktrees made by coding agents
+.claude/worktrees/

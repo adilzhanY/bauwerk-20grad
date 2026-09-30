@@ -1,10 +1,12 @@
 import type { BuildingDetail } from "lod2-core/api";
 import type { SurfaceKind } from "lod2-core/types";
 import * as THREE from "three";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useStore } from "../state/store.ts";
 import { meshToGeometries, roofPlaneGeometries, surfaceGeometries } from "./geometry.ts";
-import { BACKGROUND, COLORS, NEIGHBOUR_COLORS } from "./materials.ts";
+import { COLORS, NEIGHBOUR_COLORS } from "./materials.ts";
+import { useCanvasCursor } from "@/scene/useCanvasCursor";
+import { useSceneColors } from "@/scene/useSceneColors";
 import { triples } from "./points";
 
 /**
@@ -36,6 +38,8 @@ function WallMesh({
   selected: boolean;
 }) {
   const selectWall = useStore((s) => s.selectWall);
+  const [hovered, onHover] = useState(false);
+  useCanvasCursor(hovered ? "pointer" : null);
 
   return (
     <mesh
@@ -53,10 +57,10 @@ function WallMesh({
       }}
       onPointerOver={(e) => {
         e.stopPropagation();
-        document.body.style.cursor = "pointer";
+        onHover(true);
       }}
       onPointerOut={() => {
-        document.body.style.cursor = "";
+        onHover(false);
       }}
     >
       <meshStandardMaterial
@@ -279,9 +283,11 @@ export function NeighbourMeshes({
   // into a slab of slate, which is what a grey film over the model actually was. Blending
   // toward the scene background instead is how distance looks: lighter and hazier, still
   // plainly secondary to the selection.
+  // The background of the current theme, so neighbours recede into black in the dark theme too.
+  const background = useSceneColors().siteBg;
   const dim = new THREE.Color(brightness, brightness, brightness);
   const haze = (hex: string) =>
-    new THREE.Color(hex).lerp(new THREE.Color(BACKGROUND), 1 - brightness);
+    new THREE.Color(hex).lerp(new THREE.Color(background), 1 - brightness);
 
   return (
     <group>

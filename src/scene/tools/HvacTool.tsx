@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Line } from "@react-three/drei";
+import { Line } from "../Line";
 import type { ThreeEvent } from "@react-three/fiber";
 import { suggestHeatPumpPower } from "@/geometry/hvac";
 import { bounds, equals, pointInPolygon, snapPoint } from "@/geometry/polygon";

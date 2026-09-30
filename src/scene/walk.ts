@@ -73,7 +73,8 @@ function throughDoor(building: Building, storey: Storey, p: Vec2): boolean {
 }
 
 function throughInteriorDoor(storey: Storey, index: number, wall: Segment, p: Vec2): boolean {
-  const w = interiorWallAsWall(wall, index, storey.height);
+  // Only its direction and ends are read, so its thickness does not matter.
+  const w = interiorWallAsWall(wall, index, storey.height, 0);
   const along = dot(sub(p, w.outerA), w.direction);
   return openingsOn(storey.openings, index, true).some(
     (o) =>

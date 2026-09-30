@@ -33,6 +33,8 @@ export function Room({ storeyId, room, zone, elevation, active, display, ghostOp
   const language = useEditorStore((s) => s.language);
   const select = useEditorStore((s) => s.select);
   const tool = useEditorStore((s) => s.tool);
+  // The floor plan writes its own room stamp, with the room's size; two would overlap.
+  const planView = useEditorStore((s) => s.planView);
   const activeZoneId = useEditorStore((s) => s.activeZoneId);
   const assignRoomToZone = useEditorStore((s) => s.assignRoomToZone);
   const hover = useHover(target, active);
@@ -49,6 +51,10 @@ export function Room({ storeyId, room, zone, elevation, active, display, ghostOp
   const onClick = (e: ThreeEvent<MouseEvent>) => {
     if (!active) return;
     if (tool !== "select" && tool !== "zone") return;
+    // Only when the floor is what was clicked. A room reaches under its walls (it is stored
+    // out to their outer face and centre lines), and a wall selects itself on pointer up, so
+    // the click that follows must not fall through to the room and select it instead.
+    if (e.intersections[0]?.eventObject !== e.eventObject) return;
     e.stopPropagation();
     select(target);
     if (tool === "zone" && activeZoneId !== null) {
@@ -78,7 +84,7 @@ export function Room({ storeyId, room, zone, elevation, active, display, ghostOp
           roughness={1}
         />
       </mesh>
-      {active && (
+      {active && !planView && (
         <Html
           position={[centre.x, elevation + 0.05, centre.y]}
           center
