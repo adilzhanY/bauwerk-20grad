@@ -16,7 +16,6 @@ export const en = {
     "Start on a wall. The new wall runs to the next wall in the pointer's direction and locks to right angles. Escape cancels.",
   "hint.zone": "Pick a zone below, then click rooms to add or remove them.",
 
-  "panel.storeys": "Storeys",
   "panel.tools": "Tools",
   "panel.zones": "Zones",
   "panel.settings": "Settings",
@@ -31,7 +30,6 @@ export const en = {
   "storey.height": "Height",
   "storey.openings": "Openings",
   "storey.rooms": "Rooms",
-  "storey.roomCount": "{n} rooms",
 
   "settings.wallThickness": "Wall thickness",
   "settings.grid": "Show grid",
@@ -104,7 +102,6 @@ export const en = {
   "bar.shortcuts": "Keyboard shortcuts",
   "status.storeys": "Storeys",
   "status.rooms": "Rooms",
-  "status.area": "Floor area",
 
   "empty.title": "No storeys",
   "empty.body": "Add a storey to start building.",
@@ -287,7 +284,6 @@ export const en = {
   "presence.card.here": "{name} is in it now",
   "presence.card.hereMany": "{name} and {count} more are in it now",
   "presence.card.lastHere": "You were last here {when}",
-  "presence.title": "Also editing",
   "location.title": "Location",
   "location.enabled": "Place the building on the map",
   "location.lat": "Latitude",
@@ -307,7 +303,6 @@ export const en = {
   "view.plan": "2D plan view",
   "view.uValueBands": "Colour walls by U-value",
   "storey.duplicate": "Duplicate storey",
-  "rooms.title": "Rooms on this storey",
   "underlay.title": "Floor plan underlay",
   "underlay.load": "Load image",
   "underlay.remove": "Remove image",
@@ -334,7 +329,6 @@ export const en = {
   "panel.view": "View",
   "tabs.properties": "Properties",
   "tabs.energy": "Energy",
-  "bar.status": "Status",
   "print.issued": "Issued on",
   "print.generatedBy": "Prepared with Bauwerk, simplified calculation",
   "print.disclaimer":
@@ -881,7 +875,6 @@ export const en = {
   "threads.sendHint": "Ctrl+Enter sends",
   "threads.resolve": "Resolve",
   "threads.reopen": "Reopen",
-  "threads.resolved": "Resolved",
   "threads.showResolved": "Show {n} resolved",
   "threads.hideResolved": "Hide resolved",
   "threads.edit": "Edit",
@@ -1022,7 +1015,6 @@ export const en = {
   "editor.connecting": "Connecting",
   "editor.offline": "Offline",
   "editor.projection": "Projection",
-  "editor.perspective": "Perspective",
   "editor.plan": "Plan",
   "editor.walkthrough": "Walkthrough",
   "editor.hidePanels": "Hide panels",
@@ -1166,7 +1158,6 @@ export const en = {
   "photo.previewNoPhoto": "Choose a photo to see a preview.",
   "photo.alt.photo": "Chosen facade photo",
   "photo.alt.wall": "Rectified wall",
-  "lod2.dragToChange": "Drag left or right to change",
   "lod2.loadingBuilding": "Loading building…",
   "lod2.selectBuilding": "Select a building on the map to see its 3D model.",
   "lod2.noGeometry": "This record carries no geometry (attributes only).",
@@ -1288,8 +1279,6 @@ export const en = {
   "share.copy": "Copy link",
   "share.copied": "Link copied",
   "share.close": "Close",
-  "share.localhost":
-    "This link only opens on this computer. For another machine, start with npm run dev -- --host and share the Network address it prints, with the same ?project= ending.",
   "share.failed":
     "The collaboration server does not answer. Is npm run dev running with its collab line?",
   "view.3d": "3D",

@@ -19,7 +19,6 @@ export const de: Messages = {
   "hint.zone":
     "Unten eine Zone wählen, dann Räume anklicken, um sie hinzuzufügen oder zu entfernen.",
 
-  "panel.storeys": "Geschosse",
   "panel.tools": "Werkzeuge",
   "panel.zones": "Zonen",
   "panel.settings": "Einstellungen",
@@ -34,7 +33,6 @@ export const de: Messages = {
   "storey.height": "Höhe",
   "storey.openings": "Öffnungen",
   "storey.rooms": "Räume",
-  "storey.roomCount": "{n} Räume",
 
   "settings.wallThickness": "Wandstärke",
   "settings.grid": "Raster anzeigen",
@@ -108,7 +106,6 @@ export const de: Messages = {
   "bar.shortcuts": "Tastenkürzel",
   "status.storeys": "Geschosse",
   "status.rooms": "Räume",
-  "status.area": "Grundfläche",
 
   "empty.title": "Keine Geschosse",
   "empty.body": "Fügen Sie ein Geschoss hinzu, um zu beginnen.",
@@ -292,7 +289,6 @@ export const de: Messages = {
   "presence.card.here": "{name} ist gerade drin",
   "presence.card.hereMany": "{name} und {count} weitere sind gerade drin",
   "presence.card.lastHere": "Sie waren zuletzt {when} hier",
-  "presence.title": "Bearbeiten ebenfalls",
   "location.title": "Standort",
   "location.enabled": "Gebäude auf der Karte platzieren",
   "location.lat": "Breitengrad",
@@ -312,7 +308,6 @@ export const de: Messages = {
   "view.plan": "2D-Grundriss",
   "view.uValueBands": "Wände nach U-Wert färben",
   "storey.duplicate": "Geschoss duplizieren",
-  "rooms.title": "Räume in diesem Geschoss",
   "underlay.title": "Grundriss als Hintergrundbild",
   "underlay.load": "Bild laden",
   "underlay.remove": "Bild entfernen",
@@ -339,7 +334,6 @@ export const de: Messages = {
   "panel.view": "Ansicht",
   "tabs.properties": "Eigenschaften",
   "tabs.energy": "Energie",
-  "bar.status": "Status",
   "print.issued": "Ausgestellt am",
   "print.generatedBy": "Erstellt mit Bauwerk, vereinfachte Berechnung",
   "print.disclaimer":
@@ -892,7 +886,6 @@ export const de: Messages = {
   "threads.sendHint": "Strg+Enter sendet",
   "threads.resolve": "Erledigt",
   "threads.reopen": "Wieder öffnen",
-  "threads.resolved": "Erledigt",
   "threads.showResolved": "{n} erledigte zeigen",
   "threads.hideResolved": "Erledigte ausblenden",
   "threads.edit": "Bearbeiten",
@@ -1033,7 +1026,6 @@ export const de: Messages = {
   "editor.connecting": "Verbinde",
   "editor.offline": "Offline",
   "editor.projection": "Projektion",
-  "editor.perspective": "Perspektive",
   "editor.plan": "Grundriss",
   "editor.walkthrough": "Begehung",
   "editor.hidePanels": "Seitenleisten ausblenden",
@@ -1180,7 +1172,6 @@ export const de: Messages = {
   "photo.previewNoPhoto": "Wählen Sie ein Foto, um eine Vorschau zu sehen.",
   "photo.alt.photo": "Gewähltes Fassadenfoto",
   "photo.alt.wall": "Entzerrte Wand",
-  "lod2.dragToChange": "Zum Ändern nach links oder rechts ziehen",
   "lod2.loadingBuilding": "Gebäude wird geladen…",
   "lod2.selectBuilding": "Wählen Sie ein Gebäude auf der Karte, um sein 3D-Modell zu sehen.",
   "lod2.noGeometry": "Dieser Datensatz hat keine Geometrie (nur Attribute).",
@@ -1305,8 +1296,6 @@ export const de: Messages = {
   "share.copy": "Link kopieren",
   "share.copied": "Link kopiert",
   "share.close": "Schließen",
-  "share.localhost":
-    "Dieser Link öffnet sich nur auf diesem Computer. Für ein anderes Gerät starten Sie mit npm run dev -- --host und teilen die angezeigte Network-Adresse mit derselben ?project=-Endung.",
   "share.failed":
     "Der Kollaborationsserver antwortet nicht. Läuft npm run dev mit der Zeile collab?",
   "view.3d": "3D",
