@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { computeEnergy } from "@/geometry/energy";
 import type { EnergySummary } from "@/geometry/energy";
 import { findConstruction } from "@/geometry/constructions";
@@ -44,6 +45,17 @@ export function PrintView({ embedded = false }: { embedded?: boolean } = {}) {
   const now = new Date();
   const hasSources = sourceRows(building).length > 0;
   const methodNumber = 5 + building.storeys.length + (hasSources ? 1 : 0);
+
+  // Opened by Print in the Report step: print as soon as the page has drawn.
+  useEffect(() => {
+    if (embedded || new URLSearchParams(window.location.search).get("autoprint") !== "1") return;
+    const timer = window.setTimeout(() => {
+      window.print();
+    }, 400);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [embedded]);
 
   return (
     <div
@@ -94,7 +106,16 @@ export function PrintView({ embedded = false }: { embedded?: boolean } = {}) {
           <button
             type="button"
             onClick={() => {
-              window.print();
+              // Inside the app the page around the report would print too, cut at the scroll
+              // position: the report alone opens in a tab of its own and prints from there.
+              if (!embedded) {
+                window.print();
+                return;
+              }
+              const url = new URL(window.location.href);
+              url.searchParams.set("print", "1");
+              url.searchParams.set("autoprint", "1");
+              window.open(url.toString(), "_blank", "noopener");
             }}
           >
             {t("print.print")}

@@ -308,9 +308,17 @@ describe("App", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("renders the too-narrow view when window width is under 1440px", () => {
-    window.innerWidth = 1200;
+  it("asks for a wider window only in the editor, and keeps the header there", () => {
+    window.innerWidth = 1100;
     render(<App />);
     expect(screen.getByRole("heading", { name: "Desktop browser needed" })).toBeTruthy();
+    // The way back stays: the shell's header is still there.
+    expect(screen.getByRole("banner")).toBeTruthy();
+  });
+
+  it("works on a 1280 pixel laptop", () => {
+    window.innerWidth = 1280;
+    render(<App />);
+    expect(screen.queryByRole("heading", { name: "Desktop browser needed" })).toBeNull();
   });
 });

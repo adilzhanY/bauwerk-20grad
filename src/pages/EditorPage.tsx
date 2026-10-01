@@ -69,7 +69,9 @@ export function EditorPage({
         </Floating>
       </Presence>
       <div className="scene-ground relative min-w-0 flex-1 overflow-hidden">
-        <main aria-label={t("a11y.scene")} className="absolute inset-0">
+        {/* Its own stacking context: the labels in the 3D view (drei Html, z-index in the millions)
+            stay under the panels, the minimap and every dialog. */}
+        <main aria-label={t("a11y.scene")} className="absolute inset-0 isolate">
           {!hasStoreys ? <EmptyState /> : webgl ? <Viewport /> : <WebGLMissing />}
         </main>
         <FollowFrame />

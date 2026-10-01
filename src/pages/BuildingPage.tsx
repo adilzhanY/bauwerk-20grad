@@ -50,6 +50,9 @@ function paintFacade(wallImage: WallImage | null, openings: readonly PhotoOpenin
   });
 }
 
+/** The name the survey gives a house: its use and its Gebäude-ID, never typed by a person. */
+const isGeneratedName = (name: string, gid: string) => name.endsWith(gid);
+
 export function BuildingPage({ gid }: { gid: string }) {
   const t = useT();
   const language = useEditorStore((s) => s.language);
@@ -128,7 +131,14 @@ export function BuildingPage({ gid }: { gid: string }) {
   const closePhotoEditor = useStore((s) => s.closePhotoEditor);
   /** The survey's building with what the Projects page shows about it. */
   const withFacts = (building: Building): Building =>
-    withProject(building, { gid, ...(address ? { address: address.main } : {}) });
+    withProject(
+      // The survey names the house after its Gebäude-ID (Berlin ships no addresses); the
+      // address the person searched for is the name people know it by.
+      address && isGeneratedName(building.name, gid)
+        ? { ...building, name: address.main }
+        : building,
+      { gid, ...(address ? { address: address.main } : {}) },
+    );
 
   // The new project, once the building's data is there: created, and the address cleaned.
   useEffect(() => {
@@ -150,10 +160,11 @@ export function BuildingPage({ gid }: { gid: string }) {
 
   // The address arrives after the building: give it to this building's project.
   useEffect(() => {
-    const known = useEditorStore.getState().building.project?.address;
-    if (projectOpen && address?.main && known !== address.main)
-      setProjectInfo({ address: address.main });
-  }, [projectOpen, address, setProjectInfo]);
+    const { building } = useEditorStore.getState();
+    if (!projectOpen || !address?.main) return;
+    if (building.project?.address !== address.main) setProjectInfo({ address: address.main });
+    if (isGeneratedName(building.name, gid)) useEditorStore.getState().renameBuilding(address.main);
+  }, [projectOpen, address, setProjectInfo, gid]);
 
   const applyWallToEditor = async (
     wallImage: WallImage | null,

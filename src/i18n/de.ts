@@ -117,7 +117,7 @@ export const de: Messages = {
   "webgl.body": "Bauwerk braucht einen Browser mit WebGL, um das Modell zu zeichnen.",
 
   "narrow.title": "Desktop-Browser nötig",
-  "narrow.body": "Der Editor braucht ein Fenster mit mindestens 1440 Pixeln Breite.",
+  "narrow.body": "Der Editor braucht ein Fenster mit mindestens 1200 Pixeln Breite. Die anderen Seiten funktionieren in jeder Größe.",
 
   "shortcuts.title": "Tastenkürzel",
   "shortcuts.close": "Schließen",

@@ -19,7 +19,8 @@ import { BenchPage } from "@/pages/BenchPage";
 import { PrintView } from "@/components/report/PrintView";
 import { TooNarrow } from "@/components/app/States";
 
-const MIN_WIDTH = 1440;
+/** The editor needs its two panels and room for the 3D view; the other pages fit anywhere. */
+const EDITOR_MIN_WIDTH = 1200;
 
 function useWindowWidth(): number {
   const [width, setWidth] = useState(() => window.innerWidth);
@@ -63,7 +64,6 @@ export function App({ linkNotice = null }: { linkNotice?: LinkNotice | null } = 
   if (new URLSearchParams(window.location.search).get("print") === "1") return <PrintView />;
   if (new URLSearchParams(window.location.search).get("bench") === "1")
     return <BenchPage sample={sample} onSample={setSample} />;
-  if (width < MIN_WIDTH) return <TooNarrow />;
 
   // The step bar shows inside a project; on a building page only for that project's building.
   const showBar =
@@ -78,7 +78,12 @@ export function App({ linkNotice = null }: { linkNotice?: LinkNotice | null } = 
       {route.page === "projects" && <ProjectsPage />}
       {route.page === "map" && <StartPage />}
       {route.page === "building" && <BuildingPage key={route.gid} gid={route.gid} />}
-      {route.page === "editor" && <EditorPage linkNotice={linkNotice} sync={sync} />}
+      {route.page === "editor" &&
+        (width < EDITOR_MIN_WIDTH ? (
+          <TooNarrow />
+        ) : (
+          <EditorPage linkNotice={linkNotice} sync={sync} />
+        ))}
       {route.page === "variants" && <VariantsPage />}
       {route.page === "report" && <ReportPage />}
       {route.page === "login" && <LoginPage />}

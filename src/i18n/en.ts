@@ -113,7 +113,7 @@ export const en = {
   "webgl.body": "Bauwerk needs a browser with WebGL to draw the model.",
 
   "narrow.title": "Desktop browser needed",
-  "narrow.body": "The editor needs a window at least 1440 pixels wide.",
+  "narrow.body": "The editor needs a window at least 1200 pixels wide. The other pages work at any size.",
 
   "shortcuts.title": "Keyboard shortcuts",
   "shortcuts.close": "Close",
