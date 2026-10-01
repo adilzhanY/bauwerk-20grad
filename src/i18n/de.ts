@@ -327,6 +327,8 @@ export const de: Messages = {
   "hint.measure":
     "Anfang und Ende eines Abstands anklicken, überall. Er rastet an Wandflächen ein und bleibt im Plan. Escape bricht ab.",
   "view.plan": "2D-Grundriss",
+  "plan.legend":
+    "Maße in Metern, unter einem Meter in Zentimetern. Eine hochgestellte ⁵ bedeutet einen halben Zentimeter mehr (DIN 1356).",
   "view.planShort": "Plan",
   "view.menu": "Ansicht",
   "storey.duplicate": "Geschoss duplizieren",

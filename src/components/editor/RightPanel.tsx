@@ -1027,7 +1027,7 @@ function StoreyProperties({ storeyId }: { storeyId: string }) {
         value={storey.height}
         min={2}
         max={6}
-        step={0.1}
+        step={0.01}
         unit={t("common.metres")}
         language={language}
         onChange={(h) => {

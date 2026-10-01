@@ -17,15 +17,22 @@ export function StatusLine() {
   const t = useT();
   const tool = useEditorStore((s) => s.tool);
   const mapVisible = useEditorStore((s) => s.showMap && s.building.origin !== undefined);
+  const planView = useEditorStore((s) => s.planView);
   const [sheetOpen, setSheetOpen] = useState(false);
   return (
     <Card
       elevation="float"
       className="pointer-events-auto flex min-h-11 items-center gap-3 py-1 pr-1 pl-4"
     >
-      <p role="status" className="min-w-0 flex-1 text-xs leading-relaxed text-muted">
-        {t(toolHint[tool])}
-      </p>
+      <div className="min-w-0 flex-1">
+        <p role="status" className="text-xs leading-relaxed text-muted">
+          {t(toolHint[tool])}
+        </p>
+        {/* The plan writes its dimensions as German drawings do; say how to read them. */}
+        <Presence show={planView}>
+          <p className="text-xs leading-relaxed text-faint">{t("plan.legend")}</p>
+        </Presence>
+      </div>
       <Presence show={mapVisible} kind="float">
         <Floating fade className="shrink-0">
           <a

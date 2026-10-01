@@ -22,8 +22,9 @@ export function formatNumber(
   }).format(value);
 }
 
+/** A length in metres, always with two decimals, so lengths side by side line up ("4.20 m"). */
 export const formatMetres = (value: number, language: Language): string =>
-  `${formatNumber(value, language, 2)} m`;
+  `${formatNumber(value, language, 2, { fixed: true })} m`;
 
 /**
  * A dimension figure as German construction drawings write it (DIN 1356): no unit, below one

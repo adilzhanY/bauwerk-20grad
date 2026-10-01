@@ -322,6 +322,8 @@ export const en = {
   "hint.measure":
     "Click where a distance starts and ends, anywhere. It snaps to wall faces and stays on the plan. Escape cancels.",
   "view.plan": "2D plan view",
+  "plan.legend":
+    "Dimensions in metres, under one metre in centimetres. A raised ⁵ adds half a centimetre (DIN 1356).",
   "view.planShort": "Plan",
   "view.menu": "View",
   "storey.duplicate": "Duplicate storey",

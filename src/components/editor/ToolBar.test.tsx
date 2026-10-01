@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { createDefaultBuilding, useEditorStore } from "@/store/building";
 import { ToolBar } from "@/components/editor/ToolBar";
 import { ViewPill } from "@/components/editor/ViewPill";
 import { StoreyPill } from "@/components/editor/StoreyPill";
+import { StatusLine } from "@/components/editor/StatusLine";
 
 beforeEach(() => {
   useEditorStore.setState({
@@ -97,5 +98,18 @@ describe("storey pill", () => {
     render(<StoreyPill />);
     fireEvent.click(screen.getByRole("button", { name: "Add storey" }));
     expect(useEditorStore.getState().building.storeys).toHaveLength(2);
+  });
+});
+
+describe("status line", () => {
+  it("shows the tool's hint, and in the plan how its dimensions read", () => {
+    useEditorStore.setState({ tool: "measure" });
+    render(<StatusLine />);
+    expect(screen.getByText(/where a distance starts and ends/)).toBeTruthy();
+    expect(screen.queryByText(/A raised ⁵ adds half a centimetre/)).toBeNull();
+    act(() => {
+      useEditorStore.getState().setPlanView(true);
+    });
+    expect(screen.getByText(/A raised ⁵ adds half a centimetre/)).toBeTruthy();
   });
 });
