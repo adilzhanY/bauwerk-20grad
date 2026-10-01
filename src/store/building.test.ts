@@ -504,6 +504,22 @@ describe("footprint editing and deleteSelection", () => {
     expect(store.getState().building.footprint).toHaveLength(5);
   });
 
+  it("inserts the vertex on a diagonal edge exactly, not snapped off it", () => {
+    store.getState().loadBuilding({
+      ...store.getState().building,
+      footprint: [
+        { x: 0, y: 0 },
+        { x: 10, y: 0 },
+        { x: 10, y: 3.3 },
+        { x: 0, y: 10.1 },
+      ],
+    });
+    store.getState().insertFootprintVertex(2);
+    const p = store.getState().building.footprint[3]!;
+    expect(p.x).toBeCloseTo(5, 9);
+    expect(p.y).toBeCloseTo(6.7, 9);
+  });
+
   it("refuses to remove a vertex from a triangle", () => {
     store.getState().loadBuilding({
       ...store.getState().building,

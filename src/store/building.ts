@@ -48,7 +48,6 @@ import type { DragPreview } from "@/sync/presence";
 import {
   DEFAULT_STOREY_HEIGHT,
   DEFAULT_WALL_THICKNESS,
-  GRID_SIZE,
   HEATED_TEMPERATURE,
   UNHEATED_TEMPERATURE,
 } from "@/geometry/types";
@@ -61,12 +60,7 @@ import { AGE_IDS, ageConstructions } from "@/geometry/ageDefaults";
 import type { AgeChoice } from "@/geometry/ageDefaults";
 import { uValueFromLayers } from "@/geometry/layers";
 import { roofOf } from "@/geometry/roof";
-import {
-  ensureCounterClockwise,
-  isCounterClockwise,
-  isSimplePolygon,
-  snapPoint,
-} from "@/geometry/polygon";
+import { ensureCounterClockwise, isCounterClockwise, isSimplePolygon } from "@/geometry/polygon";
 import { computeRooms } from "@/geometry/rooms";
 import { defaultRoomName, defaultStoreyName, detectLanguage } from "@/i18n";
 import { localizeBuilding } from "@/i18n/localizeBuilding";
@@ -603,7 +597,9 @@ export function createEditorStore(initial?: Partial<EditorState>) {
               const a = fp[edgeIndex];
               const b = fp[(edgeIndex + 1) % fp.length];
               if (!a || !b) return;
-              const mid = snapPoint({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, GRID_SIZE);
+              // The exact midpoint: snapped to the grid it would leave a diagonal edge and put
+              // a kink in the wall. Dragging the vertex afterwards snaps it.
+              const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
               const next = [...fp.slice(0, edgeIndex + 1), mid, ...fp.slice(edgeIndex + 1)];
               if (!isSimplePolygon(next)) return;
               state.building.footprint = next;
