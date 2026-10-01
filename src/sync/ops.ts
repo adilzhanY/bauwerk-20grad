@@ -42,10 +42,12 @@ type Item = Obj & { id: string };
 const isObject = (value: Json): value is Obj =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
+/** Items with unique ids. A duplicated id (a corrupt or imported file) is one plain value. */
 const isIdArray = (value: Json): value is Item[] =>
   Array.isArray(value) &&
   value.length > 0 &&
-  value.every((item) => isObject(item) && typeof item.id === "string");
+  value.every((item) => isObject(item) && typeof item.id === "string") &&
+  new Set(value.map((item) => (item as Item).id)).size === value.length;
 
 /** Two id arrays, or an empty array beside an id array: diffed per item. */
 function bothIdArrays(a: Json, b: Json): a is Item[] {
