@@ -412,7 +412,7 @@ export const en = {
   "project.steps": "Project steps",
   "project.stepsDone": "{n} of {total} steps done",
   "project.stageLabel": "Stage",
-  "project.stageAuto": "Stage: {stage} (automatic)",
+  "project.stageAuto": "{stage} (auto)",
   "project.storeys": "{n} storeys",
   "project.edited": "Edited {when}",
   "project.openNamed": "Open {name}",
@@ -1002,6 +1002,11 @@ export const en = {
   "photo.apply": "Apply",
   "photo.working": "Working",
   "photo.close": "Close",
+  "photo.closeAsk.title": "Discard the openings?",
+  "photo.closeAsk.body":
+    "{n} openings found or drawn on this photo are not in the model yet. Closing now throws them away.",
+  "photo.closeAsk.keep": "Keep editing",
+  "photo.closeAsk.discard": "Discard and close",
   "photo.corners": "Corners",
   "photo.empty.title": "Add a photo of this facade",
   "photo.empty.body":

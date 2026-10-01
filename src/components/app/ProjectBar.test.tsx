@@ -34,12 +34,12 @@ describe("ProjectBar", () => {
     useRouter.setState({ route: { page: "editor" } });
     render(<ProjectBar />);
     const stage = screen.getByRole("combobox", { name: "Stage" });
-    expect(stage.textContent).toContain("Variants (automatic)");
+    expect(stage.textContent).toContain("Variants (auto)");
     fireEvent.click(stage);
     fireEvent.click(screen.getByRole("option", { name: "Done" }));
     expect(useEditorStore.getState().building.project?.stage).toBe("done");
     fireEvent.click(screen.getByRole("combobox", { name: "Stage" }));
-    fireEvent.click(screen.getByRole("option", { name: /automatic/ }));
+    fireEvent.click(screen.getByRole("option", { name: /\(auto\)/ }));
     expect(useEditorStore.getState().building.project).not.toHaveProperty("stage");
     expect(useEditorStore.getState().building.project?.address).toBe("Methfesselstraße 8");
   });

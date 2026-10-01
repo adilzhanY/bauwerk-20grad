@@ -184,3 +184,27 @@ describe("a new photo starts the detection, however it arrives", () => {
     expect(detectWall).not.toHaveBeenCalled();
   });
 });
+
+describe("closing the photo editor", () => {
+  it("closes at once while nothing was found yet", () => {
+    const onClose = vi.fn();
+    render(<PhotoEditorView open onClose={onClose} wall={wall()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it("asks before it throws away a detection", () => {
+    const onClose = vi.fn();
+    render(<PhotoEditorView open onClose={onClose} wall={wall()} />);
+    pasteFile(new File(["jpg"], "facade.jpg", { type: "image/jpeg" }));
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    const ask = screen.getByRole("dialog", { name: "Discard the openings?" });
+    fireEvent.click(within(ask).getByRole("button", { name: "Keep editing" }));
+    expect(onClose).not.toHaveBeenCalled();
+    expect(photoShown()).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    fireEvent.click(screen.getByRole("button", { name: "Discard and close" }));
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+});

@@ -416,7 +416,7 @@ export const de: Messages = {
   "project.steps": "Projektschritte",
   "project.stepsDone": "{n} von {total} Schritten erledigt",
   "project.stageLabel": "Phase",
-  "project.stageAuto": "Phase: {stage} (automatisch)",
+  "project.stageAuto": "{stage} (auto)",
   "project.storeys": "{n} Geschosse",
   "project.edited": "Bearbeitet {when}",
   "project.openNamed": "{name} öffnen",
@@ -1013,6 +1013,11 @@ export const de: Messages = {
   "photo.apply": "Entzerren",
   "photo.working": "Wird berechnet",
   "photo.close": "Schließen",
+  "photo.closeAsk.title": "Öffnungen verwerfen?",
+  "photo.closeAsk.body":
+    "{n} Öffnungen, die auf diesem Foto gefunden oder gezeichnet wurden, sind noch nicht im Modell. Schließen verwirft sie.",
+  "photo.closeAsk.keep": "Weiter bearbeiten",
+  "photo.closeAsk.discard": "Verwerfen und schließen",
   "photo.corners": "Eckpunkte",
   "photo.empty.title": "Foto dieser Fassade hinzufügen",
   "photo.empty.body":
