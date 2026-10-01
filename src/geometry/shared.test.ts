@@ -2,7 +2,7 @@ import { buildingHeatLoad } from "./hvac";
 import { buildingFromBox } from "./box";
 import { computeEnergy } from "./energy";
 import { describe, expect, it } from "vitest";
-import { placeAfterSplit, sharedAfterRemove, sharedAfterSplit } from "./shared";
+import { placeAfterSplit, remapEdgeIndex, sharedAfterRemove, sharedAfterSplit } from "./shared";
 
 describe("shared edges under footprint edits", () => {
   it("shifts later edges up and keeps both halves of a split shared edge", () => {
@@ -27,6 +27,43 @@ describe("items on a split edge", () => {
     expect(placeAfterSplit(1, 1, 2, 1, 5)).toEqual({ wallIndex: 1, offset: 1 });
     expect(placeAfterSplit(1, 6, 2, 1, 5)).toEqual({ wallIndex: 2, offset: 1 });
     expect(placeAfterSplit(1, 4, 2, 1, 5)).toBeNull();
+  });
+});
+
+describe("edge index bookkeeping edge cases", () => {
+  it("splits the last edge without touching the others", () => {
+    expect(sharedAfterSplit([0, 3], 3)).toEqual([0, 3, 4]);
+    expect(placeAfterSplit(3, 6, 1, 3, 5)).toEqual({ wallIndex: 4, offset: 1 });
+  });
+
+  it("removes a vertex from a building without shared walls", () => {
+    expect(sharedAfterRemove([], 1, 4)).toEqual([]);
+  });
+});
+
+describe("remapEdgeIndex", () => {
+  it("after a split: earlier edges stay, the split edge is its first half, later edges move up", () => {
+    const split = { kind: "split", edge: 1 } as const;
+    expect(remapEdgeIndex(0, split)).toEqual({ index: 0, same: true });
+    expect(remapEdgeIndex(1, split)).toEqual({ index: 1, same: false });
+    expect(remapEdgeIndex(3, split)).toEqual({ index: 4, same: true });
+  });
+
+  it("after a removed vertex: the two edges at it merge, later edges move down", () => {
+    // Square, remove vertex 2: edges 1 and 2 become edge 1, edge 3 becomes edge 2.
+    const remove = { kind: "remove", vertex: 2, count: 4 } as const;
+    expect(remapEdgeIndex(0, remove)).toEqual({ index: 0, same: true });
+    expect(remapEdgeIndex(1, remove)).toEqual({ index: 1, same: false });
+    expect(remapEdgeIndex(2, remove)).toEqual({ index: 1, same: false });
+    expect(remapEdgeIndex(3, remove)).toEqual({ index: 2, same: true });
+  });
+
+  it("after removing vertex 0: the last edge and edge 0 become the new last edge", () => {
+    const remove = { kind: "remove", vertex: 0, count: 4 } as const;
+    expect(remapEdgeIndex(0, remove)).toEqual({ index: 2, same: false });
+    expect(remapEdgeIndex(3, remove)).toEqual({ index: 2, same: false });
+    expect(remapEdgeIndex(1, remove)).toEqual({ index: 0, same: true });
+    expect(remapEdgeIndex(2, remove)).toEqual({ index: 1, same: true });
   });
 });
 

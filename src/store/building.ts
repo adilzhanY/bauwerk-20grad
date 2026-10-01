@@ -4,7 +4,13 @@ import type { Role } from "@/projects/roles";
 import { create } from "zustand";
 import { asOpening } from "@/geometry/floorPlanImport";
 import type { FloorPlanEdits } from "@/geometry/floorPlanImport";
-import { placeAfterSplit, sharedAfterRemove, sharedAfterSplit } from "@/geometry/shared";
+import {
+  placeAfterSplit,
+  remapEdgeIndex,
+  sharedAfterRemove,
+  sharedAfterSplit,
+} from "@/geometry/shared";
+import type { EdgeChange } from "@/geometry/shared";
 import { planToLatLon } from "@/geometry/geo";
 import { resizeRectangle } from "@/geometry/box";
 import {
@@ -498,6 +504,29 @@ function refreshAllRooms(building: Building, language: Language): void {
   for (const storey of building.storeys) refreshRooms(storey, building.footprint, language);
 }
 
+/**
+ * Carries what points at a footprint edge along with an edit that renumbers the edges: wall
+ * notes, facade photos, the wall open in the photo editor, the lit wall and a selected wall.
+ * Openings and radiators are placed by the edit itself, since their offsets matter too.
+ */
+function remapEdgeRefs(state: EditorState, change: EdgeChange): void {
+  const to = (i: number) => remapEdgeIndex(i, change).index;
+  for (const note of state.building.notes ?? []) {
+    if (note.target.kind === "wall") note.target.wallIndex = to(note.target.wallIndex);
+  }
+  const photos: Record<number, FacadePhoto> = {};
+  for (const [edge, photo] of Object.entries(state.facadePhotos)) {
+    const i = to(Number(edge));
+    // Two walls merged into one: the first photo stays, the other goes.
+    if (photos[i]) URL.revokeObjectURL(photo.url);
+    else photos[i] = photo;
+  }
+  state.facadePhotos = photos;
+  if (state.photoWall !== null) state.photoWall = to(state.photoWall);
+  if (state.highlightedWall !== null) state.highlightedWall = to(state.highlightedWall);
+  if (state.selection?.kind === "wall") state.selection.wallIndex = to(state.selection.wallIndex);
+}
+
 function transformProposal(proposal: FootprintProposal, transform: (point: Vec2) => Vec2): void {
   proposal.footprint = proposal.footprint.map(transform);
   for (const wall of proposal.interiorWalls) {
@@ -612,6 +641,7 @@ export function createEditorStore(initial?: Partial<EditorState>) {
                   edgeIndex,
                 );
               }
+              remapEdgeRefs(state, { kind: "split", edge: edgeIndex });
               state.selection = { kind: "vertex", index: edgeIndex + 1 };
               refreshAllRooms(state.building, state.language);
             });
@@ -624,23 +654,19 @@ export function createEditorStore(initial?: Partial<EditorState>) {
               const next = fp.filter((_, i) => i !== index);
               if (!isSimplePolygon(next) || !isCounterClockwise(next)) return;
               state.building.footprint = next;
-              // Openings index footprint edges, so edges after the removed vertex shift down
-              // and the two edges that merged lose their openings.
+              // Exterior openings and radiators index footprint edges, so edges after the removed
+              // vertex shift down and the two edges that merged lose theirs. Interior openings
+              // index interior walls and stay as they are.
+              const change: EdgeChange = { kind: "remove", vertex: index, count: fp.length };
+              const place = <T extends { wallIndex: number }>(item: T): T[] => {
+                const to = remapEdgeIndex(item.wallIndex, change);
+                return to.same ? [{ ...item, wallIndex: to.index }] : [];
+              };
               for (const storey of state.building.storeys) {
-                storey.openings = storey.openings
-                  .filter(
-                    (o) =>
-                      o.wallIndex !== index && o.wallIndex !== (index - 1 + fp.length) % fp.length,
-                  )
-                  .map((o) => (o.wallIndex > index ? { ...o, wallIndex: o.wallIndex - 1 } : o));
-                if (storey.radiators) {
-                  const merged = (i: number) =>
-                    i === index || i === (index - 1 + fp.length) % fp.length;
-                  storey.radiators = storey.radiators
-                    .filter((r) => !merged(r.wallIndex))
-                    .map((r) => (r.wallIndex > index ? { ...r, wallIndex: r.wallIndex - 1 } : r));
-                }
+                storey.openings = storey.openings.flatMap((o) => (o.interior ? [o] : place(o)));
+                if (storey.radiators) storey.radiators = storey.radiators.flatMap(place);
               }
+              remapEdgeRefs(state, change);
               if (state.building.sharedEdges) {
                 state.building.sharedEdges = sharedAfterRemove(
                   state.building.sharedEdges,
@@ -1009,9 +1035,20 @@ export function createEditorStore(initial?: Partial<EditorState>) {
                 return;
               state.building.footprint = ensureCounterClockwise(footprint);
               if (origin) state.building.origin = { ...origin };
-              for (const storey of state.building.storeys) storey.openings = [];
-              // A new outline has new walls; which of them touch a neighbour is unknown.
+              // A new outline has new walls: what sat on the old ones goes, and which of them
+              // touch a neighbour is unknown. Interior walls stay, with their openings.
+              for (const storey of state.building.storeys) {
+                storey.openings = storey.openings.filter((o) => o.interior);
+                if (storey.radiators) storey.radiators = [];
+              }
               delete state.building.sharedEdges;
+              for (const note of state.building.notes ?? []) {
+                if (note.target.kind === "wall") note.target = { kind: "building" };
+              }
+              for (const photo of Object.values(state.facadePhotos)) URL.revokeObjectURL(photo.url);
+              state.facadePhotos = {};
+              state.photoWall = null;
+              state.highlightedWall = null;
               state.selection = null;
               refreshAllRooms(state.building, state.language);
             });
