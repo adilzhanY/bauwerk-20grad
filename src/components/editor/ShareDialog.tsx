@@ -379,7 +379,7 @@ function RequestRow({
   onAnswer,
 }: {
   request: AccessRequest;
-  onAnswer: (role: Given | null) => Promise<void>;
+  onAnswer: (role: Given | null) => Promise<unknown>;
 }) {
   const t = useT();
   const [role, setRole] = useState<Given>("viewer");
