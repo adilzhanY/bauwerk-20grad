@@ -57,3 +57,9 @@ jobs:
         working-directory: server
         env:
           DATABASE_URL: postgres://bauwerk:bauwerk@localhost:5432/bauwerk_test
+      # The production image on its own: every module the server needs resolves without the
+      # repository's other node_modules (a missing one stopped the first hosted start).
+      - run: >-
+          docker build -t bauwerk-server -f deploy/Dockerfile.server . &&
+          docker run --rm bauwerk-server npx tsx -e
+          "import('./src/app.ts').then(() => console.log('every module of the server loads'))"

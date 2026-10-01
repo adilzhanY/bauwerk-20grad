@@ -10,6 +10,9 @@ COPY server/tsconfig.json ./
 COPY server/migrations ./migrations
 COPY server/src ./src
 COPY src /repo/src
+# The app's code in /repo/src imports packages too (zod for the shared account rules); Node looks
+# for them in /repo/node_modules, beside it, so that points at the server's installed packages.
+RUN ln -s /repo/server/node_modules /repo/node_modules
 ENV HOST=0.0.0.0 PORT=8789 NODE_ENV=production
 EXPOSE 8789
 USER node
