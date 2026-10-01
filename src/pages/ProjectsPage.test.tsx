@@ -21,6 +21,8 @@ beforeEach(() => {
   localStorage.clear();
   useEditorStore.setState({ language: "en", projectId: null });
   useEditorStore.getState().loadBuilding(exampleHouse("en"));
+  // Nothing unsaved: opening a card does not ask first.
+  useEditorStore.getState().clearHistory();
 });
 
 describe("ProjectsPage without a server", () => {
