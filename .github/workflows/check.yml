@@ -14,6 +14,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --legacy-peer-deps
+      # The LoD2 packages keep their own dependencies (npm run check:lod2).
+      - run: for p in lod2-core lod2-ingest lod2-api; do npm ci --prefix lod2/$p; done
       # Everything but the server, which the server job below checks against its own Postgres.
       - run: npm run typecheck && npm run lint && npm run test && npm run check:lod2
         env:
