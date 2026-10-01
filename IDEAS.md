@@ -2,14 +2,6 @@
 
 Things to think about and build later. Nothing here is decided yet; when an idea turns into work, it moves to TODO.md.
 
-## Projects per building
-
-A project for every building: create one when a building is opened, and keep its photos, openings and edits inside it. Switching buildings switches projects, so nothing from one building can land on another (the demo bug in FIXES.md).
-
-## Wall colour from the photo
-
-When a straightened photo is applied to the 3D model, paint the building in the colour of its wall as seen in the photo. The wall colour only, not the colour of the windows.
-
 ## Floor plans from old drawings
 
 Import existing floor plans to build the storeys of the 3D model. The plans can be very old, drawn at different scales, with different measurements, names and conventions. The office uses a paid service for this today. Look for a model or a method that can do it, something as big as SAM 3 was for the facades: read the walls, openings, rooms and dimensions from a scanned plan and turn them into storeys.
