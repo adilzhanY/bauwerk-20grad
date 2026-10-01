@@ -15,7 +15,7 @@ describe("the error page", () => {
   it("speaks German when chosen, and Reset forgets the open project and unsent edits", () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     const reload = vi.fn();
-    vi.spyOn(window, "location", "get").mockReturnValue({ ...window.location, reload });
+    vi.spyOn(window, "location", "get").mockReturnValue({ reload } as unknown as Location);
     localStorage.setItem("bauwerk.language", "de");
     localStorage.setItem("bauwerk.openProject", "p1");
     localStorage.setItem("bauwerk.project.p1", "{}");

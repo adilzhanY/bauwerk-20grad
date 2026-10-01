@@ -49,11 +49,13 @@ export function HistoryPanel() {
   const [listFailed, setListFailed] = useState(false);
 
   // Another project: nothing of the one before may stay in the list.
-  useEffect(() => {
+  const [listFor, setListFor] = useState(projectId);
+  if (listFor !== projectId) {
+    setListFor(projectId);
     setSessions([]);
     setNamed([]);
     setListFailed(false);
-  }, [projectId]);
+  }
 
   // Every change makes a version, so the list follows the building, a moment later.
   useEffect(() => {

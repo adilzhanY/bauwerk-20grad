@@ -793,7 +793,8 @@ export const de: Messages = {
   "history.created": "Projekt angelegt",
   "history.change": "1 Änderung",
   "history.changes": "{count} Änderungen",
-  "history.loadFailed": "Die Versionen ließen sich nicht laden. Versuchen Sie es gleich noch einmal.",
+  "history.loadFailed":
+    "Die Versionen ließen sich nicht laden. Versuchen Sie es gleich noch einmal.",
   "history.empty": "Noch keine Versionen.",
   "history.unavailable": "Diese Version lässt sich nicht wiederherstellen.",
   "history.local": "Teilen Sie das Gebäude als Projekt, um einen Versionsverlauf zu führen.",

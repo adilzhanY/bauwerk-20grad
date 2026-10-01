@@ -30,20 +30,20 @@ export function NewBuildingDialog({ onClose }: { onClose: () => void }) {
 
   const create = () => {
     const building = buildingFromBox(
-        {
-          name,
-          width,
-          depth,
-          storeys,
-          storeyHeight,
-          roof,
-          era,
-          centre: centroid(currentBuilding.footprint),
-          origin: currentBuilding.origin,
-        },
-        language,
-        createId,
-      );
+      {
+        name,
+        width,
+        depth,
+        storeys,
+        storeyHeight,
+        roof,
+        era,
+        centre: centroid(currentBuilding.footprint),
+        origin: currentBuilding.origin,
+      },
+      language,
+      createId,
+    );
     onClose();
     // A new project: the one open before is left, never overwritten.
     void startNewProject(building);

@@ -4,8 +4,8 @@ import { useAuth } from "@/auth/store";
 import { useEditorStore } from "@/store/building";
 import { ShareDialog } from "@/components/editor/ShareDialog";
 
-vi.mock("@/projects/collab", async (original) => ({
-  ...(await original<typeof import("@/projects/collab")>()),
+vi.mock(import("@/projects/collab"), async (original) => ({
+  ...(await original()),
   listMembers: () => Promise.resolve([]),
   accessRequests: () => Promise.resolve([]),
   getLink: () => Promise.resolve(null),

@@ -11,21 +11,21 @@ const fake = vi.hoisted(() => ({
   started: [] as string[][],
 }));
 
-vi.mock("@/projects/collab", async (original) => ({
-  ...(await original<typeof import("@/projects/collab")>()),
+vi.mock(import("@/projects/collab"), async (original) => ({
+  ...(await original()),
   listMembers: () => Promise.resolve([]),
   listFiles: () => Promise.resolve([]),
   uploadFile: () =>
-    new Promise((resolve) => {
-      fake.uploads.push(resolve);
+    new Promise<ProjectFile>((resolve) => {
+      fake.uploads.push(resolve as (file: unknown) => void);
     }),
-  startThread: (_p: string, _t: unknown, _text: string, attachments: string[]) => {
+  startThread: (_p: string, _t: unknown, _text: string, attachments: string[] = []) => {
     fake.started.push(attachments);
-    return Promise.resolve();
+    return Promise.resolve({ id: "t1" });
   },
 }));
-vi.mock("@/projects/threads", async (original) => ({
-  ...(await original<typeof import("@/projects/threads")>()),
+vi.mock(import("@/projects/threads"), async (original) => ({
+  ...(await original()),
   reloadThreads: () => Promise.resolve(),
 }));
 

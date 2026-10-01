@@ -41,7 +41,7 @@ beforeEach(() => {
         await new Promise<void>((resolve) => {
           releasePost = resolve;
         });
-        const body = JSON.parse(String(init.body)) as { building: TestHub["building"] };
+        const body = JSON.parse(init.body as string) as { building: TestHub["building"] };
         if (fake.hub) fake.hub.building = body.building;
         return new Response(JSON.stringify({ id: "p1" }), { status: 200 });
       }

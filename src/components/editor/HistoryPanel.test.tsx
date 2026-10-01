@@ -5,13 +5,13 @@ import { CompareDialog } from "@/components/editor/CompareDialog";
 import { HistoryPanel } from "@/components/editor/HistoryPanel";
 
 /** The server cannot be reached. */
-vi.mock("@/sync/useSync", async (original) => ({
-  ...(await original<typeof import("@/sync/useSync")>()),
+vi.mock(import("@/sync/useSync"), async (original) => ({
+  ...(await original()),
   fetchVersions: () => Promise.reject(new TypeError("Failed to fetch")),
   fetchVersion: () => Promise.reject(new TypeError("Failed to fetch")),
 }));
-vi.mock("@/projects/collab", async (original) => ({
-  ...(await original<typeof import("@/projects/collab")>()),
+vi.mock(import("@/projects/collab"), async (original) => ({
+  ...(await original()),
   listNamed: () => Promise.reject(new TypeError("Failed to fetch")),
 }));
 
