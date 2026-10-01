@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { exampleHouse } from "@/lib/examples";
 import { resetIds } from "@/lib/ids";
 import { useEditorStore } from "@/store/building";
@@ -131,6 +131,21 @@ describe("the survey panel", () => {
     expect(screen.queryByRole("tree")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Elements" }));
     expect(screen.getByRole("tree", { name: "Layers" })).toBeTruthy();
+  });
+
+  it("opens the tree's folder of an element picked in the 3D view", () => {
+    const store = useEditorStore.getState();
+    const storey = store.building.storeys[0];
+    const opening = storey?.openings[0];
+    if (!storey || !opening) throw new Error("no opening");
+    render(<LeftPanel />);
+    fireEvent.click(screen.getByRole("button", { name: "Elements" }));
+    act(() => {
+      store.select({ kind: "opening", storeyId: storey.id, id: opening.id });
+    });
+    const tree = screen.getByRole("tree", { name: "Layers" });
+    const picked = within(tree).getAllByRole("treeitem", { selected: true });
+    expect(picked).toHaveLength(1);
   });
 
   it("offers files only once the project is saved", () => {

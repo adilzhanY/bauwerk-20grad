@@ -14,7 +14,6 @@ export function LayerGroup({
   level = 2,
   icon,
   actions,
-  alwaysOpenable = false,
   holdsSelection = false,
   children,
 }: {
@@ -23,8 +22,6 @@ export function LayerGroup({
   level?: number;
   icon?: ReactNode;
   actions?: ReactNode;
-  /** Opens even at a count of 0, for a folder that lists what is still missing. */
-  alwaysOpenable?: boolean;
   /** One of its rows is selected (in the 3D view, say): the folder opens to show it. */
   holdsSelection?: boolean;
   children: ReactNode;
@@ -35,7 +32,7 @@ export function LayerGroup({
     setHeld(holdsSelection);
     if (holdsSelection) setOpen(true);
   }
-  const openable = alwaysOpenable || count > 0;
+  const openable = count > 0;
   return (
     <>
       <LayerRow
@@ -209,15 +206,12 @@ export function LayerRow({
 export function RowAction({
   label,
   disabled,
-  pressed,
   onClick,
   className,
   children,
 }: {
   label: string;
   disabled?: boolean;
-  /** Drawn pressed, as a delete that waits for its second click. */
-  pressed?: boolean;
   onClick: () => void;
   className?: string;
   children: ReactNode;
@@ -226,13 +220,7 @@ export function RowAction({
     // `className` shows or hides the action on row hover, so it sits on a wrapper: the
     // button keeps its own display.
     <span className={cx("shrink-0", className ?? "flex")}>
-      <CustomIconButton
-        label={label}
-        size="xs"
-        disabled={disabled}
-        pressed={pressed}
-        onClick={onClick}
-      >
+      <CustomIconButton label={label} size="xs" disabled={disabled} onClick={onClick}>
         {children}
       </CustomIconButton>
     </span>
