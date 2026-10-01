@@ -212,5 +212,7 @@ describe("convergence", () => {
     for (let seed = 1; seed <= SEEDS; seed++) batches += session(seed) - 1;
     // The sessions must actually edit, or the test proves nothing.
     expect(batches).toBeGreaterThan(SEEDS * 5);
-  });
+    // About 5 s alone; the full suite runs every file at once on the same cores, which can
+    // stretch it past the default 20 s. The seeds are fixed, so only the time varies.
+  }, 60_000);
 });
