@@ -147,11 +147,12 @@ export const en = {
   "shortcuts.orbit": "Orbit, pan, zoom",
   "shortcuts.orbitKeys": "Drag, right drag, wheel",
 
+  "energy.inputs": "What goes in",
   "energy.title": "Energy",
   "energy.scenario.current": "Current",
   "energy.scenario.renovated": "Renovated",
   "energy.scenario.hint":
-    "Renovated swaps every construction for the best one in its category; it is a view, nothing in the model changes. With a saved scenario chosen, the heating and construction inputs below show that scenario and changes go into it.",
+    "Renovated swaps every construction for the best one in its category; it is a view, nothing in the model changes. With a saved scenario chosen, the inputs beside show that scenario and changes go into it.",
   "energy.envelopeArea": "Envelope area",
   "energy.wallArea": "Exterior wall area (net)",
   "energy.windowArea": "Window area",

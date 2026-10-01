@@ -35,7 +35,11 @@ import { EnergyChangeNote } from "@/components/editor/EnergyChangeNote";
 import { IsfpOverview } from "@/components/editor/IsfpOverview";
 import { MethodSection } from "@/components/editor/MethodSection";
 
-export function EnergyPanel() {
+/**
+ * What the Variants step shows of one variant: the building as the chosen variant leaves it
+ * and its energy, shared by the results and the inputs so both always show the same variant.
+ */
+function useEnergyView() {
   const t = useT();
   const language = useEditorStore((s) => s.language);
   const building = useEditorStore((s) => s.building);
@@ -61,9 +65,54 @@ export function EnergyPanel() {
       : null;
   const readOnly = renovated && scenarioId === null;
 
+  return {
+    t,
+    language,
+    building,
+    viewScenarioId,
+    setViewScenario,
+    current,
+    variants,
+    chosen,
+    renovated,
+    after,
+    shown,
+    shownBuilding,
+    saving,
+    scenarioId,
+    readOnly,
+  };
+}
+
+/** Numbers in the interface language: `num` with digits, `pct` for a share. */
+function useNumbers(language: ReturnType<typeof useEnergyView>["language"]) {
   const num = (v: number, digits = 1) => formatNumber(v, language, digits);
   const pct = (v: number) => `${num(v * 100, 0)} %`;
+  return { num, pct };
+}
 
+/**
+ * The result of the variant on show: the switch between the variants, the energy class, the
+ * iSFP overview and the demand. It follows every input at once, so it can stay in sight
+ * while the inputs are changed beside it.
+ */
+export function EnergyResults() {
+  const {
+    t,
+    language,
+    building,
+    viewScenarioId,
+    setViewScenario,
+    current,
+    variants,
+    chosen,
+    renovated,
+    after,
+    shown,
+    shownBuilding,
+    saving,
+  } = useEnergyView();
+  const { num, pct } = useNumbers(language);
   return (
     <div className="flex flex-col gap-4">
       <CustomSegmented
@@ -105,7 +154,17 @@ export function EnergyPanel() {
         <CustomReadOnly label={t("energy.saving")} value={pct(saving)} />
       </Presence>
       <Hint>{t("energy.scenario.hint")}</Hint>
+    </div>
+  );
+}
 
+/** What goes into the energy balance of the variant on show, and its detailed figures. */
+export function EnergyInputs() {
+  const { t, language, building, current, renovated, shown, shownBuilding, scenarioId, readOnly } =
+    useEnergyView();
+  const { num, pct } = useNumbers(language);
+  return (
+    <div className="flex flex-col gap-4">
       <SupplySection
         building={building}
         current={current}
@@ -187,6 +246,16 @@ export function EnergyPanel() {
       <GegCheck building={shownBuilding} />
       <Constructions />
       <Hint>{t("energy.assumptions")}</Hint>
+    </div>
+  );
+}
+
+/** Results and inputs one under the other, for a narrow column. */
+export function EnergyPanel() {
+  return (
+    <div className="flex flex-col gap-4">
+      <EnergyResults />
+      <EnergyInputs />
     </div>
   );
 }

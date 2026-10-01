@@ -152,11 +152,12 @@ export const de: Messages = {
   "shortcuts.orbit": "Drehen, verschieben, zoomen",
   "shortcuts.orbitKeys": "Ziehen, Rechtsklick ziehen, Mausrad",
 
+  "energy.inputs": "Eingaben",
   "energy.title": "Energie",
   "energy.scenario.current": "Bestand",
   "energy.scenario.renovated": "Saniert",
   "energy.scenario.hint":
-    "Saniert ersetzt jede Konstruktion durch die beste ihrer Kategorie; es ist nur eine Ansicht, das Modell bleibt unverändert. Ist eine gespeicherte Variante gewählt, zeigen die Heizungs- und Konstruktionsfelder darunter diese Variante, und Änderungen gehen in sie.",
+    "Saniert ersetzt jede Konstruktion durch die beste ihrer Kategorie; es ist nur eine Ansicht, das Modell bleibt unverändert. Ist eine gespeicherte Variante gewählt, zeigen die Eingaben daneben diese Variante, und Änderungen gehen in sie.",
   "energy.envelopeArea": "Hüllfläche",
   "energy.wallArea": "Außenwandfläche (netto)",
   "energy.windowArea": "Fensterfläche",
