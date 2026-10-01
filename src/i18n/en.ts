@@ -955,7 +955,7 @@ export const en = {
   "scenarios.roadmapIntro":
     "Steps in the manner of the individual renovation roadmap (iSFP): the saved scenarios ordered by payback, each applied on top of the ones before, with the building as it stands after every step.",
   "scenarios.roadmapHint":
-    "Cheapest payback first, each step on top of the previous ones, three years apart. The whole roadmap spans {years} years and pays back in {payback} years at today's energy price.",
+    "Cheapest payback first, each step on top of the previous ones, three years apart. The whole roadmap runs to year {years}. Its whole investment, before any subsidy, pays back in {payback} years at today's energy price; the table's payback counts only the owner's share after subsidy.",
   "a11y.leftPanel": "Building panel",
   "a11y.rightPanel": "Properties panel",
   "a11y.scene": "3D view",

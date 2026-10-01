@@ -63,12 +63,19 @@ export function ScenariosPanel() {
         <table className="w-full text-xs">
           <thead>
             <tr className="border-b border-line text-left text-muted">
-              <th className="py-1 font-medium">{t("scenarios.title")}</th>
-              <th className="py-1 text-right font-medium" title={t("energy.specificEndEnergy")}>
+              <th className="py-1 pr-3 font-medium whitespace-nowrap">{t("scenarios.title")}</th>
+              <th
+                className="py-1 pl-3 text-right font-medium whitespace-nowrap"
+                title={t("energy.specificEndEnergy")}
+              >
                 kWh/(m²a)
               </th>
-              <th className="py-1 text-right font-medium">{t("subsidy.ownShare")}</th>
-              <th className="py-1 text-right font-medium">{t("scenarios.payback")}</th>
+              <th className="py-1 pl-3 text-right font-medium whitespace-nowrap">
+                {t("subsidy.ownShare")}
+              </th>
+              <th className="py-1 pl-3 text-right font-medium whitespace-nowrap">
+                {t("scenarios.payback")}
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -86,9 +93,11 @@ export function ScenariosPanel() {
                   {t("scenarios.current")}
                 </button>
               </td>
-              <td className="py-1.5 text-right font-num">{num(current.specificEndEnergy)}</td>
-              <td className="py-1.5 text-right font-num text-muted">0 €</td>
-              <td className="py-1.5 text-right text-muted">{""}</td>
+              <td className="py-1.5 pl-3 text-right font-num whitespace-nowrap">
+                {num(current.specificEndEnergy)}
+              </td>
+              <td className="py-1.5 pl-3 text-right font-num whitespace-nowrap text-muted">0 €</td>
+              <td className="py-1.5 pl-3 text-right text-muted">{""}</td>
             </tr>
             {results.map((r) => (
               <tr
@@ -113,14 +122,16 @@ export function ScenariosPanel() {
                     {r.scenario.id === "full-envelope" ? t("scenarios.full") : r.scenario.name}
                   </button>
                 </td>
-                <td className="py-1.5 text-right font-num">{num(r.energy.specificEndEnergy)}</td>
+                <td className="py-1.5 pl-3 text-right font-num whitespace-nowrap">
+                  {num(r.energy.specificEndEnergy)}
+                </td>
                 <td
-                  className="py-1.5 text-right font-num"
+                  className="py-1.5 pl-3 text-right font-num whitespace-nowrap"
                   title={`${t("scenarios.investment")} ${euro(r.investment)}, ${t("subsidy.total")} ${euro(r.subsidy.total)}`}
                 >
                   {euro(r.subsidy.ownShare)}
                 </td>
-                <td className="py-1.5 text-right font-num">{payback(r)}</td>
+                <td className="py-1.5 pl-3 text-right font-num whitespace-nowrap">{payback(r)}</td>
               </tr>
             ))}
           </tbody>
@@ -185,7 +196,8 @@ function Roadmap() {
             className="grid grid-cols-[auto_1fr_auto] items-center gap-x-3 gap-y-0.5 rounded-inner bg-paper px-3 py-2 text-sm"
           >
             <span className="font-num text-xs text-muted">
-              {t("scenarios.year", { n: s.year })}
+              {/* Counted from 1: the first step is done in the first year. */}
+              {t("scenarios.year", { n: s.year + 1 })}
             </span>
             <span className="min-w-0 truncate font-medium text-ink">
               {s.scenario.id === "full-envelope" ? t("scenarios.full") : s.scenario.name}
@@ -194,7 +206,7 @@ function Roadmap() {
               value={s.energy.energyClass}
               detail={num(s.energy.specificEndEnergy)}
             />
-            <span className="col-span-3 flex items-center gap-1.5 font-num text-xs text-muted">
+            <span className="col-span-3 flex items-center gap-1.5 text-xs text-muted">
               <span
                 aria-hidden
                 className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
@@ -205,7 +217,7 @@ function Roadmap() {
                 co2: num(s.supply.co2 / 1000, 1),
               })}
             </span>
-            <span className="col-span-3 font-num text-xs text-muted">
+            <span className="col-span-3 text-xs text-muted">
               {t("scenarios.stepCost", {
                 step: num(s.investment),
                 total: num(s.cumulativeInvestment),
@@ -213,7 +225,7 @@ function Roadmap() {
               {" · "}
               {t("scenarios.stepSowieso", { n: num(s.sowieso) })}
             </span>
-            <span className="col-span-3 font-num text-xs text-muted">
+            <span className="col-span-3 text-xs text-muted">
               {t("scenarios.stepCostAfter", { n: num(s.consumption.cost) })}
               {" · "}
               {t("scenarios.savingAfter", { n: num(s.savingPerYear) })}
@@ -225,7 +237,7 @@ function Roadmap() {
         {(last) => (
           <Hint>
             {t("scenarios.roadmapHint", {
-              years: num(last.year),
+              years: num(last.year + 1),
               payback:
                 last.savingPerYear > 0
                   ? num(last.cumulativeInvestment / last.savingPerYear, 1)

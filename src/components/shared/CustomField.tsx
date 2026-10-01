@@ -118,12 +118,30 @@ export function CustomSection({
   );
 }
 
-/** Label on the left, mono value on the right. */
-export function CustomReadOnly({ label, value }: { label: string; value: string }) {
+/**
+ * Label on the left, mono value on the right. `prose` is for a value that is a sentence: it
+ * goes under the label in the text font, left aligned, so it reads as a sentence.
+ */
+export function CustomReadOnly({
+  label,
+  value,
+  prose = false,
+}: {
+  label: string;
+  value: string;
+  prose?: boolean;
+}) {
   return (
-    <div className="flex items-baseline justify-between gap-3 border-b border-line pb-3.5 last:border-b-0 last:pb-0">
+    <div
+      className={cx(
+        "flex border-b border-line pb-3.5 last:border-b-0 last:pb-0",
+        prose ? "flex-col gap-0.5" : "items-baseline justify-between gap-3",
+      )}
+    >
       <span className="text-sm text-muted">{label}</span>
-      <span className="text-right font-num text-sm text-ink">{value}</span>
+      <span className={cx("text-sm text-ink", prose ? "leading-snug" : "text-right font-num")}>
+        {value}
+      </span>
     </div>
   );
 }

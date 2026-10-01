@@ -60,3 +60,14 @@ describe("choosing a scenario in the table", () => {
     expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
   });
 });
+
+describe("the roadmap", () => {
+  it("counts its years from 1 and says which payback is which", () => {
+    render(<ScenariosPanel />);
+    // Without saved scenarios the full envelope variant is the one step, done in year 1.
+    expect(screen.getByText("Year 1")).toBeTruthy();
+    expect(screen.queryByText("Year 0")).toBeNull();
+    expect(screen.getByText(/The whole roadmap runs to year 1\./)).toBeTruthy();
+    expect(screen.getByText(/before any subsidy/)).toBeTruthy();
+  });
+});

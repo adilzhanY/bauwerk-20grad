@@ -23,6 +23,13 @@ describe("CustomField", () => {
     expect(screen.getByText("10 m")).toBeTruthy();
   });
 
+  it("a sentence as a value reads as prose under its label", () => {
+    render(<CustomReadOnly label="Heat pump" value="Enter radiators to check." prose />);
+    const value = screen.getByText("Enter radiators to check.");
+    expect(value.className).not.toContain("font-num");
+    expect(value.className).not.toContain("text-right");
+  });
+
   it("a collapsible section starts closed and opens from its title", () => {
     render(
       <CustomSection title="Location" collapsible>
