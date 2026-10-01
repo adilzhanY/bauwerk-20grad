@@ -7,6 +7,8 @@ import { useEditorStore } from "@/store/building";
 import { hasWebGL } from "@/lib/webgl";
 import type { Sync } from "@/sync/useSync";
 import { LOCAL_SYNC, projectIdFromUrl } from "@/sync/useSync";
+import { Centered } from "@/components/shared/Centered";
+import { Spinner } from "@/components/shared/Spinner";
 import { NoAccess } from "@/components/editor/NoAccess";
 import { FollowFrame } from "@/components/editor/PeopleHere";
 import { LeftPanel } from "@/components/editor/LeftPanel";
@@ -56,9 +58,30 @@ export function EditorPage({
   const [layersOpen, setLayersOpen] = useState(true);
   const [historyOpen, setHistoryOpen] = useState(false);
 
+  const openProjectId = useEditorStore((s) => s.projectId);
+  // The empty building put up while a project loads carries no project facts; a building
+  // just saved as a project does, and stays on screen while its first join completes.
+  const placeholder = useEditorStore((s) => s.building.project === undefined);
+
   // Signed in, but not a member and without a share link: ask the owner instead.
   const blocked = sync.status === "noAccess" ? projectIdFromUrl() : null;
   if (blocked) return <NoAccess projectId={blocked} />;
+
+  // The project in the address has not arrived yet: nothing to edit, so nothing editable is
+  // shown (a placeholder building could take edits that belong nowhere).
+  const wanted = projectIdFromUrl();
+  if (wanted && openProjectId !== wanted && placeholder && sync.status !== "local") {
+    return (
+      <Centered
+        title={t("editor.opening")}
+        body={
+          sync.status === "offline" || sync.status === "error" ? t("editor.openingOffline") : ""
+        }
+      >
+        <Spinner size="md" />
+      </Centered>
+    );
+  }
 
   return (
     <div className="relative flex h-full" data-tool={tool}>

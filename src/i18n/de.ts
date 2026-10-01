@@ -1000,6 +1000,8 @@ export const de: Messages = {
   "common.remove": "Entfernen",
   "editor.storeys": "Geschosse",
   "editor.wholeBuilding": "Ganzes Gebäude",
+  "editor.opening": "Projekt wird geöffnet",
+  "editor.openingOffline": "Der Server ist nicht erreichbar. Es wird weiter versucht.",
   "editor.connecting": "Verbinde",
   "editor.offline": "Offline",
   "editor.projection": "Projektion",

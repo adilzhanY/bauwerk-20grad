@@ -1045,6 +1045,8 @@ export const en = {
   "common.remove": "Remove",
   "editor.storeys": "Storeys",
   "editor.wholeBuilding": "Whole building",
+  "editor.opening": "Opening the project",
+  "editor.openingOffline": "The server cannot be reached. It keeps trying.",
   "editor.connecting": "Connecting",
   "editor.offline": "Offline",
   "editor.projection": "Projection",

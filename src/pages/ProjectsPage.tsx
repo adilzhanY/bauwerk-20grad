@@ -83,7 +83,12 @@ export function ProjectsPage() {
     (card: ProjectCard) => {
       setOpenFailed(false);
       void openProjectCard(card).then((result) => {
-        if (result === "opened") navigate(landingRoute(card.summary), { query: "" });
+        // A server project is named in the address (?project=), so a reload or a copied
+        // link opens it again; a project kept in this browser needs nothing there.
+        if (result === "opened")
+          navigate(landingRoute(card.summary), {
+            query: card.ref.kind === "server" ? `?project=${encodeURIComponent(card.ref.id)}` : "",
+          });
         else if (result === "failed") setOpenFailed(true);
       });
     },
