@@ -311,6 +311,10 @@ export const en = {
   "location.lon": "Longitude",
   "location.rotation": "Rotation of the plan from north",
   "location.utm": "UTM",
+  "location.centreLat": "Centre, latitude",
+  "location.centreLon": "Centre, longitude",
+  "location.easting": "east",
+  "location.northing": "North",
   "location.north": "N",
   "location.exportGeoJson": "Export GeoJSON",
   "location.importGeoJson": "Import GeoJSON footprint",
@@ -961,7 +965,6 @@ export const en = {
   "a11y.leftPanel": "Building panel",
   "a11y.rightPanel": "Properties panel",
   "a11y.scene": "3D view",
-  "location.centre": "Building centre",
   "location.recentre": "Make the centre the origin",
   "location.recentreHint":
     "Moves the plan origin to the building centre and the map with it, so the coordinates you type describe the building itself.",

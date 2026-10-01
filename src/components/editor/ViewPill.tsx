@@ -166,7 +166,7 @@ function ViewMenu() {
         <Popover
           role="dialog"
           aria-label={t("view.menu")}
-          className="absolute top-11 right-0 flex max-h-[70vh] w-80 flex-col gap-3 overflow-y-auto"
+          className="absolute top-11 right-0 flex max-h-[70vh] w-[22rem] flex-col gap-3 overflow-y-auto"
         >
           <CustomCheckbox
             variant="switch"

@@ -33,4 +33,13 @@ describe("CustomButton", () => {
     expect(screen.getByRole("button")).toHaveProperty("disabled", true);
     expect(screen.getByRole("button").getAttribute("aria-busy")).toBe("true");
   });
+
+  it("a flush quiet button lines its label up with the column", () => {
+    render(
+      <CustomButton variant="quiet" flush>
+        Export
+      </CustomButton>,
+    );
+    expect(screen.getByRole("button").className).toContain("-ml-3");
+  });
 });

@@ -131,12 +131,18 @@ export function LocationSection({ collapsible = false }: { collapsible?: boolean
                 onChange={setMapOpacity}
               />
             </Presence>
+            {/* One figure per row: two in one row wrapped in a narrow panel. */}
             <CustomReadOnly
-              label={t("location.centre")}
-              value={`${formatNumber(centre.lat, language, 6)}° N, ${formatNumber(centre.lon, language, 6)}° E`}
+              label={t("location.centreLat")}
+              value={`${formatNumber(centre.lat, language, 6)}° N`}
+            />
+            <CustomReadOnly
+              label={t("location.centreLon")}
+              value={`${formatNumber(centre.lon, language, 6)}° E`}
             />
             <CustomButton
               variant="quiet"
+              flush
               className="self-start"
               disabled={Math.hypot(centrePlan.x, centrePlan.y) < 1e-6}
               onClick={recentreOrigin}
@@ -145,11 +151,16 @@ export function LocationSection({ collapsible = false }: { collapsible?: boolean
             </CustomButton>
             <Hint>{t("location.recentreHint")}</Hint>
             <CustomReadOnly
-              label={`${t("location.utm")} ${utm.zone}${utm.north ? "N" : "S"} (EPSG:${epsgForZone(utm.zone)})`}
-              value={`${formatNumber(utm.easting, language, 1)} E, ${formatNumber(utm.northing, language, 1)} N`}
+              label={`${t("location.utm")} ${utm.zone}${utm.north ? "N" : "S"} (EPSG:${epsgForZone(utm.zone)}), ${t("location.easting")}`}
+              value={formatNumber(utm.easting, language, 1)}
+            />
+            <CustomReadOnly
+              label={t("location.northing")}
+              value={formatNumber(utm.northing, language, 1)}
             />
             <CustomButton
               variant="quiet"
+              flush
               className="self-start"
               icon={<Download size={14} />}
               onClick={onExport}
@@ -161,6 +172,7 @@ export function LocationSection({ collapsible = false }: { collapsible?: boolean
       </Presence>
       <CustomButton
         variant="quiet"
+        flush
         className="self-start"
         icon={<Upload size={14} />}
         onClick={() => {

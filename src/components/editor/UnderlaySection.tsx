@@ -56,6 +56,7 @@ export function UnderlaySection({ collapsible = false }: { collapsible?: boolean
       <div className="flex flex-wrap gap-2">
         <CustomButton
           variant="quiet"
+          flush
           icon={<ImagePlus size={14} />}
           onClick={() => {
             fileInput.current?.click();

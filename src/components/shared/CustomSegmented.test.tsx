@@ -73,7 +73,9 @@ describe("CustomSegmented", () => {
     expect(radios).toHaveLength(4);
     for (const r of radios) {
       expect(r.className).toContain("min-w-0");
-      expect(r.className).toContain("text-xs");
+      // One type size for every segmented control; a dense group only takes less padding.
+      expect(r.className).toContain("text-sm");
+      expect(r.className).toContain("px-2");
     }
   });
 });

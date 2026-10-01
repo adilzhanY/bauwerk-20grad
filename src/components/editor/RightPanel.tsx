@@ -160,6 +160,7 @@ function BuildingCard() {
         />
         <CustomButton
           variant="quiet"
+          flush
           className="self-start"
           onClick={() => {
             select({ kind: "roof" });
@@ -895,7 +896,7 @@ function OpeningProperties({ storeyId, openingId }: { storeyId: string; openingI
           {...batch}
         />
       </Presence>
-      <Presence show={!opening.interior}>
+      <Presence show={!opening.interior} className="flex flex-col gap-3.5">
         <ConstructionSelect
           category={opening.kind}
           value={opening.constructionId}

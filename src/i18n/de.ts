@@ -316,6 +316,10 @@ export const de: Messages = {
   "location.lon": "Längengrad",
   "location.rotation": "Drehung des Grundrisses gegen Norden",
   "location.utm": "UTM",
+  "location.centreLat": "Mitte, Breite",
+  "location.centreLon": "Mitte, Länge",
+  "location.easting": "Ost",
+  "location.northing": "Nord",
   "location.north": "N",
   "location.exportGeoJson": "GeoJSON exportieren",
   "location.importGeoJson": "GeoJSON-Grundriss importieren",
@@ -972,7 +976,6 @@ export const de: Messages = {
   "a11y.leftPanel": "Gebäudebereich",
   "a11y.rightPanel": "Eigenschaftenbereich",
   "a11y.scene": "3D-Ansicht",
-  "location.centre": "Gebäudemitte",
   "location.recentre": "Mitte zum Ursprung machen",
   "location.recentreHint":
     "Setzt den Planursprung auf die Gebäudemitte und die Karte mit, damit die eingegebenen Koordinaten das Gebäude selbst beschreiben.",
