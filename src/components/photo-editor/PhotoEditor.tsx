@@ -1,4 +1,5 @@
 import { Presence } from "@/components/shared/Presence";
+import { useModal } from "@/components/shared/useModal";
 import { CustomButton } from "@/components/shared/CustomButton";
 import { CustomDialog } from "@/components/shared/CustomDialog";
 import { useCallback, useEffect, useEffectEvent, useRef, useState } from "react";
@@ -370,6 +371,10 @@ export function PhotoEditorView({
     if (openings.list.length > 0 || job.scanning) setAskClose(true);
     else discardAndClose();
   };
+  // Escape, the focus trap and the way back to the opener, as every modal has them. Escape
+  // takes the same way as the close button, so found openings are not lost without asking.
+  const panel = useRef<HTMLDivElement>(null);
+  useModal(panel, closeEditor, Boolean(open && presence.shown));
 
   // However the editor was closed, the photo is cleared once it has faded out, so it does
   // not empty while still visible. A reopen in that moment keeps what is there.
@@ -461,6 +466,7 @@ export function PhotoEditorView({
       )}
     >
       <div
+        ref={panel}
         className={cx(
           // One fixed width for every photo and both steps. A width taken from the image made
           // the columns resize, the toolbar wrap and the width change again, in a loop that

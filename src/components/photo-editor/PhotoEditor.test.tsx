@@ -193,6 +193,23 @@ describe("closing the photo editor", () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
+  it("closes with Escape like every dialog, and asks first when there is work to lose", () => {
+    const onClose = vi.fn();
+    render(<PhotoEditorView open onClose={onClose} wall={wall()} />);
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledOnce();
+    onClose.mockClear();
+
+    pasteFile(new File(["jpg"], "facade.jpg", { type: "image/jpeg" }));
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
+    expect(screen.getByRole("dialog", { name: "Discard the openings?" })).toBeTruthy();
+    expect(onClose).not.toHaveBeenCalled();
+    // Escape again closes only the question on top, and the work stays.
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
+    expect(screen.queryByRole("dialog", { name: "Discard the openings?" })).toBeNull();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it("asks before it throws away a detection", () => {
     const onClose = vi.fn();
     render(<PhotoEditorView open onClose={onClose} wall={wall()} />);
