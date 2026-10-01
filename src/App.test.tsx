@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { App } from "@/App";
 import { useRouter } from "@/app/router";
 import { exampleAltbau } from "@/lib/examples";
@@ -296,11 +296,13 @@ describe("App", () => {
     expect(useEditorStore.getState().theme).toBe("dark");
   });
 
-  it("renders the benchmark page with the fifty storey building", () => {
+  it("renders the benchmark page with the fifty storey building", async () => {
     window.history.replaceState(null, "", "/?bench=1");
     render(<App />);
     expect(screen.getByRole("heading", { name: "Benchmark" })).toBeTruthy();
-    expect(useEditorStore.getState().building.storeys).toHaveLength(50);
+    await waitFor(() => {
+      expect(useEditorStore.getState().building.storeys).toHaveLength(50);
+    });
     window.history.replaceState(null, "", "/");
   });
 

@@ -551,8 +551,6 @@ export const en = {
   "print.sources.sharedEdges": "Party walls",
   "print.sources.constructions": "Constructions",
   "print.sources.opening": "Opening {id}",
-  "linkImport.done": "{name} was loaded from the survey link. Ctrl+Z undoes it.",
-  "linkImport.failed": "The link did not contain a building Bauwerk can open.",
   "linkImport.dismiss": "Dismiss",
   "print.methodText":
     "Transmission heat loss is the sum of temperature correction factor times U-value times area over the heated envelope, plus the linear thermal bridges as ψ times length. Surfaces to outside air count in full, the floor slab on the ground with 0.6 and walls to unheated rooms with 0.5. Ventilation heat loss uses 0.34 Wh/(m³·K), an air change of 0.5 1/h and the heated volume. The heating demand follows the heating period method of DIN V 4108-6: 66 kKh of heating degree hours for the German reference climate times the losses, minus 95 % of the solar gains through windows by orientation and of the internal gains of 22 kWh per square metre of heated floor area. The efficiency class applies the residential Energieausweis scale to the heating demand; a certificate rates the final energy, which is higher, so the class shown is an optimistic approximation.",

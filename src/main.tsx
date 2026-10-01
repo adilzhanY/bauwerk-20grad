@@ -12,8 +12,6 @@ import { startLeaveGuard } from "./projects/session";
 import { startThreads } from "./projects/threads";
 import { startFiles } from "./projects/files";
 import { startInbox } from "./projects/inbox";
-import { applyLinkImport } from "./lib/linkImport";
-import { useRouter } from "./app/router";
 
 const root = document.getElementById("root");
 if (!root) throw new Error("Missing #root element");
@@ -21,13 +19,6 @@ if (!root) throw new Error("Missing #root element");
 startPersistence(useEditorStore);
 startPhotoSync(useEditorStore);
 startLeaveGuard();
-// A building handed over from the lod2 viewer arrives in the link.
-const linkNotice = applyLinkImport(useEditorStore.getState().language, (building) => {
-  useEditorStore.getState().loadBuilding(building);
-});
-// A building arriving by link opens in the editor.
-if (linkNotice) useRouter.getState().navigate({ page: "editor" }, { replace: true });
-
 startUserData();
 startThreads();
 startFiles();
@@ -36,7 +27,7 @@ void startAuth();
 createRoot(root).render(
   <StrictMode>
     <ErrorBoundary>
-      <App linkNotice={linkNotice} />
+      <App />
     </ErrorBoundary>
   </StrictMode>,
 );

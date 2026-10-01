@@ -19,13 +19,11 @@ import { ToolDock } from "@/components/editor/ToolDock";
 import { ViewPill } from "@/components/editor/ViewPill";
 import { useKeyboardShortcuts } from "@/components/editor/useKeyboardShortcuts";
 import { useT } from "@/i18n/useT";
-import { LinkImportNotice } from "@/components/editor/LinkImportNotice";
 import { SyncRejectNotice } from "@/components/editor/SyncRejectNotice";
 import { VersionPreviewBanner } from "@/components/editor/VersionPreviewBanner";
 import { SinceLastVisit } from "@/components/editor/SinceLastVisit";
 import { OverwriteNotice } from "@/components/editor/OverwriteNotice";
 import { WallPhotoEditor } from "@/components/editor/WallPhotoEditor";
-import type { LinkNotice } from "@/lib/linkImport";
 
 /** Widths of the side panels, px. */
 const LEFT_PANEL = 300;
@@ -38,10 +36,8 @@ const RIGHT_PANEL = 400;
  * minimap at the bottom left. The building name, undo and Export sit in the top bar.
  */
 export function EditorPage({
-  linkNotice = null,
   sync = LOCAL_SYNC,
 }: {
-  linkNotice?: LinkNotice | null;
   /** The project's connection, kept by App on every page of the project. */
   sync?: Sync;
 } = {}) {
@@ -51,7 +47,6 @@ export function EditorPage({
   const tool = useEditorStore((s) => s.tool);
   const mapVisible = useEditorStore((s) => s.showMap && s.building.origin !== undefined);
   const t = useT();
-  const [notice, setNotice] = useState<LinkNotice | null>(linkNotice);
   const [panelsOpen, setPanelsOpen] = useState(true);
   const [layersOpen, setLayersOpen] = useState(true);
 
@@ -75,16 +70,6 @@ export function EditorPage({
         <FollowFrame />
         {/* Under the view switch, which owns the top centre. */}
         <ToastStack offset="below-bar">
-          <Presence value={notice} kind="float">
-            {(n) => (
-              <LinkImportNotice
-                notice={n}
-                onDismiss={() => {
-                  setNotice(null);
-                }}
-              />
-            )}
-          </Presence>
           <VersionPreviewBanner />
           <SinceLastVisit />
           <OverwriteNotice sync={sync} />

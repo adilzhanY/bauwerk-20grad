@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { Shell } from "@/components/app/Shell";
 import { useRouter } from "@/app/router";
 import { useT } from "@/i18n/useT";
-import type { LinkNotice } from "@/lib/linkImport";
 import { BuildingPage } from "@/pages/BuildingPage";
 import { EditorPage } from "@/pages/EditorPage";
 import { StartPage } from "@/pages/StartPage";
@@ -40,7 +39,7 @@ function useWindowWidth(): number {
  * building; inside a project the building page, the editor, the variants and the report are
  * its four steps, with the step bar above them. The printable report and the bench page stay full screen.
  */
-export function App({ linkNotice = null }: { linkNotice?: LinkNotice | null } = {}) {
+export function App() {
   const width = useWindowWidth();
   const route = useRouter((s) => s.route);
   const language = useEditorStore((s) => s.language);
@@ -78,7 +77,7 @@ export function App({ linkNotice = null }: { linkNotice?: LinkNotice | null } = 
       {route.page === "projects" && <ProjectsPage />}
       {route.page === "map" && <StartPage />}
       {route.page === "building" && <BuildingPage key={route.gid} gid={route.gid} />}
-      {route.page === "editor" && <EditorPage linkNotice={linkNotice} sync={sync} />}
+      {route.page === "editor" && <EditorPage sync={sync} />}
       {route.page === "variants" && <VariantsPage />}
       {route.page === "report" && <ReportPage />}
       {route.page === "login" && <LoginPage />}
