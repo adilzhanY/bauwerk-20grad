@@ -137,6 +137,7 @@ export class FilesService implements OnModuleInit {
     await this.store.put(key, file.data, file.mime);
     const slot = file.slot ?? null;
     let oldKey: string | null = null;
+    let written: Row | undefined;
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
@@ -153,10 +154,18 @@ export class FilesService implements OnModuleInit {
         );
         oldKey = old.rows[0]?.storage_key ?? null;
       }
-      await client.query(
-        `INSERT INTO app.project_files
+      // The record comes back from the insert itself: read again after the commit, the next
+      // upload to the same slot may already have replaced it.
+      const inserted = await client.query<Row>(
+        `WITH f AS (
+           INSERT INTO app.project_files
            (id, project_id, slot, name, mime, size, width, height, storage_key, uploaded_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+           RETURNING *
+         )
+         SELECT f.id, f.slot, f.name, f.mime, f.size, f.width, f.height, f.storage_key,
+                f.uploaded_by, u.first_name, u.last_name, f.created_at
+         FROM f LEFT JOIN app.users u ON u.id = f.uploaded_by`,
         [
           id,
           projectId,
@@ -170,6 +179,7 @@ export class FilesService implements OnModuleInit {
           by ?? null,
         ],
       );
+      written = inserted.rows[0];
       await client.query("COMMIT");
     } catch (error) {
       await client.query("ROLLBACK");
@@ -179,10 +189,9 @@ export class FilesService implements OnModuleInit {
       client.release();
     }
     if (oldKey) await this.store.remove([oldKey]).catch(() => undefined);
-    const row = await this.row(projectId, "id", id);
-    if (!row) throw new Error("file record not written");
+    if (!written) throw new Error("file record not written");
     this.events.emit("changed", projectId);
-    return toRecord(row);
+    return toRecord(written);
   }
 
   async read(

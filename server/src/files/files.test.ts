@@ -230,7 +230,7 @@ describe("parallel uploads to one slot", () => {
         },
         body: new Uint8Array([n, n, n]),
       });
-    const answers = await Promise.all([1, 2, 3, 4, 5].map(put));
+    const answers = await Promise.all(Array.from({ length: 14 }, (_, i) => put(i)));
     const codes = await Promise.all(
       answers.map(async (r) => `${String(r.status)} ${r.status < 300 ? "" : await r.text()}`),
     );
