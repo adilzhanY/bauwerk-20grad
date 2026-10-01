@@ -46,24 +46,43 @@ export function HistoryPanel() {
   const [comparing, setComparing] = useState<{ version: number; name: string } | null>(null);
   const [round, setRound] = useState(0);
   const [reportFailed, setReportFailed] = useState(false);
+  const [listFailed, setListFailed] = useState(false);
+
+  // Another project: nothing of the one before may stay in the list.
+  useEffect(() => {
+    setSessions([]);
+    setNamed([]);
+    setListFailed(false);
+  }, [projectId]);
 
   // Every change makes a version, so the list follows the building, a moment later.
   useEffect(() => {
     if (!projectId || preview) return;
+    let current = true;
     const timer = setTimeout(() => {
-      void fetchVersions().then((entries) => {
-        setSessions(groupSessions(entries));
-      });
+      fetchVersions()
+        .then((entries) => {
+          if (!current) return;
+          setSessions(groupSessions(entries));
+          setListFailed(false);
+        })
+        .catch(() => {
+          if (current) setListFailed(true);
+        });
       void listNamed(projectId)
-        .then(setNamed)
+        .then((list) => {
+          if (current) setNamed(list);
+        })
         .catch(() => undefined);
     }, 400);
     return () => {
+      current = false;
       clearTimeout(timer);
     };
   }, [projectId, building, preview, round]);
 
   if (!projectId) return <p className="text-sm text-muted">{t("history.local")}</p>;
+  if (sessions.length === 0 && listFailed) return <Hint error>{t("history.loadFailed")}</Hint>;
   if (sessions.length === 0) return <p className="text-sm text-muted">{t("history.empty")}</p>;
   const live = sessions[0]?.version;
 
@@ -73,7 +92,7 @@ export function HistoryPanel() {
       endVersionPreview();
       return;
     }
-    const old = await fetchVersion(version);
+    const old = await fetchVersion(version).catch(() => null);
     if (!old) {
       setFailed(version);
       return;

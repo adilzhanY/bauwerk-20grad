@@ -48,9 +48,14 @@ export function CompareDialog({
 
   useEffect(() => {
     let live = true;
-    void fetchVersion(version).then((building) => {
-      if (live) setThen(building);
-    });
+    fetchVersion(version)
+      .then((building) => {
+        if (live) setThen(building);
+      })
+      .catch(() => {
+        // Offline or refused: the dialog says the version cannot be shown.
+        if (live) setThen(null);
+      });
     return () => {
       live = false;
     };

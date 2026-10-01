@@ -786,6 +786,7 @@ export const en = {
   "history.change": "1 change",
   "history.changes": "{count} changes",
   "history.empty": "No versions yet.",
+  "history.loadFailed": "The versions could not be loaded. Try again in a moment.",
   "history.unavailable": "This version cannot be rebuilt.",
   "history.local": "Share the building as a project to keep a version history.",
   "preview.banner": "Viewing version {version} from {time}, by {actor}. Changes here are not kept.",
