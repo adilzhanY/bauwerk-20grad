@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { Box3, Mesh } from "three";
 import { rect } from "@/geometry/fixtures";
-import { flatGeometry, prismGeometry, yawFor } from "./three";
+import { flatGeometry, mergeAll, prismGeometry, yawFor } from "./three";
 
 describe("scene geometry helpers", () => {
+  it("mergeAll gives null for nothing to merge: a wall with no solid left", () => {
+    expect(mergeAll([])).toBeNull();
+  });
+
   it("prismGeometry stands on the XZ plane between bottom and top", () => {
     const box = new Box3().setFromObject(new Mesh(prismGeometry(rect, 3, 5.8)));
     expect(box.min.x).toBeCloseTo(0);

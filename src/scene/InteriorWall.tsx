@@ -99,7 +99,8 @@ export function InteriorWall({
     }
   };
 
-  if (display === "outline") return null;
+  // A piece too short to show (an inverted range) or a door filling it leaves no solid.
+  if (display === "outline" || !geometry) return null;
   return (
     <mesh
       geometry={geometry}

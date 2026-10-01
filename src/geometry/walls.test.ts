@@ -180,4 +180,35 @@ describe("building only part of a wall", () => {
       prisms.find((p) => p.bottom > 0)?.plan.map((q) => Number(q.x.toFixed(6)));
     expect(lintel(cut)).toEqual(lintel(whole));
   });
+
+  it("builds nothing for an inverted range, as a short piece across a corner gets", () => {
+    const wall = interiorWallAsWall({ a: { x: 0, y: 0.4 }, b: { x: 0.4, y: 0 } }, 0, 2.5, 0.115);
+    expect(wallSolids(wall, [], [0.51, 0.06])).toEqual([]);
+  });
+});
+
+describe("a wall with no solid left", () => {
+  it("builds nothing when a door fills the whole wall", () => {
+    const [wall] = buildWalls(
+      [
+        { x: 0, y: 0 },
+        { x: 4, y: 0 },
+        { x: 4, y: 3 },
+        { x: 0, y: 3 },
+      ],
+      0.3,
+      2.5,
+    );
+    const door: Opening = {
+      id: "d",
+      wallIndex: 0,
+      kind: "door",
+      offset: 0,
+      width: 4,
+      height: 2.5,
+      sill: 0,
+      constructionId: "d",
+    };
+    expect(wallSolids(wall!, [door])).toEqual([]);
+  });
 });

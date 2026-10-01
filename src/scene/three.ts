@@ -60,7 +60,9 @@ export function flatGeometry(plan: readonly Vec2[], y: number): BufferGeometry {
   return geometry;
 }
 
-export function mergeAll(geometries: BufferGeometry[]): BufferGeometry {
+/** One geometry from many, or null when there is nothing (a wall with no solid left). */
+export function mergeAll(geometries: BufferGeometry[]): BufferGeometry | null {
+  if (geometries.length === 0) return null;
   if (geometries.length === 1 && geometries[0]) return geometries[0];
   const merged = mergeGeometries(geometries, false);
   for (const g of geometries) g.dispose();
