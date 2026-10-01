@@ -112,6 +112,8 @@ export function Wall({
       : (remoteColor ??
         (hovered ? colors.wallHover : (facadeColor ?? (shared ? colors.wallShared : colors.wall))));
 
+  // A door filling the whole wall leaves no solid to draw.
+  if (!geometry) return null;
   // A lit wall shows solid even on a storey drawn as an outline, so the whole facade lights up.
   if (display === "outline" && !lit)
     return <Outline geometry={geometry} position={[0, elevation, 0]} />;

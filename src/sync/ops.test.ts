@@ -304,3 +304,35 @@ describe("parseOps", () => {
     }
   });
 });
+
+describe("ops edge cases", () => {
+  it("replaces an array with a duplicated id whole, so the change lands on the right item", () => {
+    const prev = {
+      xs: [
+        { id: "a", v: 1 },
+        { id: "a", v: 2 },
+      ],
+    };
+    const next = {
+      xs: [
+        { id: "a", v: 1 },
+        { id: "a", v: 3 },
+      ],
+    };
+    expect(applyOps(prev, diffBuilding(prev, next)).value).toEqual(next);
+  });
+
+  it("orders known ids and keeps unknown ones after them", () => {
+    const value = { xs: [{ id: "a" }, { id: "b" }, { id: "c" }] };
+    const { value: out } = applyOps(value, [{ op: "order", path: ["xs"], ids: ["c", "x", "a"] }]);
+    expect(out.xs.map((x) => x.id)).toEqual(["c", "a", "b"]);
+  });
+
+  it("drops a path through an inherited key instead of walking into the prototype", () => {
+    const { value, dropped } = applyOps({ a: 1 }, [
+      { op: "set", path: ["toString", "x"], value: 1 },
+    ]);
+    expect(value).toEqual({ a: 1 });
+    expect(dropped).toHaveLength(1);
+  });
+});

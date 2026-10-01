@@ -1,9 +1,9 @@
 import {
   EPSILON,
   area,
-  centroid,
   cross,
   equals,
+  interiorPoint,
   lineIntersection,
   pointInPolygon,
   pointOnSegment,
@@ -221,8 +221,9 @@ export interface RoomFactory {
 /**
  * Recomputes the rooms of a storey from its interior walls and carries over the
  * user's names and zone assignments. A previous room survives in the new face
- * that contains its old centroid; when a room is split, the half holding the
- * centroid keeps the identity and the other half becomes a new room.
+ * that contains a point inside its old outline (its centroid, unless the room is
+ * concave and the centroid falls outside); when a room is split, the half holding
+ * that point keeps the identity and the other half becomes a new room.
  */
 export function computeRooms(
   footprint: readonly Vec2[],
@@ -235,7 +236,7 @@ export function computeRooms(
   const rooms: Room[] = [];
   for (const polygon of faces) {
     const matchIndex = unused.findIndex(
-      (r) => r.polygon.length > 0 && pointInPolygon(centroid(r.polygon), polygon),
+      (r) => r.polygon.length > 0 && pointInPolygon(interiorPoint(r.polygon), polygon),
     );
     const match = matchIndex === -1 ? undefined : unused.splice(matchIndex, 1)[0];
     const room: Room = {

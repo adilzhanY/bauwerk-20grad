@@ -10,6 +10,7 @@ import {
   cross,
   isCounterClockwise,
 } from "./polygon";
+import { cleanRing } from "./rooms";
 import type { Building, Roof, Vec2 } from "./types";
 
 /**
@@ -148,9 +149,11 @@ function face(points2: readonly Vec2[], z: (p: Vec2) => number): RoofFace {
 
 export function buildRoof(building: Building, topElevation: number): RoofGeometry {
   const roof = roofOf(building);
-  const fp = isCounterClockwise(building.footprint)
-    ? building.footprint
-    : [...building.footprint].reverse();
+  // Without collinear vertices: a "+" on a wall must not turn a rectangle (hip) into a
+  // six-cornered outline (gable fallback).
+  const fp = cleanRing(
+    isCounterClockwise(building.footprint) ? building.footprint : [...building.footprint].reverse(),
+  );
   if (roof.kind === "flat") {
     const f = face(fp, () => topElevation);
     return {

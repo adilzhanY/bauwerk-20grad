@@ -102,6 +102,18 @@ describe("roomEnvelopeLoss and roomHeatLoads", () => {
     const total = roomHeatLoads(b).reduce((sum, room) => sum + room.load, 0);
     expect(total).toBeCloseTo((energy.transmissionLoss + 0.34 * 0.5 * energy.heatedVolume) * 34, 3);
   });
+
+  it("counts a wall on both halves of an edge split by a collinear vertex", () => {
+    const plain = building();
+    const split = [{ x: 0, y: 0 }, { x: 5, y: 0 }, ...rect.slice(1)];
+    const b: Building = {
+      ...plain,
+      footprint: split,
+      storeys: plain.storeys.map((s) => ({ ...s, rooms: computeRooms(split, [], [], factory) })),
+    };
+    const loss = (x: Building) => roomEnvelopeLoss(x, x.storeys[0]!, x.storeys[0]!.rooms[0]!);
+    expect(loss(b)).toBeCloseTo(loss(plain), 6);
+  });
 });
 
 describe("validateRadiator", () => {

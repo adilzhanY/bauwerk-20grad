@@ -50,6 +50,32 @@ export function sharedAfterRemove(
   return [...new Set(out)].sort((a, b) => a - b);
 }
 
+/** A footprint edit that renumbers the edges. */
+export type EdgeChange =
+  { kind: "split"; edge: number } | { kind: "remove"; vertex: number; count: number };
+
+/**
+ * Where something on footprint edge `index` goes after `change`. `same` is false when its wall
+ * changed shape: the split edge (it is now the first half) or one of the two edges that merged
+ * where a vertex was removed (they are now the merged edge). Something sized to its wall, such
+ * as an opening's offset, does not fit a changed wall; something that only points at it does.
+ */
+export function remapEdgeIndex(
+  index: number,
+  change: EdgeChange,
+): { index: number; same: boolean } {
+  if (change.kind === "split") {
+    if (index < change.edge) return { index, same: true };
+    if (index === change.edge) return { index, same: false };
+    return { index: index + 1, same: true };
+  }
+  const { vertex, count } = change;
+  const before = (vertex - 1 + count) % count;
+  const shift = (i: number) => (i > vertex ? i - 1 : i);
+  if (index === before || index === vertex) return { index: shift(before), same: false };
+  return { index: shift(index), same: true };
+}
+
 /**
  * Where an item on edge `edgeIndex`, at `offset` metres, lands after that edge was split at
  * `splitAt` metres: on the first half unchanged, on the second half with the offset measured

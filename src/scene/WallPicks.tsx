@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ThreeEvent } from "@react-three/fiber";
 import { effectiveWallThickness } from "@/geometry/layers";
 import { add, dot, normalize, scale, sub } from "@/geometry/polygon";
@@ -103,6 +103,15 @@ function WallPick({
   const [dragging, setDragging] = useState(false);
   const [over, setOver] = useState(false);
   const [refused, setRefused] = useState<Vec2 | null>(null);
+  // Unmounted mid drag (the wall list shrank): close the undo step, or every later edit
+  // folds into it. useDragLock gives the camera back on its own.
+  useEffect(
+    () => () => {
+      if (drag.current) useEditorStore.getState().endBatch();
+      drag.current = null;
+    },
+    [],
+  );
   const dir = normalize(sub(segment.b, segment.a));
   const normal = { x: -dir.y, y: dir.x };
   // A picked wall moves across itself: the arrows of the cursor say which way.

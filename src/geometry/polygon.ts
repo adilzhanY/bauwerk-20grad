@@ -1,4 +1,4 @@
-import type { Segment, Vec2 } from "./types";
+import type { Vec2 } from "./types";
 
 export const EPSILON = 1e-9;
 
@@ -169,8 +169,34 @@ export function edges(polygon: readonly Vec2[]): Edge[] {
   return result;
 }
 
-export const toSegments = (polygon: readonly Vec2[]): Segment[] =>
-  edges(polygon).map((e) => ({ a: e.a, b: e.b }));
+/**
+ * The part of segment ab that lies on edge `edge`, as [from, to] metres along the edge, or
+ * null. The segment counts when it is collinear with the edge, wherever its ends are: a room
+ * edge may run straight past a footprint vertex that sits in the middle of a wall.
+ */
+export function overlapOnEdge(a: Vec2, b: Vec2, edge: Edge, eps = 1e-6): [number, number] | null {
+  if (edge.length < EPSILON) return null;
+  const off = (p: Vec2) => Math.abs(cross(edge.direction, sub(p, edge.a)));
+  if (off(a) > eps || off(b) > eps) return null;
+  const ua = dot(sub(a, edge.a), edge.direction);
+  const ub = dot(sub(b, edge.a), edge.direction);
+  const from = Math.max(0, Math.min(ua, ub));
+  const to = Math.min(edge.length, Math.max(ua, ub));
+  return to - from > eps ? [from, to] : null;
+}
+
+/** Every span of a polygon's edges lying on `edge`, as [from, to] metres along it. */
+export function spansOnEdge(polygon: readonly Vec2[], edge: Edge): [number, number][] {
+  const out: [number, number][] = [];
+  for (let i = 0; i < polygon.length; i++) {
+    const a = polygon[i];
+    const b = polygon[(i + 1) % polygon.length];
+    if (!a || !b) continue;
+    const span = overlapOnEdge(a, b, edge);
+    if (span) out.push(span);
+  }
+  return out;
+}
 
 export function centroid(polygon: readonly Vec2[]): Vec2 {
   const a = signedArea(polygon);
@@ -192,6 +218,43 @@ export function centroid(polygon: readonly Vec2[]): Vec2 {
     cy += (p.y + q.y) * f;
   }
   return { x: cx / (6 * a), y: cy / (6 * a) };
+}
+
+/**
+ * A point strictly inside a simple polygon. The centroid when it is inside, else the middle
+ * of the widest run of a horizontal line through the centroid: a concave (L-shaped) polygon's
+ * centroid can lie outside it.
+ */
+export function interiorPoint(polygon: readonly Vec2[]): Vec2 {
+  const c = centroid(polygon);
+  const onBoundary = polygon.some((p, i) =>
+    pointOnSegment(c, p, polygon[(i + 1) % polygon.length] ?? p),
+  );
+  if (!onBoundary && pointInPolygon(c, polygon)) return c;
+  const { min, max } = bounds(polygon);
+  // Move the line off any vertex so every crossing is a clean edge crossing.
+  let y = c.y;
+  if (polygon.some((p) => Math.abs(p.y - y) < 1e-9)) y += (max.y - min.y) * 1e-4;
+  const xs: number[] = [];
+  for (let i = 0; i < polygon.length; i++) {
+    const a = polygon[i];
+    const b = polygon[(i + 1) % polygon.length];
+    if (!a || !b || a.y > y === b.y > y) continue;
+    xs.push(a.x + ((y - a.y) * (b.x - a.x)) / (b.y - a.y));
+  }
+  xs.sort((p, q) => p - q);
+  let best: Vec2 = c;
+  let widest = 0;
+  for (let i = 0; i + 1 < xs.length; i += 2) {
+    const x0 = xs[i];
+    const x1 = xs[i + 1];
+    if (x0 === undefined || x1 === undefined) continue;
+    if (x1 - x0 > widest) {
+      widest = x1 - x0;
+      best = { x: (x0 + x1) / 2, y };
+    }
+  }
+  return best;
 }
 
 export function bounds(polygon: readonly Vec2[]): { min: Vec2; max: Vec2 } {

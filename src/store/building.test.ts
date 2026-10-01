@@ -504,6 +504,22 @@ describe("footprint editing and deleteSelection", () => {
     expect(store.getState().building.footprint).toHaveLength(5);
   });
 
+  it("inserts the vertex on a diagonal edge exactly, not snapped off it", () => {
+    store.getState().loadBuilding({
+      ...store.getState().building,
+      footprint: [
+        { x: 0, y: 0 },
+        { x: 10, y: 0 },
+        { x: 10, y: 3.3 },
+        { x: 0, y: 10.1 },
+      ],
+    });
+    store.getState().insertFootprintVertex(2);
+    const p = store.getState().building.footprint[3]!;
+    expect(p.x).toBeCloseTo(5, 9);
+    expect(p.y).toBeCloseTo(6.7, 9);
+  });
+
   it("refuses to remove a vertex from a triangle", () => {
     store.getState().loadBuilding({
       ...store.getState().building,
@@ -541,6 +557,91 @@ describe("footprint editing and deleteSelection", () => {
     const openings = store.getState().building.storeys[0]?.openings ?? [];
     expect(openings.find((o) => o.id === onEdge1)).toBeUndefined();
     expect(openings.find((o) => o.id === onEdge3)?.wallIndex).toBe(2);
+  });
+
+  it("keeps interior openings when a footprint vertex is removed", () => {
+    const sid = storeyId();
+    store.getState().insertFootprintVertex(0);
+    store.getState().addInteriorWall(sid, { a: { x: 3, y: 0 }, b: { x: 3, y: 8 } });
+    store.getState().addInteriorWall(sid, { a: { x: 7, y: 0 }, b: { x: 7, y: 8 } });
+    const door = { kind: "door", offset: 1, width: 1, height: 2, sill: 0, interior: true } as const;
+    expect(store.getState().building.storeys[0]!.interiorWalls).toHaveLength(2);
+    const inWall0 = store.getState().addOpening(sid, { ...door, wallIndex: 0 });
+    const inWall1 = store.getState().addOpening(sid, { ...door, wallIndex: 1 });
+    store.getState().removeFootprintVertex(1);
+    const openings = store.getState().building.storeys[0]!.openings;
+    expect(openings.find((o) => o.id === inWall0)?.wallIndex).toBe(0);
+    expect(openings.find((o) => o.id === inWall1)?.wallIndex).toBe(1);
+  });
+
+  it("moves wall notes, facade photos and the open photo wall with a split edge", () => {
+    const photo = (url: string) => ({ url, width: 10, height: 10 });
+    store.getState().addNote({ kind: "wall", wallIndex: 2 }, "crack", "me");
+    store.getState().setFacadePhoto(2, photo("blob:north"));
+    store.getState().setFacadePhoto(0, photo("blob:south"));
+    store.getState().setPhotoWall(3);
+    store.getState().insertFootprintVertex(0);
+    const s = store.getState();
+    expect(s.building.notes?.[0]?.target).toEqual({ kind: "wall", wallIndex: 3 });
+    expect(s.facadePhotos[3]?.url).toBe("blob:north");
+    expect(s.facadePhotos[0]?.url).toBe("blob:south");
+    expect(s.facadePhotos[2]).toBeUndefined();
+    expect(s.photoWall).toBe(4);
+  });
+
+  it("moves wall notes, photos and radiators down when a vertex is removed", () => {
+    const sid = storeyId();
+    store.getState().insertFootprintVertex(0); // edges 0 and 1 south, 2 east, 3 north, 4 west
+    store.getState().addNote({ kind: "wall", wallIndex: 4 }, "west", "me");
+    store.getState().setFacadePhoto(3, { url: "blob:north", width: 1, height: 1 });
+    const rad = store.getState().addRadiator(sid, {
+      wallIndex: 3,
+      offset: 1,
+      width: 1,
+      height: 0.6,
+      power: 1000,
+    });
+    store.getState().removeFootprintVertex(1);
+    const s = store.getState();
+    expect(s.building.notes?.[0]?.target).toEqual({ kind: "wall", wallIndex: 3 });
+    expect(s.facadePhotos[2]?.url).toBe("blob:north");
+    expect(s.facadePhotos[3]).toBeUndefined();
+    expect(s.building.storeys[0]!.radiators?.find((r) => r.id === rad)?.wallIndex).toBe(2);
+  });
+
+  it("a new outline drops radiators and facade photos, keeps interior openings and notes", () => {
+    const sid = storeyId();
+    store.getState().addInteriorWall(sid, { a: { x: 4, y: 0 }, b: { x: 4, y: 8 } });
+    const door = store.getState().addOpening(sid, {
+      wallIndex: 0,
+      interior: true,
+      kind: "door",
+      offset: 1,
+      width: 1,
+      height: 2,
+      sill: 0,
+    });
+    store.getState().addRadiator(sid, {
+      wallIndex: 1,
+      offset: 1,
+      width: 1,
+      height: 0.6,
+      power: 1000,
+    });
+    store.getState().addNote({ kind: "wall", wallIndex: 1 }, "east", "me");
+    store.getState().setFacadePhoto(1, { url: "blob:east", width: 1, height: 1 });
+    store.getState().setFootprint([
+      { x: 0, y: 0 },
+      { x: 12, y: 0 },
+      { x: 12, y: 9 },
+      { x: 0, y: 9 },
+    ]);
+    const s = store.getState();
+    expect(s.building.storeys[0]!.openings.map((o) => o.id)).toEqual([door]);
+    expect(s.building.storeys[0]!.radiators ?? []).toHaveLength(0);
+    expect(s.facadePhotos).toEqual({});
+    // The note survives, pointing at the building instead of a wall that is gone.
+    expect(s.building.notes?.[0]?.target).toEqual({ kind: "building" });
   });
 
   it("deleteSelection removes openings, walls, storeys and zones but not rooms", () => {
