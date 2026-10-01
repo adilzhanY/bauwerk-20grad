@@ -24,7 +24,14 @@ export function ProjectsMap({
 }) {
   const box = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
-  const markers = useRef<maplibregl.Marker[]>([]);
+  const markers = useRef<{ card: ProjectCard; marker: maplibregl.Marker }[]>([]);
+  // The page passes a new function on every render; a pin calls the newest one.
+  const select = useRef(onSelect);
+  useEffect(() => {
+    select.current = onSelect;
+  }, [onSelect]);
+  /** The projects the view was last fitted to: it moves only when that set changes. */
+  const fitted = useRef("");
 
   useEffect(() => {
     if (!box.current) return;
@@ -46,7 +53,7 @@ export function ProjectsMap({
   useEffect(() => {
     const m = map.current;
     if (!m) return;
-    for (const marker of markers.current) marker.remove();
+    for (const { marker } of markers.current) marker.remove();
     const placed = cards.filter((c) => c.summary.origin);
     markers.current = placed.map((card) => {
       const origin = card.summary.origin as { lon: number; lat: number };
@@ -57,15 +64,17 @@ export function ProjectsMap({
       pin.setAttribute("aria-label", card.summary.title);
       pin.className = "project-pin";
       pin.style.background = ENERGY_CLASS_COLORS[card.summary.energyClass];
-      if (card.buildingId === selected) pin.dataset.selected = "true";
       pin.addEventListener("click", () => {
-        onSelect(card);
+        select.current(card);
       });
-      return new maplibregl.Marker({ element: pin, anchor: "bottom" })
+      const marker = new maplibregl.Marker({ element: pin, anchor: "bottom" })
         .setLngLat([origin.lon, origin.lat])
         .addTo(m);
+      return { card, marker };
     });
-    if (placed.length > 0) {
+    const key = placed.map((c) => `${c.ref.kind}:${c.ref.id}`).join(" ");
+    if (placed.length > 0 && key !== fitted.current) {
+      fitted.current = key;
       const bounds = new maplibregl.LngLatBounds();
       for (const c of placed) {
         const o = c.summary.origin as { lon: number; lat: number };
@@ -73,7 +82,15 @@ export function ProjectsMap({
       }
       m.fitBounds(bounds, { padding: 80, maxZoom: 17, duration: 0 });
     }
-  }, [cards, selected, onSelect]);
+  }, [cards]);
+
+  useEffect(() => {
+    for (const { card, marker } of markers.current) {
+      const pin = marker.getElement();
+      if (card.buildingId === selected) pin.dataset.selected = "true";
+      else delete pin.dataset.selected;
+    }
+  }, [cards, selected]);
 
   return <div ref={box} className="h-full w-full" />;
 }
