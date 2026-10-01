@@ -201,12 +201,15 @@ export function LayerRow({
 export function RowAction({
   label,
   disabled,
+  pressed,
   onClick,
   className,
   children,
 }: {
   label: string;
   disabled?: boolean;
+  /** Drawn pressed, as a delete that waits for its second click. */
+  pressed?: boolean;
   onClick: () => void;
   className?: string;
   children: ReactNode;
@@ -215,7 +218,13 @@ export function RowAction({
     // `className` shows or hides the action on row hover, so it sits on a wrapper: the
     // button keeps its own display.
     <span className={cx("shrink-0", className ?? "flex")}>
-      <CustomIconButton label={label} size="xs" disabled={disabled} onClick={onClick}>
+      <CustomIconButton
+        label={label}
+        size="xs"
+        disabled={disabled}
+        pressed={pressed}
+        onClick={onClick}
+      >
         {children}
       </CustomIconButton>
     </span>

@@ -1,3 +1,5 @@
+import { History } from "lucide-react";
+import { CustomIconButton } from "@/components/shared/CustomIconButton";
 import { SaveProjectButton } from "@/components/shared/SaveProjectButton";
 import { HeaderPortal } from "@/components/shared/HeaderSlot";
 import { CustomUndoRedo } from "@/components/shared/CustomUndoRedo";
@@ -10,15 +12,19 @@ import { PeopleHere } from "@/components/editor/PeopleHere";
 
 /**
  * The editor's part of the top bar. On the left the building name, its version (one per
- * recorded change), whether it is saved, and undo and redo. On the right who else is editing
- * Share and the Export menu. The building autosaves in the browser, or on the server when shared.
+ * recorded change), whether it is saved, and undo and redo. On the right who else is editing,
+ * the history (a clock that opens the history drawer), Share and the Export menu. The building autosaves in the browser, or on the server when shared.
  */
 export function EditorHeader({
   syncStatus,
   actor,
+  historyOpen = false,
+  onToggleHistory,
 }: {
   syncStatus: SyncStatus | "local";
   actor: { actor: string; color: string } | null;
+  historyOpen?: boolean;
+  onToggleHistory?: () => void;
 }) {
   const t = useT();
   const name = useEditorStore((s) => s.building.name);
@@ -57,6 +63,15 @@ export function EditorHeader({
         {actor && <PeopleHere />}
         {/* Work that is not a project yet has no project bar; Save sits here instead. */}
         {!inProject && <SaveProjectButton />}
+        {onToggleHistory && (
+          <CustomIconButton
+            label={t("history.title")}
+            pressed={historyOpen}
+            onClick={onToggleHistory}
+          >
+            <History size={17} aria-hidden />
+          </CustomIconButton>
+        )}
         <ShareButton />
         <ExportMenu />
       </HeaderPortal>

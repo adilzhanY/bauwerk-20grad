@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { Camera, FileText, Image, Images, Upload } from "lucide-react";
+import { Camera, FileText, Image, Images, Trash2, Upload } from "lucide-react";
+import { Hint } from "@/components/shared/Hint";
+import { Presence } from "@/components/shared/Presence";
 import { edges } from "@/geometry/polygon";
 import { useT } from "@/i18n/useT";
 import { can } from "@/projects/roles";
-import { reloadFiles, uploadFiles, useProjectFiles } from "@/projects/files";
+import { reloadFiles, removeFile, uploadFiles, useProjectFiles } from "@/projects/files";
 import { FILE_TYPES } from "@/projects/collab";
 import { useEditorStore } from "@/store/building";
 import { LayerGroup, LayerRow, RowAction } from "./LayerRow";
@@ -21,7 +23,8 @@ function Thumb({ url }: { url: string }) {
 /**
  * The building's pictures and files in the layers tree, for the whole building, not one
  * storey: the facade photo of every outside wall (or a way to add one), the floor plans of the
- * storeys, and the files of the project. A click previews it in the middle of the page.
+ * storeys, and the files of the project. A click previews it in the middle of the page. This is
+ * the one place for the project's files: editors upload here and delete a file with two clicks.
  */
 export function MediaLayers({ onPreview }: { onPreview: (item: PreviewItem) => void }) {
   const t = useT();
@@ -45,6 +48,8 @@ export function MediaLayers({ onPreview }: { onPreview: (item: PreviewItem) => v
   const editor = role === null || can(role, "edit");
   const files = useProjectFiles((s) => (s.projectId === projectId ? s.files : null)) ?? NONE;
   const [busy, setBusy] = useState<string | null>(null);
+  const [problems, setProblems] = useState<string[]>([]);
+  const [confirming, setConfirming] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -158,8 +163,40 @@ export function MediaLayers({ onPreview }: { onPreview: (item: PreviewItem) => v
             onSelect={() => {
               if (projectId) onPreview({ kind: "file", title: file.name, projectId, file });
             }}
+            actions={
+              editor &&
+              projectId && (
+                <RowAction
+                  label={
+                    confirming === file.id
+                      ? t("files.deleteConfirm")
+                      : t("files.delete", { name: file.name })
+                  }
+                  pressed={confirming === file.id}
+                  onClick={() => {
+                    if (confirming !== file.id) {
+                      setConfirming(file.id);
+                      return;
+                    }
+                    setConfirming(null);
+                    void removeFile(projectId, file.id);
+                  }}
+                >
+                  <Trash2 size={13} />
+                </RowAction>
+              )
+            }
           />
         ))}
+        <li role="none">
+          <Presence show={problems.length > 0} className="flex flex-col gap-1 px-3 py-1">
+            {problems.map((p) => (
+              <Hint key={p} error>
+                {p}
+              </Hint>
+            ))}
+          </Presence>
+        </li>
       </LayerGroup>
       {projectId && (
         <input
@@ -172,9 +209,13 @@ export function MediaLayers({ onPreview }: { onPreview: (item: PreviewItem) => v
           onChange={(e) => {
             const picked = e.target.files ? Array.from(e.target.files) : [];
             e.target.value = "";
-            void uploadFiles(projectId, picked, setBusy).finally(() => {
-              setBusy(null);
-            });
+            void uploadFiles(projectId, picked, setBusy)
+              .then((found) => {
+                setProblems(found.map((p) => t(`files.${p.reason}`, { name: p.name })));
+              })
+              .finally(() => {
+                setBusy(null);
+              });
           }}
         />
       )}

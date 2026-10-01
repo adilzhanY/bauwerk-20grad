@@ -17,7 +17,7 @@ export const de: Messages = {
   "hint.interiorWall":
     "Auf einer Wand beginnen. Die neue Wand läuft in Zeigerrichtung bis zur nächsten Wand und rastet im rechten Winkel ein. Escape bricht ab.",
   "hint.zone":
-    "Unten eine Zone wählen, dann Räume anklicken, um sie hinzuzufügen oder zu entfernen.",
+    "Räume anklicken, um sie der aktiven Zone zuzuordnen oder herauszunehmen. Die Zone unter Zonen in den Gebäudeeigenschaften rechts wählen oder hinzufügen.",
 
   "panel.tools": "Werkzeuge",
   "panel.zones": "Zonen",
@@ -47,6 +47,8 @@ export const de: Messages = {
 
   "zone.title": "Zone",
   "zone.add": "Zone hinzufügen",
+  "zone.emptyHint":
+    "Noch keine Zonen. Eine Zone hinzufügen, dann Räume mit dem Werkzeug Zone anklicken, um sie ihr zuzuordnen.",
   "zone.remove": "Zone entfernen",
   "zone.name": "Name",
   "zone.color": "Farbe",
@@ -1331,4 +1333,5 @@ export const de: Messages = {
   "card.latitude": "Breitengrad",
   "card.longitude": "Längengrad",
   "card.bearing": "Drehung des Plans",
+  "card.editRoof": "Dach bearbeiten",
 };

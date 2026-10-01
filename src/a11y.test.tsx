@@ -70,14 +70,12 @@ describe("accessibility", () => {
   it("every control has an accessible name across all sections and tabs", () => {
     const { container } = render(<App />);
     expectAllNamed(container);
-    for (const section of ["Zones", "Site", "Underlay", "Settings"]) {
+    for (const section of ["Underlay", "Settings"]) {
       fireEvent.click(screen.getByRole("tab", { name: section }));
       expectAllNamed(container);
     }
-    for (const tab of ["Energy", "Scenarios", "Properties"]) {
-      fireEvent.click(screen.getByRole("tab", { name: tab }));
-      expectAllNamed(container);
-    }
+    fireEvent.click(screen.getByRole("button", { name: "Location" }));
+    expectAllNamed(container);
   });
 
   it("Escape returns to the select tool and clears the selection", () => {

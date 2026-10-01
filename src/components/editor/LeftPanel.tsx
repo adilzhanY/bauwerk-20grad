@@ -1,4 +1,3 @@
-import { Hint } from "@/components/shared/Hint";
 import { Presence } from "@/components/shared/Presence";
 import { useId, useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
@@ -31,14 +30,12 @@ import type { Selection } from "@/store/building";
 import type { SyncStatus } from "@/sync/client";
 import { CustomIconButton } from "@/components/shared/CustomIconButton";
 import { CustomSection } from "@/components/shared/CustomField";
-import { ZONE_COLORS } from "@/lib/colors";
 import { cx } from "@/components/shared/cx";
 import { LayerGroup, LayerRow, RowAction } from "@/components/editor/LayerRow";
 import { FilePreview } from "@/components/editor/FilePreview";
 import type { PreviewItem } from "@/components/editor/FilePreview";
 import { MediaLayers } from "@/components/editor/MediaLayers";
 import { planPreview } from "@/components/editor/fileLabel";
-import { LocationSection } from "@/components/editor/LocationSection";
 import { NewBuildingDialog } from "@/components/editor/NewBuildingDialog";
 import { ProjectSwitcher } from "@/components/editor/ProjectSwitcher";
 import { SettingsSection } from "@/components/editor/SettingsSection";
@@ -46,7 +43,7 @@ import { devMode } from "@/lib/devMode";
 import { toolHint } from "@/components/editor/tools";
 import { UnderlaySection } from "@/components/editor/UnderlaySection";
 
-type SectionId = "layers" | "zones" | "location" | "underlay" | "settings";
+type SectionId = "layers" | "underlay" | "settings";
 
 /**
  * The layers panel at the left of the editor, after Figma's: the project on top, then tabs.
@@ -72,8 +69,6 @@ export function LeftPanel({ syncStatus }: { syncStatus: SyncStatus | "local" }) 
         value={section}
         tabs={[
           { value: "layers", label: t("tree.title") },
-          { value: "zones", label: t("panel.zones") },
-          { value: "location", label: t("location.short") },
           { value: "underlay", label: t("underlay.short") },
           {
             value: "settings",
@@ -87,8 +82,6 @@ export function LeftPanel({ syncStatus }: { syncStatus: SyncStatus | "local" }) 
       <div className="min-h-0 flex-1 overflow-y-auto">
         <CustomTabPanel id={tabsId} value={section}>
           {section === "layers" && <LayerTree />}
-          {section === "zones" && <ZoneList />}
-          {section === "location" && <LocationSection />}
           {section === "underlay" && <UnderlaySection />}
           {section === "settings" && <SettingsSection examples={devMode()} />}
         </CustomTabPanel>
@@ -558,79 +551,6 @@ function SceneLayers() {
             </RowAction>
           </li>
         ))}
-      </ul>
-    </CustomSection>
-  );
-}
-
-function ZoneList() {
-  const t = useT();
-  const zones = useEditorStore((s) => s.building.zones);
-  const activeZoneId = useEditorStore((s) => s.activeZoneId);
-  const selection = useEditorStore((s) => s.selection);
-  const addZone = useEditorStore((s) => s.addZone);
-  const setActiveZone = useEditorStore((s) => s.setActiveZone);
-  const select = useEditorStore((s) => s.select);
-  const setTool = useEditorStore((s) => s.setTool);
-
-  const onAdd = () => {
-    const used = new Set(zones.map((z) => z.color));
-    const color = ZONE_COLORS.find((c) => !used.has(c)) ?? ZONE_COLORS[0];
-    const id = addZone(t("zone.defaultName", { n: zones.length + 1 }), color);
-    setActiveZone(id);
-    select({ kind: "zone", id });
-    setTool("zone");
-  };
-
-  return (
-    <CustomSection
-      title={t("panel.zones")}
-      first
-      action={
-        <CustomIconButton label={t("zone.add")} size="sm" onClick={onAdd}>
-          <Plus size={16} />
-        </CustomIconButton>
-      }
-    >
-      <Presence show={zones.length === 0}>
-        <Hint>{t("hint.zone")}</Hint>
-      </Presence>
-      <ul className="-mx-2 flex flex-col">
-        {zones.map((zone) => {
-          const active = zone.id === activeZoneId;
-          const selected = selection?.kind === "zone" && selection.id === zone.id;
-          return (
-            <li key={zone.id}>
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveZone(zone.id);
-                  select({ kind: "zone", id: zone.id });
-                }}
-                aria-pressed={selected}
-                className={cx(
-                  "flex h-8 w-full items-center gap-2 rounded-soft px-3 text-left text-sm transition-colors",
-                  selected ? "bg-select-soft" : "hover:bg-panel",
-                )}
-              >
-                <span
-                  aria-hidden
-                  className="h-3 w-3 shrink-0 rounded-full"
-                  style={{ background: zone.color }}
-                />
-                <span className="flex-1 truncate text-ink">{zone.name}</span>
-                <span className="font-num text-[11px] text-faint">
-                  {t(zone.heated ? "zone.heated" : "zone.unheated")}
-                </span>
-                {active && (
-                  <span className="rounded-soft bg-select-soft px-1.5 font-num text-[11px] text-select">
-                    {t("zone.active")}
-                  </span>
-                )}
-              </button>
-            </li>
-          );
-        })}
       </ul>
     </CustomSection>
   );

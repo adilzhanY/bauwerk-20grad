@@ -48,7 +48,7 @@ Say: "This is Bauwerk. Your job posting describes a versioned, real-time, multi-
 13. Drag a window along its wall: it slides live on their screen, and they cannot grab it until you let go. Say: "A soft lock while someone drags, and the move itself arrives before the lock lets go, so nobody sees it jump."
 14. Both move a different window at the same moment: both moves stay. Say: "Edits are small operations per element and field. The server orders them under a row lock in Postgres and every tab replays the same order. Two people editing two windows never overwrite each other."
 15. After their edit, press Ctrl+Z on yours: only your own change goes back. Say: "Undo is per person. Their edits are rebased into my history, so undo can never take back their work."
-16. History tab on the right: the versions with names and times. Click an older one: the banner, read-only. "Back to live". Say: "Versioned: every batch is a row in Postgres, any version can be rebuilt and restored as a new one."
+16. The clock in the top bar opens the history: the versions with names and times. Click an older one: the banner, read-only. "Back to live". Say: "Versioned: every batch is a row in Postgres, any version can be rebuilt and restored as a new one."
 17. Say why it is not a CRDT: "A CRDT converges, but it does not know that two windows must not overlap. Because there is a server, it checks the merged building and refuses the batch that breaks it. A test plays a thousand random three-person sessions with lost connections, and every screen must end on the server's building."
 
 ## 8:30 What the consultant tells the client (4 min)

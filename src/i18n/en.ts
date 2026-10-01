@@ -14,7 +14,8 @@ export const en = {
     "Click an exterior wall for a window or an interior wall for a door. Shift swaps the two.",
   "hint.interiorWall":
     "Start on a wall. The new wall runs to the next wall in the pointer's direction and locks to right angles. Escape cancels.",
-  "hint.zone": "Pick a zone below, then click rooms to add or remove them.",
+  "hint.zone":
+    "Click rooms to add them to the active zone or take them out. Pick or add the zone under Zones in the building properties on the right.",
 
   "panel.tools": "Tools",
   "panel.zones": "Zones",
@@ -44,6 +45,7 @@ export const en = {
 
   "zone.title": "Zone",
   "zone.add": "Add zone",
+  "zone.emptyHint": "No zones yet. Add one, then click rooms with the Zone tool to put them in it.",
   "zone.remove": "Remove zone",
   "zone.name": "Name",
   "zone.color": "Colour",
@@ -1313,6 +1315,7 @@ export const en = {
   "card.latitude": "Latitude",
   "card.longitude": "Longitude",
   "card.bearing": "Plan rotation",
+  "card.editRoof": "Edit the roof",
 } as const;
 
 export type MessageKey = keyof typeof en;

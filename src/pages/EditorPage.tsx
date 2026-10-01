@@ -11,6 +11,7 @@ import { NoAccess } from "@/components/editor/NoAccess";
 import { FollowFrame } from "@/components/editor/PeopleHere";
 import { LeftPanel } from "@/components/editor/LeftPanel";
 import { RightPanel } from "@/components/editor/RightPanel";
+import { HistoryDrawer } from "@/components/editor/HistoryDrawer";
 import { WebGLMissing } from "@/components/app/States";
 import { EmptyState } from "@/components/editor/EmptyState";
 import { EditorHeader } from "@/components/editor/EditorHeader";
@@ -50,15 +51,23 @@ export function EditorPage({
   const t = useT();
   const [panelsOpen, setPanelsOpen] = useState(true);
   const [layersOpen, setLayersOpen] = useState(true);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   // Signed in, but not a member and without a share link: ask the owner instead.
   const blocked = sync.status === "noAccess" ? projectIdFromUrl() : null;
   if (blocked) return <NoAccess projectId={blocked} />;
 
   return (
-    <div className="flex h-full" data-tool={tool}>
+    <div className="relative flex h-full" data-tool={tool}>
       <WallPhotoEditor />
-      <EditorHeader syncStatus={sync.status} actor={sync.status === "local" ? null : sync} />
+      <EditorHeader
+        syncStatus={sync.status}
+        actor={sync.status === "local" ? null : sync}
+        historyOpen={historyOpen}
+        onToggleHistory={() => {
+          setHistoryOpen(!historyOpen);
+        }}
+      />
       <Presence show={panelsOpen && layersOpen} kind="float">
         <Floating fade className="shrink-0" style={{ width: LEFT_PANEL }}>
           <LeftPanel syncStatus={sync.status} />
@@ -124,6 +133,16 @@ export function EditorPage({
       <Presence show={panelsOpen} kind="float">
         <Floating fade className="shrink-0" style={{ width: RIGHT_PANEL }}>
           <RightPanel />
+        </Floating>
+      </Presence>
+      {/* Over the properties panel, where the old versions are read beside the model. */}
+      <Presence show={historyOpen} kind="float">
+        <Floating className="absolute top-0 right-0 bottom-0 z-30" style={{ width: RIGHT_PANEL }}>
+          <HistoryDrawer
+            onClose={() => {
+              setHistoryOpen(false);
+            }}
+          />
         </Floating>
       </Presence>
     </div>

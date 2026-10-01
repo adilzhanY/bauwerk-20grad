@@ -1,15 +1,12 @@
 import { Presence } from "@/components/shared/Presence";
 import { CustomFieldGroup } from "@/components/shared/CustomField";
-import { LANGUAGES } from "@/i18n";
 import { useT } from "@/i18n/useT";
 import { example } from "@/lib/examples";
 import type { ExampleId } from "@/lib/examples";
 import { startNewProject } from "@/projects/session";
 import { useEditorStore } from "@/store/building";
-import { CustomNumberInput } from "@/components/shared/CustomNumberInput";
 import { CustomSegmented } from "@/components/shared/CustomSegmented";
 import { CustomSelect } from "@/components/shared/CustomSelect";
-import { CustomTextInput } from "@/components/shared/CustomTextInput";
 import { CustomSlider } from "@/components/shared/CustomSlider";
 import { CustomField, CustomSection } from "@/components/shared/CustomField";
 import { formatNumber } from "@/lib/format";
@@ -100,43 +97,13 @@ export function SettingsSection({ examples = true }: { examples?: boolean } = {}
   const t = useT();
   const s = useEditorStore(
     useShallow((state) => ({
-      buildingName: state.building.name,
-      wallThickness: state.building.wallThickness,
-      renameBuilding: state.renameBuilding,
-      setWallThickness: state.setWallThickness,
       language: state.language,
-      setLanguage: state.setLanguage,
-      beginBatch: state.beginBatch,
-      endBatch: state.endBatch,
     })),
   );
 
   return (
     <>
       <CustomSection title={t("panel.settings")}>
-        <CustomTextInput
-          label={t("building.name")}
-          value={s.buildingName}
-          onCommit={s.renameBuilding}
-        />
-        <CustomNumberInput
-          label={t("settings.wallThickness")}
-          value={s.wallThickness}
-          min={0.1}
-          max={1}
-          step={0.05}
-          unit={t("common.metres")}
-          language={s.language}
-          onChange={s.setWallThickness}
-          onGestureStart={s.beginBatch}
-          onGestureEnd={s.endBatch}
-        />
-        <CustomSelect
-          label={t("settings.language")}
-          value={s.language}
-          options={LANGUAGES.map((l) => ({ value: l, label: l === "de" ? "Deutsch" : "English" }))}
-          onChange={s.setLanguage}
-        />
         {examples && (
           <CustomSelect<ExampleId | "">
             label={t("settings.example")}

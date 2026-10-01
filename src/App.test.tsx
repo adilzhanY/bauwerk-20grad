@@ -31,7 +31,10 @@ describe("App", () => {
     render(<App />);
     const tree = screen.getByRole("tree", { name: "Layers" });
     expect(within(tree).getByRole("button", { name: "Bauwerk" })).toBeTruthy();
-    expect(screen.getByRole("tab", { name: "Properties" })).toBeTruthy();
+    // Properties only: no tabs on the right, nothing picked shows the building.
+    const properties = screen.getByRole("complementary", { name: "Properties panel" });
+    expect(within(properties).queryByRole("tab")).toBeNull();
+    expect(within(properties).getByLabelText("Wall thickness", { selector: "input" })).toBeTruthy();
     expect(screen.getByText("WebGL is not available")).toBeTruthy();
     expect(screen.getByText("Ground floor")).toBeTruthy();
   });
@@ -80,13 +83,10 @@ describe("App", () => {
 
   it("switches the whole UI to German", () => {
     render(<App />);
-    fireEvent.click(screen.getByRole("tab", { name: "Settings" }));
-    fireEvent.click(screen.getByRole("combobox", { name: "Language" }));
-    fireEvent.click(screen.getByRole("option", { name: "Deutsch" }));
-    fireEvent.click(screen.getByRole("tab", { name: "Ebenen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Language" }));
     const tree = screen.getByRole("tree", { name: "Ebenen" });
     expect(within(tree).getByRole("button", { name: "Bauwerk" })).toBeTruthy();
-    expect(screen.getByRole("tab", { name: "Eigenschaften" })).toBeTruthy();
+    expect(screen.getByRole("complementary", { name: "Eigenschaftenbereich" })).toBeTruthy();
     expect(screen.getByText("WebGL ist nicht verfügbar")).toBeTruthy();
   });
 
@@ -133,7 +133,6 @@ describe("App", () => {
 
   it("commits a number typed with a comma live, as one undo step", () => {
     render(<App />);
-    fireEvent.click(screen.getByRole("tab", { name: "Settings" }));
     const input = screen.getByLabelText("Wall thickness", { selector: "input" });
     fireEvent.focus(input);
     fireEvent.change(input, { target: { value: "0,4" } });
@@ -146,7 +145,6 @@ describe("App", () => {
 
   it("the slider updates the model on every tick and undoes as one step", () => {
     render(<App />);
-    fireEvent.click(screen.getByRole("tab", { name: "Settings" }));
     const slider = screen.getByRole("slider", { name: "Wall thickness" });
     fireEvent.keyDown(slider, { key: "ArrowRight", shiftKey: true }); // 0.3 + 10 x 0.05
     expect(useEditorStore.getState().building.wallThickness).toBeCloseTo(0.8);
@@ -166,7 +164,6 @@ describe("App", () => {
       state.setActiveStorey(groundId);
     });
     render(<App />);
-    fireEvent.click(screen.getByRole("tab", { name: "Settings" }));
     const slider = screen.getByRole("slider", { name: "Wall thickness" });
     slider.focus();
     fireEvent.keyDown(slider, { key: "PageUp" });
@@ -179,9 +176,13 @@ describe("App", () => {
     expect(screen.getByText("No storeys")).toBeTruthy();
   });
 
-  it("shows the energy panel with a class band and the renovated scenario", () => {
+  it("keeps the calculations out of the editor, on the Variants step", () => {
+    const { unmount } = render(<App />);
+    expect(screen.queryByRole("tab", { name: "Energy" })).toBeNull();
+    expect(screen.queryByRole("tab", { name: "Scenarios" })).toBeNull();
+    unmount();
+    useRouter.setState({ route: { page: "variants" } });
     render(<App />);
-    fireEvent.click(screen.getByRole("tab", { name: "Energy" }));
     expect(screen.getByRole("heading", { name: "Energy" })).toBeTruthy();
     const currentScale = screen.getByLabelText(/Energy efficiency class: H/);
     expect(currentScale.getAttribute("viewBox")).toBe("0 0 400 82");
@@ -190,7 +191,6 @@ describe("App", () => {
     const renovatedScale = screen.getByLabelText(/Energy efficiency class: (A\+|A|B|C|D|E|F|G)$/);
     expect(renovatedScale.getAttribute("viewBox")).toBe("0 0 400 112");
     expect(screen.getByText("Saving")).toBeTruthy();
-    fireEvent.click(screen.getByRole("tab", { name: "Scenarios" }));
     fireEvent.click(screen.getByRole("button", { name: "New scenario" }));
     expect(useEditorStore.getState().building.scenarios).toHaveLength(1);
     expect(screen.getByRole("button", { name: "Remove scenario" })).toBeTruthy();
@@ -263,8 +263,8 @@ describe("App", () => {
   });
 
   it("uses no native form controls outside the components folder", () => {
+    useRouter.setState({ route: { page: "variants" } });
     const { container } = render(<App />);
-    fireEvent.click(screen.getByRole("tab", { name: "Energy" }));
     expect(container.querySelectorAll("select")).toHaveLength(0);
     expect(container.querySelectorAll("input[type=range]")).toHaveLength(0);
     expect(container.querySelectorAll("input[type=checkbox]")).toHaveLength(0);
@@ -283,7 +283,7 @@ describe("App", () => {
   it("offers the map once a location is set, off by default, with the attribution", () => {
     render(<App />);
     expect(screen.queryByText("© OpenStreetMap contributors")).toBeNull();
-    fireEvent.click(screen.getByRole("tab", { name: "Site" }));
+    fireEvent.click(screen.getByRole("button", { name: "Location" }));
     fireEvent.click(screen.getByRole("switch", { name: "Place the building on the map" }));
     // The plain grid stays the ground until the map is switched on.
     const map = screen.getByRole("switch", { name: "Show map (OpenStreetMap)" });

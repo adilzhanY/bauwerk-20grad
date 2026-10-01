@@ -202,7 +202,7 @@ The address bar now carries `?project=…`; the same address in another tab or o
 opens the same building, and every change shows on the other side within a few milliseconds.
 Everyone sees the others' pointers and selections, a window someone drags moves live on every
 screen and cannot be grabbed until they let go, undo takes back only your own edits, and the
-History tab lists every version with a read-only preview and restore. For a second machine on
+history (the clock in the top bar) lists every version with a read-only preview and restore. For a second machine on
 the same network, start with `npm run dev -- --host` and open the printed Network address there.
 How it works, and why it is not a CRDT, is in `DECISIONS.md` (2026-09-25).
 

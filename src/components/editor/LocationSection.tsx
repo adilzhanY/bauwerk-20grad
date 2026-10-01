@@ -17,7 +17,8 @@ import { buildingFileName, downloadFile } from "@/lib/download";
 
 const BERLIN = { lat: 52.516275, lon: 13.377704, rotation: 0 };
 
-export function LocationSection() {
+/** The building's place on the earth. `collapsible` folds it under its title, closed. */
+export function LocationSection({ collapsible = false }: { collapsible?: boolean } = {}) {
   const t = useT();
   const language = useEditorStore((s) => s.language);
   const building = useEditorStore((s) => s.building);
@@ -60,7 +61,7 @@ export function LocationSection() {
   const batch = { onGestureStart: beginBatch, onGestureEnd: endBatch };
 
   return (
-    <CustomSection title={t("location.title")}>
+    <CustomSection title={t("location.title")} collapsible={collapsible}>
       <CustomCheckbox
         variant="switch"
         label={t("location.enabled")}
