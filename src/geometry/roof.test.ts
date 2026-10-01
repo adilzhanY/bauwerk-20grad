@@ -149,3 +149,25 @@ describe("flat roof", () => {
     expect(r.ridge).toBeNull();
   });
 });
+
+describe("a footprint with a vertex in the middle of a straight wall", () => {
+  const withMid = [
+    { x: 0, y: 0 },
+    { x: 5, y: 0 },
+    ...rect.slice(1, 2),
+    { x: 10, y: 4 },
+    ...rect.slice(2),
+  ];
+
+  for (const kind of ["hip", "gable"] as const) {
+    it(`builds the same ${kind} roof as the plain rectangle`, () => {
+      const roof = { kind, pitch: 40, overhang: 0.5, ridgeAxis: "x" } as const;
+      const plain = buildRoof(b(roof), 3);
+      const split = buildRoof(b(roof, withMid), 3);
+      expect(split.builtKind).toBe(kind);
+      expect(split.area).toBeCloseTo(plain.area);
+      expect(split.atticVolume).toBeCloseTo(plain.atticVolume);
+      expect(split.ridgeHeight).toBeCloseTo(plain.ridgeHeight);
+    });
+  }
+});
