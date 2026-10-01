@@ -1,4 +1,5 @@
 import { SectionLabel } from "@/components/shared/PageTitle";
+import { ageClassName, buildingFunctionName, roofTypeName } from "@/lod2/messages";
 import type { EnergySummary } from "@/geometry/energy";
 import { Hint } from "@/components/shared/Hint";
 import type { ReactNode } from "react";
@@ -93,9 +94,14 @@ export function GeneralSection({
   return (
     <section>
       <SectionTitle>{t("building.generalTitle")}</SectionTitle>
-      <DataRow label={t("building.use")}>{detail.functionLabel ?? "-"}</DataRow>
+      <DataRow label={t("building.use")}>
+        {buildingFunctionName(detail.functionCode, language) ?? detail.functionLabel ?? "-"}
+      </DataRow>
       <DataRow label={t("building.roofForm")}>
-        {part?.roofTypeLabel ?? detail.roofTypeLabel ?? "-"}
+        {roofTypeName(part?.roofTypeCode ?? detail.roofTypeCode, language) ??
+          part?.roofTypeLabel ??
+          detail.roofTypeLabel ??
+          "-"}
       </DataRow>
       <DataRow label={t("building.ageClass")} info={t("building.ageClassInfo")}>
         <select
@@ -109,7 +115,7 @@ export function GeneralSection({
         >
           {AGE_CLASSES.map((c) => (
             <option key={c.id} value={c.id}>
-              {c.label}
+              {ageClassName(c.id, language)}
             </option>
           ))}
         </select>

@@ -1,4 +1,5 @@
 import { PageTitle } from "@/components/shared/PageTitle";
+import { buildingFunctionName } from "@/lod2/messages";
 import { computeEnergy } from "@/geometry/energy";
 import { Presence } from "@/components/shared/Presence";
 import { CustomIconButton } from "@/components/shared/CustomIconButton";
@@ -242,8 +243,14 @@ export function BuildingPage({ gid }: { gid: string }) {
 
   const partName = (index: number) =>
     parts.length === 1
-      ? shortUse(current?.functionLabel, t("building.part"))
-      : `${shortUse(current?.functionLabel, t("building.part"))} ${String(index + 1)}`;
+      ? shortUse(
+          buildingFunctionName(current?.functionCode, language) ?? current?.functionLabel,
+          t("building.part"),
+        )
+      : `${shortUse(
+          buildingFunctionName(current?.functionCode, language) ?? current?.functionLabel,
+          t("building.part"),
+        )} ${String(index + 1)}`;
   const tabs = [
     { id: PLOT_TAB, label: t("building.plot") },
     ...parts.map((p, i) => ({ id: p.gid, label: partName(i) })),
@@ -292,7 +299,11 @@ export function BuildingPage({ gid }: { gid: string }) {
             className="mt-6"
             title={address?.main ?? gid}
             subtitle={
-              address ? address.area || "Berlin" : (current?.functionLabel ?? t("building.loading"))
+              address
+                ? address.area || "Berlin"
+                : (buildingFunctionName(current?.functionCode, language) ??
+                  current?.functionLabel ??
+                  t("building.loading"))
             }
           />
 
