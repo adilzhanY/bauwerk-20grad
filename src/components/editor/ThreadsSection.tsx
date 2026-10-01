@@ -360,6 +360,8 @@ function Composer({
   const [text, setText] = useState("");
   const [attached, setAttached] = useState<ProjectFile[]>([]);
   const [busy, setBusy] = useState(false);
+  /** Files on their way up: Send waits for them, or the note would go out without them. */
+  const [uploading, setUploading] = useState(0);
   const [failed, setFailed] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const area = useRef<HTMLTextAreaElement>(null);
@@ -384,7 +386,7 @@ function Composer({
 
   const send = async () => {
     const body = text.trim();
-    if (!body || busy) return;
+    if (!body || busy || uploading > 0) return;
     setBusy(true);
     setFailed(false);
     try {
@@ -460,7 +462,7 @@ function Composer({
             type="button"
             aria-label={t("threads.removeAttachment", { name: file.name })}
             onClick={() => {
-              setAttached(attached.filter((f) => f.id !== file.id));
+              setAttached((all) => all.filter((f) => f.id !== file.id));
             }}
           >
             <X size={12} aria-hidden />
@@ -471,7 +473,7 @@ function Composer({
         <CustomButton
           variant="primary"
           loading={busy}
-          disabled={!text.trim()}
+          disabled={!text.trim() || uploading > 0}
           onClick={() => void send()}
         >
           {t("threads.send")}
@@ -500,12 +502,16 @@ function Composer({
           const file = e.target.files?.[0];
           e.target.value = "";
           if (!file) return;
+          setUploading((n) => n + 1);
           void uploadFile(projectId, file)
             .then((stored) => {
-              setAttached([...attached, stored]);
+              setAttached((all) => [...all, stored]);
             })
             .catch(() => {
               setFailed(true);
+            })
+            .finally(() => {
+              setUploading((n) => n - 1);
             });
         }}
       />
