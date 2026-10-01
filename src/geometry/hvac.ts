@@ -12,7 +12,7 @@ import {
 } from "./energy";
 import { findConstruction, interiorWallType } from "./constructions";
 import { countedOpenings, openingsOn } from "./openings";
-import { distance, edges, pointInPolygon, pointOnSegment } from "./polygon";
+import { distance, edges, pointInPolygon, spansOnEdge } from "./polygon";
 import type { Building, Radiator, Room, Storey } from "./types";
 import type { EnergySummary } from "./energy";
 
@@ -59,18 +59,7 @@ export function roomEnvelopeLoss(building: Building, storey: Storey, room: Room)
     // A party wall against a heated neighbour loses no heat.
     if (shared.has(e.index)) continue;
     // Spans of this room's polygon lying on the footprint edge.
-    const spans: [number, number][] = [];
-    const n = room.polygon.length;
-    for (let i = 0; i < n; i++) {
-      const a = room.polygon[i];
-      const b = room.polygon[(i + 1) % n];
-      if (!a || !b) continue;
-      if (pointOnSegment(a, e.a, e.b) && pointOnSegment(b, e.a, e.b)) {
-        const ua = distance(a, e.a);
-        const ub = distance(b, e.a);
-        spans.push([Math.min(ua, ub), Math.max(ua, ub)]);
-      }
-    }
+    const spans = spansOnEdge(room.polygon, e);
     if (spans.length === 0) continue;
     const length = spans.reduce((s, [x0, x1]) => s + (x1 - x0), 0);
     let openingArea = 0;

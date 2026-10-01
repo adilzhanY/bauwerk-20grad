@@ -1,4 +1,4 @@
-import type { Segment, Vec2 } from "./types";
+import type { Vec2 } from "./types";
 
 export const EPSILON = 1e-9;
 
@@ -169,8 +169,34 @@ export function edges(polygon: readonly Vec2[]): Edge[] {
   return result;
 }
 
-export const toSegments = (polygon: readonly Vec2[]): Segment[] =>
-  edges(polygon).map((e) => ({ a: e.a, b: e.b }));
+/**
+ * The part of segment ab that lies on edge `edge`, as [from, to] metres along the edge, or
+ * null. The segment counts when it is collinear with the edge, wherever its ends are: a room
+ * edge may run straight past a footprint vertex that sits in the middle of a wall.
+ */
+export function overlapOnEdge(a: Vec2, b: Vec2, edge: Edge, eps = 1e-6): [number, number] | null {
+  if (edge.length < EPSILON) return null;
+  const off = (p: Vec2) => Math.abs(cross(edge.direction, sub(p, edge.a)));
+  if (off(a) > eps || off(b) > eps) return null;
+  const ua = dot(sub(a, edge.a), edge.direction);
+  const ub = dot(sub(b, edge.a), edge.direction);
+  const from = Math.max(0, Math.min(ua, ub));
+  const to = Math.min(edge.length, Math.max(ua, ub));
+  return to - from > eps ? [from, to] : null;
+}
+
+/** Every span of a polygon's edges lying on `edge`, as [from, to] metres along it. */
+export function spansOnEdge(polygon: readonly Vec2[], edge: Edge): [number, number][] {
+  const out: [number, number][] = [];
+  for (let i = 0; i < polygon.length; i++) {
+    const a = polygon[i];
+    const b = polygon[(i + 1) % polygon.length];
+    if (!a || !b) continue;
+    const span = overlapOnEdge(a, b, edge);
+    if (span) out.push(span);
+  }
+  return out;
+}
 
 export function centroid(polygon: readonly Vec2[]): Vec2 {
   const a = signedArea(polygon);

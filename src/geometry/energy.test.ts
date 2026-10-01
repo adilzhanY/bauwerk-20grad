@@ -372,3 +372,28 @@ describe("what a plan edit does to the balance", () => {
     expect(triple.solarGains / double.solarGains).toBeCloseTo(0.5 / 0.75);
   });
 });
+
+describe("a footprint vertex in the middle of a straight wall", () => {
+  // The "+" on an edge puts a vertex at (5,0). The room outline drops collinear points, so its
+  // bottom edge runs straight past that vertex and has to count on both half edges.
+  const split = [{ x: 0, y: 0 }, { x: 5, y: 0 }, ...rect.slice(1)];
+  const withSplit = (): Building => {
+    const b = building();
+    return {
+      ...b,
+      footprint: split,
+      storeys: b.storeys.map((s) => ({ ...s, rooms: computeRooms(split, [], [], factory) })),
+    };
+  };
+  const wallLoss = (b: Building) =>
+    computeEnergy(b)
+      .elements.filter((e) => e.category === "wall")
+      .reduce((s, e) => s + e.loss, 0);
+
+  it("keeps the wall loss of the whole wall", () => {
+    expect(wallLoss(withSplit())).toBeCloseTo(WALL * 108);
+    expect(computeEnergy(withSplit()).transmissionLoss).toBeCloseTo(
+      computeEnergy(building()).transmissionLoss,
+    );
+  });
+});

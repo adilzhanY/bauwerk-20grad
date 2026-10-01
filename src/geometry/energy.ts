@@ -9,7 +9,15 @@ import { clipSegmentToPolygon, splitSegments } from "./rooms";
 import { GAIN_UTILISATION, GLAZING_G, solarGains } from "./sun";
 import { countedOpenings, openingsOn } from "./openings";
 import { windowType } from "./windows";
-import { area, edges, pointInPolygon, pointOnSegment, sub, distance } from "./polygon";
+import {
+  area,
+  edges,
+  pointInPolygon,
+  pointOnSegment,
+  spansOnEdge,
+  sub,
+  distance,
+} from "./polygon";
 import type { Edge } from "./polygon";
 import type {
   Building,
@@ -230,16 +238,7 @@ function heatedSpans(edge: Edge, rooms: readonly Room[], zones: readonly Zone[])
   const spans: Span[] = [];
   for (const room of rooms) {
     if (!isRoomHeated(room, zones)) continue;
-    const n = room.polygon.length;
-    for (let i = 0; i < n; i++) {
-      const a = room.polygon[i];
-      const b = room.polygon[(i + 1) % n];
-      if (!a || !b) continue;
-      if (!pointOnSegment(a, edge.a, edge.b) || !pointOnSegment(b, edge.a, edge.b)) continue;
-      const ua = distance(a, edge.a);
-      const ub = distance(b, edge.a);
-      spans.push({ from: Math.min(ua, ub), to: Math.max(ua, ub) });
-    }
+    for (const [from, to] of spansOnEdge(room.polygon, edge)) spans.push({ from, to });
   }
   return spans;
 }
