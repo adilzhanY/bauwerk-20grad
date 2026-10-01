@@ -6,6 +6,7 @@
 export * from './ageclass.ts'
 export * from './bauwerk.ts'
 export * from './footprint.ts'
+export * from './messages.ts'
 export * from './placeopenings.ts'
 export * from './roof.ts'
 export * from './sharedwalls.ts'

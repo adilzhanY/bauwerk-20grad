@@ -9,6 +9,7 @@
  */
 import { planeToWorld, type WallPlane } from '../wall.ts'
 import { distance, toPlan, type PlanFrame, type Vec2 } from './footprint.ts'
+import { germanText, message, type SurveyMessage } from './messages.ts'
 import { floorLevel, storeyOf } from './storeys.ts'
 
 export interface MeasuredOpening {
@@ -33,8 +34,10 @@ export interface PlacedOpening {
   score?: number
   /** Index of the measured opening this came from. */
   source: number
-  /** Why the opening differs from what was measured, when it does. */
+  /** Why the opening differs from what was measured, when it does, in German. */
   notes: string[]
+  /** The same notes as message keys. */
+  messages: SurveyMessage[]
 }
 
 export interface PlacementResult {
@@ -160,13 +163,13 @@ function placeOne(
   heights: readonly number[],
   baseAboveStreet: number,
 ): PlacedOpening | string {
-  const notes: string[] = []
+  const messages: SurveyMessage[] = []
   // Horizontal: both ends onto the edge, then kept inside it.
   const left = along(edge, planPoint(plane, frame, opening.x))
   const right = along(edge, planPoint(plane, frame, opening.x + opening.width))
   const from = Math.max(0, Math.min(left, right))
   const to = Math.min(edge.length, Math.max(left, right))
-  if (to - from < opening.width - 0.05) notes.push('an der Wandkante gekürzt')
+  if (to - from < opening.width - 0.05) messages.push(message('survey.opening.wallEnd'))
   if (to - from < MIN_OPENING_M) return 'liegt außerhalb der Grundrisskante'
 
   // Vertical: heights above the street, then into the storey that holds most of it.
@@ -179,20 +182,20 @@ function placeOne(
   const ceiling = floor + heights[storey]!
   let lower = Math.max(bottom, floor)
   let upper = Math.min(top, ceiling)
-  if (lower > bottom + 0.01 || upper < top - 0.01) notes.push('an der Geschossdecke gekürzt')
+  if (lower > bottom + 0.01 || upper < top - 0.01) messages.push(message('survey.opening.slab'))
   let kind = opening.kind
   if (kind === 'door') {
     if (lower - floor <= DOOR_FLOOR_M) {
       lower = floor
     } else if (lower - floor <= DOOR_STEPS_M) {
       // Onto the floor with the height measured, so its area stays what the photo shows.
-      notes.push(`Tür ${(lower - floor).toFixed(2)} m über dem Fußboden, mit gemessener Höhe auf den Fußboden gesetzt`)
+      messages.push(message('survey.opening.doorRaised', { height: Math.round((lower - floor) * 100) / 100 }))
       const measured = upper - lower
       lower = floor
       upper = floor + measured
     } else {
       kind = 'window'
-      notes.push('Tür über dem Fußboden als Fenster übernommen')
+      messages.push(message('survey.opening.doorAsWindow'))
     }
   }
   const height = upper - lower
@@ -212,7 +215,8 @@ function placeOne(
     sill,
     score: opening.score,
     source,
-    notes,
+    notes: messages.map(germanText),
+    messages,
   }
 }
 
@@ -260,10 +264,11 @@ function trimAgainst(opening: PlacedOpening, other: PlacedOpening): PlacedOpenin
   if (aEnd <= bStart + 1e-6 || bEnd <= aStart + 1e-6) return opening
   const leftFree = bStart - aStart
   const rightFree = aEnd - bEnd
-  const notes = [...opening.notes, 'wegen Überlappung gekürzt']
+  const overlap = message('survey.opening.overlap')
+  const notes = { notes: [...opening.notes, germanText(overlap)], messages: [...opening.messages, overlap] }
   if (leftFree >= rightFree && leftFree >= MIN_OPENING_M) {
-    return { ...opening, width: roundDown(leftFree), notes }
+    return { ...opening, width: roundDown(leftFree), ...notes }
   }
-  if (rightFree >= MIN_OPENING_M) return { ...opening, offset: round(bEnd), width: roundDown(aEnd - round(bEnd)), notes }
+  if (rightFree >= MIN_OPENING_M) return { ...opening, offset: round(bEnd), width: roundDown(aEnd - round(bEnd)), ...notes }
   return null
 }

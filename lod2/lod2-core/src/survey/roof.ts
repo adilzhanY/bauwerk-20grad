@@ -7,6 +7,7 @@
  * editor cannot build what LoD2 says, the result says so in `note`.
  */
 import type { Vec2 } from './footprint.ts'
+import { germanNote, message, type SurveyMessage } from './messages.ts'
 
 export type RoofKind = 'flat' | 'gable' | 'hip'
 
@@ -15,8 +16,10 @@ export interface EditorRoof {
   /** Degrees from horizontal. */
   pitch: number
   ridgeAxis: 'x' | 'y'
-  /** Why the roof differs from the LoD2 shape, when it does. */
+  /** Why the roof differs from the LoD2 shape, when it does, in German. */
   note: string | null
+  /** The same as message keys, empty when the roof is as LoD2 says. */
+  messages: SurveyMessage[]
 }
 
 const MAX_PITCH_DEG = 60
@@ -67,18 +70,20 @@ export function editorRoof(code: string | null, rise: number, planFootprint: rea
   const mapped = roofKindForCode(code)
   const pitch = pitchFor(rise, span)
 
+  const messages: SurveyMessage[] = []
+  const result = (kind: RoofKind, pitch: number): EditorRoof =>
+    ({ kind, pitch, ridgeAxis, note: messages.length ? germanNote(messages) : null, messages })
   if (mapped.kind === 'flat' || rise < 0.5) {
-    const note = mapped.kind === 'flat' && mapped.label !== 'Flachdach' ? `${mapped.label} als Flachdach vereinfacht` : null
-    return { kind: 'flat', pitch: 0, ridgeAxis, note }
+    if (mapped.kind === 'flat' && mapped.label !== 'Flachdach') messages.push(message('survey.roof.flatSimplified', { roofType: code ?? '' }))
+    return result('flat', 0)
   }
   let kind: RoofKind = mapped.kind === 'mixed' ? 'gable' : mapped.kind
-  const notes: string[] = []
-  if (mapped.kind === 'mixed') notes.push('Mischform als Satteldach vereinfacht')
+  if (mapped.kind === 'mixed') messages.push(message('survey.roof.mixedAsGable'))
   if (kind === 'hip' && !isAxisAlignedRectangle(planFootprint)) {
     kind = 'gable'
-    notes.push('Walmdach auf nicht rechteckigem Grundriss als Satteldach')
+    messages.push(message('survey.roof.hipAsGable'))
   }
-  return { kind, pitch, ridgeAxis, note: notes.length ? notes.join('; ') : null }
+  return result(kind, pitch)
 }
 
 /** Pitch from the rise over half the span, clamped to what the editor accepts. */

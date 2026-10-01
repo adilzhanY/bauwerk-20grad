@@ -20,6 +20,7 @@ import {
 } from './footprint.ts'
 import { placeOpenings, type MeasuredOpening, type PlacedOpening } from './placeopenings.ts'
 import { catalogueWindows } from './defaultwindows.ts'
+import { germanNote, germanText, message, type SurveyMessage } from './messages.ts'
 import { editorRoof } from './roof.ts'
 import { sharedEdges } from './sharedwalls.ts'
 import { estimateStoreys, storeyHeights, storeysFromOpenings } from './storeys.ts'
@@ -60,8 +61,10 @@ export type SourceKind = 'lod2' | 'photo' | 'catalogue' | 'estimate' | 'typed'
 /** Where one value of the building came from. */
 export interface ValueSource {
   kind: SourceKind
-  /** What was assumed or changed on the way, in German like the rest of the report. */
+  /** What was assumed or changed on the way, in German. */
   note?: string
+  /** The note as message keys with values (messages.ts), so the editor can show it in its language. */
+  messages?: SurveyMessage[]
   /** File name of the photo a measured value was read from. */
   photo?: string
   /**
@@ -143,8 +146,8 @@ export interface SurveyInput {
 }
 
 export interface SurveyReport {
-  /** Things the consultant should look at, in German. */
-  warnings: string[]
+  /** Things the consultant should look at; `germanText` reads one in German. */
+  warnings: SurveyMessage[]
   /** Openings that could not be placed, per wall. */
   dropped: { surfaceIndex: number; reason: string }[]
   openingCount: number
@@ -155,7 +158,9 @@ export interface SurveyReport {
   storeysEstimated: number
 }
 
-export type SurveyResult = { ok: true; file: BauwerkFile; report: SurveyReport } | { ok: false; reason: string }
+export type SurveyResult =
+  | { ok: true; file: BauwerkFile; report: SurveyReport }
+  | { ok: false; reason: string; message: SurveyMessage }
 
 /** Taller than this and a storey is probably two, with one row of windows not seen. */
 const TALL_STOREY_M = 4.2
@@ -177,24 +182,24 @@ export function storeyName(index: number): string {
 export function surveyToBauwerk(input: SurveyInput): SurveyResult {
   const part = input.building.parts.find((p) => p.gid === input.partGid)
   const mesh = part?.mesh
-  if (!part || !mesh) return { ok: false, reason: 'Dieser Gebäudeteil hat keine Geometrie.' }
+  if (!part || !mesh) return failed('survey.failed.noGeometry')
   const ground = mesh.surfaces.find((s) => s.kind === 'ground' && s.rings[0])
-  if (!ground) return { ok: false, reason: 'Dieser Gebäudeteil hat keine Grundfläche.' }
+  if (!ground) return failed('survey.failed.noGround')
 
-  const warnings: string[] = []
+  const warnings: SurveyMessage[] = []
   const sources: Record<string, ValueSource> = {}
   const age = ageClassById(input.facts.ageClass)
 
   // Footprint in the plan frame.
   const meshFootprint = simplifyFootprint(ringToPlan(ground.rings[0]!))
-  if (meshFootprint.length < 3) return { ok: false, reason: 'Die Grundfläche ist zu klein.' }
+  if (meshFootprint.length < 3) return failed('survey.failed.tooSmall')
   const frame = planFrameFor(meshFootprint)
   const footprint = meshFootprint.map((p) => roundPoint(toPlan(frame, p)))
-  sources.footprint = { kind: 'lod2', note: `${meshFootprint.length} Ecken, ${polygonArea(footprint).toFixed(1)} m², aus dem LoD2-Grundriss vereinfacht` }
+  sources.footprint = source('lod2', message('survey.footprint', { corners: meshFootprint.length, area: round1(polygonArea(footprint)) }))
 
   // Heights from the street, not from the model's floor slab.
   const street = wallGroundLevel(ground.rings[0]!, mesh.terrain ?? []) ?? 0
-  if (street === 0 && !(mesh.terrain ?? []).length) warnings.push('Keine Geländelinie: Höhen ab Bodenplatte des Modells.')
+  if (street === 0 && !(mesh.terrain ?? []).length) warnings.push(message('survey.warning.noTerrain'))
   const eave = part.eaveHeight ?? part.measuredHeight ?? 0
   const eaveAboveStreet = Math.max(2, eave - street)
   const estimated = estimateStoreys(eaveAboveStreet, age.storeyHeight)
@@ -202,40 +207,39 @@ export function surveyToBauwerk(input: SurveyInput): SurveyResult {
   let heights: number[]
   if (input.facts.storeys) {
     heights = storeyHeights(eaveAboveStreet, input.facts.storeys)
-    sources.storeys = { kind: 'typed', note: `${input.facts.storeys} Geschosse angegeben, gleich hoch` }
+    sources.storeys = source('typed', message('survey.storeys.typed', { count: input.facts.storeys }))
     if (fromPhoto && fromPhoto.heights.length !== input.facts.storeys) {
-      warnings.push(`Das Foto zeigt ${fromPhoto.heights.length} Fensterreihen, angegeben sind ${input.facts.storeys} Geschosse.`)
+      warnings.push(message('survey.warning.storeyMismatch', { rows: fromPhoto.heights.length, count: input.facts.storeys }))
     }
   } else if (fromPhoto) {
     heights = fromPhoto.heights
-    sources.storeys = { kind: 'photo', photo: fromPhoto.photo, note: `${heights.length} Geschosse aus den Fensterreihen des Fotos` }
+    sources.storeys = { ...source('photo', message('survey.storeys.photo', { count: heights.length })), photo: fromPhoto.photo }
   } else {
     heights = storeyHeights(eaveAboveStreet, estimated)
-    sources.storeys = { kind: 'estimate', note: `${estimated} Geschosse aus ${eaveAboveStreet.toFixed(2)} m Traufhöhe über Straße geschätzt` }
+    sources.storeys = source('estimate', message('survey.storeys.estimated', { count: estimated, height: Math.round(eaveAboveStreet * 100) / 100 }))
   }
 
   const tall = heights.filter((h) => h > TALL_STOREY_M).length
-  if (tall > 0) warnings.push(`${tall} Geschoss(e) höher als ${TALL_STOREY_M.toFixed(1).replace('.', ',')} m: prüfen, ob eine Fensterreihe fehlt.`)
+  if (tall > 0) warnings.push(message('survey.warning.tallStoreys', { count: tall, height: TALL_STOREY_M }))
 
   // Roof.
   const rise = Math.max(0, (part.ridgeHeight ?? eave) - eave)
   const roof = editorRoof(part.roofTypeCode, rise, footprint)
-  sources.roof = { kind: 'lod2', note: [part.roofTypeLabel ?? 'Dachform unbekannt', roof.note].filter(Boolean).join('; ') }
+  const roofType = part.roofTypeCode && part.roofTypeLabel ? message('survey.roof.type', { roofType: part.roofTypeCode }) : message('survey.roof.unknown')
+  sources.roof = source('lod2', roofType, ...roof.messages)
 
   // Shared walls against neighbours and the other parts of this building.
   const around = [...input.neighbours, ...siblingFootprints(input.building, part.gid)]
   const neighbourPlans = around.flatMap((n) => n.grounds.map((ring) => ringToPlan(ring).map((p) =>
     toPlan(frame, { x: p.x + (n.origin[0]! - mesh.origin[0]!), y: p.y + (n.origin[1]! - mesh.origin[1]!) }))))
   const shared = sharedEdges(footprint, neighbourPlans).map((s) => s.edge)
-  sources.sharedEdges = { kind: 'lod2', note: `${shared.length} Wände an Nachbargebäude, aus den LoD2-Grundrissen erkannt` }
+  sources.sharedEdges = source('lod2', message('survey.sharedEdges', { count: shared.length }))
 
   // Constructions for the age class.
   const constructions = constructionsFor(input.facts.ageClass)
-  sources.constructions = {
-    kind: 'catalogue',
-    note: `Pauschalwerte ${age.label}, Bekanntmachung Datenaufnahme Wohngebäudebestand vom 8.10.2020${input.facts.ageClassConfirmed ? '' : ', Baualtersklasse angenommen'}`,
-  }
-  if (!input.facts.ageClassConfirmed) warnings.push(`Baualtersklasse nicht angegeben: ${age.label} angenommen.`)
+  const ageClass = { ageClass: age.id }
+  sources.constructions = source('catalogue', message(input.facts.ageClassConfirmed ? 'survey.constructions' : 'survey.constructions.assumed', ageClass))
+  if (!input.facts.ageClassConfirmed) warnings.push(message('survey.warning.ageClassAssumed', ageClass))
 
   // Openings, wall by wall.
   const storeys: BauwerkStorey[] = heights.map((height, index) => ({
@@ -265,7 +269,7 @@ export function surveyToBauwerk(input: SurveyInput): SurveyResult {
     if (result.edge !== null) photographedEdges.add(result.edge)
     for (const d of result.dropped) dropped.push({ surfaceIndex: wall.surfaceIndex, reason: d.reason })
     if (result.edge !== null && shared.includes(result.edge)) {
-      warnings.push(`Wand ${wall.surfaceIndex} liegt an einem Nachbargebäude; ihre Öffnungen wurden nicht übernommen.`)
+      warnings.push(message('survey.warning.partyWall', { wall: wall.surfaceIndex }))
       continue
     }
     for (const placed of result.placed) {
@@ -315,9 +319,9 @@ export function surveyToBauwerk(input: SurveyInput): SurveyResult {
     sources,
   }
   stampValues(building)
-  if (input.walls.length === 0) warnings.push('Noch keine Fassade fotografiert: das Modell hat keine Fenster.')
+  if (input.walls.length === 0) warnings.push(message('survey.warning.noPhoto'))
   const otherParts = input.building.parts.filter((p) => p.hasGeometry && p.gid !== part.gid).length
-  if (otherParts > 0) warnings.push(`Das Gebäude hat ${otherParts} weitere Teile; nur dieser Teil wird übergeben.`)
+  if (otherParts > 0) warnings.push(message('survey.warning.otherParts', { count: otherParts }))
 
   return {
     ok: true,
@@ -416,7 +420,7 @@ function addCatalogueWindows(
       catalogueWindows(length, storey.height).forEach((w, k) => {
         const id = `c${edge}-s${storeyIndex}-${k}`
         storey.openings.push({ id, wallIndex: edge, kind: 'window', offset: w.offset, width: w.width, height: w.height, sill: w.sill, constructionId: 'lod2-window' })
-        sources[`opening:${id}`] = { kind: 'catalogue', note: CATALOGUE_WINDOW_NOTE }
+        sources[`opening:${id}`] = source('catalogue', message('survey.opening.catalogue'))
         count++
         area += w.width * w.height
       })
@@ -424,9 +428,6 @@ function addCatalogueWindows(
   })
   return { count, area }
 }
-
-const CATALOGUE_WINDOW_NOTE =
-  'Kein Foto dieser Fassade: Fenster nach Bekanntmachung Datenaufnahme 2020, Tabelle 1 Zeile 1a (55 % der Wandbreite, lichte Raumhöhe minus 1,50 m)'
 
 /** The ground rings of the building's other parts, as neighbours. */
 function siblingFootprints(building: BuildingDetail, partGid: string): NeighbourFootprint[] {
@@ -464,10 +465,27 @@ function toBauwerkOpening(placed: PlacedOpening, surfaceIndex: number): BauwerkO
 }
 
 function openingSource(placed: PlacedOpening, wall: SurveyedWall): ValueSource {
-  const confidence = placed.score === undefined ? '' : `, Konfidenz ${Math.round(placed.score * 100)} %`
-  const how = wall.method === 'detected' ? `Foto, automatisch erkannt${confidence}` : 'Foto, von Hand eingezeichnet'
-  const note = [how, ...placed.notes].join('; ')
-  return wall.photo ? { kind: 'photo', note, photo: wall.photo } : { kind: 'photo', note }
+  const how = wall.method === 'drawn'
+    ? message('survey.opening.drawn')
+    : placed.score === undefined
+      ? message('survey.opening.detected')
+      : message('survey.opening.detectedScore', { confidence: Math.round(placed.score * 100) })
+  const result = source('photo', how, ...placed.messages)
+  return wall.photo ? { ...result, photo: wall.photo } : result
+}
+
+/** A source whose note is these messages, in German and as keys. */
+function source(kind: SourceKind, ...messages: SurveyMessage[]): ValueSource {
+  return { kind, note: germanNote(messages), messages }
+}
+
+function failed(key: SurveyMessage['key']): SurveyResult {
+  const m = message(key)
+  return { ok: false, reason: germanText(m), message: m }
+}
+
+function round1(v: number): number {
+  return Math.round(v * 10) / 10
 }
 
 function roundPoint(p: Vec2): Vec2 {

@@ -17,6 +17,7 @@ import { LayerSection, LayerTable } from "@/components/shared/LayerSection";
 import { buildRoof, roofOf } from "@/geometry/roof";
 import { buildRoadmap, evaluateAll } from "@/geometry/scenarios";
 import { sourceRows } from "@/geometry/sources";
+import { sourceNoteText } from "@/lod2/messages";
 import type { SourceKind } from "@/geometry/types";
 
 /*
@@ -776,7 +777,13 @@ const SOURCE_LABEL_KEYS: Record<string, MessageKey> = {
 /** Every value brought in from a survey, where it came from, and whether it was changed. */
 function SourcesTable({ building }: { building: Building }) {
   const t = useT();
+  const language = useEditorStore((s) => s.language);
   const rows = sourceRows(building);
+  // In the UI language, numbers the German way like the rest of the report.
+  const note = (row: (typeof rows)[number]) => {
+    const text = sourceNoteText(row.source, language, "de");
+    return text ? `: ${text}` : "";
+  };
   const label = (path: string) => {
     const key = SOURCE_LABEL_KEYS[path];
     if (key) return t(key);
@@ -808,7 +815,7 @@ function SourcesTable({ building }: { building: Building }) {
               <td>
                 {t(SOURCE_KIND_KEYS[row.source.kind])}
                 {row.source.photo ? ` (${row.source.photo})` : ""}
-                {row.source.note ? `: ${row.source.note}` : ""}
+                {note(row)}
               </td>
               <td>{state(row)}</td>
             </tr>

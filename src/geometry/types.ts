@@ -320,8 +320,13 @@ export type SourceKind = "lod2" | "photo" | "catalogue" | "estimate" | "typed";
 
 export interface ValueSource {
   kind: SourceKind;
-  /** What was assumed or changed on the way. */
+  /** What was assumed or changed on the way, as written (German from the survey). */
   note?: string;
+  /**
+   * The same note as message keys with values, shown in the UI language (lod2/messages.ts).
+   * Buildings saved before it have only the note.
+   */
+  messages?: { key: string; values?: Record<string, string | number> }[];
   /** File name of the photo a measured value was read from. */
   photo?: string;
   /**
