@@ -1,4 +1,6 @@
 import type { StateCreator, StoreMutatorIdentifier } from "zustand";
+import { can } from "@/projects/roles";
+import type { Role } from "@/projects/roles";
 import type { Building, Id } from "@/geometry/types";
 import type { Selection } from "./building";
 import { selectionExists } from "./selectors";
@@ -95,6 +97,13 @@ const historyImpl: HistoryImpl = (initializer) => (set, get, api) => {
     }
     const after = get().building;
     if (restoring || before === after) return;
+    // A viewer or commenter of a server project changes nothing: the server would refuse it
+    // anyway, so the change is taken back here before anyone sees it (projects/roles.ts).
+    const role = (get() as { projectRole?: Role | null }).projectRole;
+    if (role && !can(role, "edit")) {
+      set({ building: before } as Partial<S>);
+      return;
+    }
     if (batchDepth > 0) {
       // Only the first change of a gesture records the snapshot taken before it.
       if (batchRecorded) return;

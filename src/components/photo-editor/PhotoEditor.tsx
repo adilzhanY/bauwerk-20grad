@@ -321,9 +321,10 @@ export function PhotoEditorView({
       });
       return Promise.resolve();
     }
-    return job.run("corners", async (signal, startedAt) => {
+    return job.run("corners", async (signal, startedAt, onAhead) => {
       const result = await detectWall(file, plane, {
         signal,
+        onAhead,
         onStage: (stage, baseHidden) => {
           job.setDetection({ stage, startedAt, baseHidden });
           setBaseHiddenNote(baseHidden > BASE_HIDDEN_WARN ? baseHidden : null);
@@ -342,8 +343,8 @@ export function PhotoEditorView({
   };
 
   const detectOpeningsOn = (image: WallImage) => {
-    void job.run("openings", async (signal) => {
-      const proposals = await detectOpeningsOnly(image, signal);
+    void job.run("openings", async (signal, _startedAt, onAhead) => {
+      const proposals = await detectOpeningsOnly(image, signal, onAhead);
       if (!proposals) return false;
       openings.replaceWithProposals(proposals);
       return true;

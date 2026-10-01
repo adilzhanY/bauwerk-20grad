@@ -5,7 +5,7 @@ import { Presence } from "@/components/shared/Presence";
 import { useDismiss } from "@/components/shared/useDismiss";
 import { useT } from "@/i18n/useT";
 import { fullName, signOut, useAuth } from "@/auth/store";
-import { initialsOf } from "@/components/app/initials";
+import { initialsOf } from "@/components/shared/initials";
 import { loginPath } from "@/app/router";
 
 /** Built without accounts, the bar shows these initials, as it always did. */

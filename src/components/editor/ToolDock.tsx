@@ -6,6 +6,7 @@ import { Box, Eye, Keyboard } from "lucide-react";
 import { cx } from "@/components/shared/cx";
 import { useT } from "@/i18n/useT";
 import { useEditorStore } from "@/store/building";
+import { toolAllowed } from "@/store/building";
 import type { Tool } from "@/store/building";
 import { ShortcutSheet } from "@/components/editor/ShortcutSheet";
 import { toolIcons, toolLabel } from "@/components/editor/tools";
@@ -35,7 +36,12 @@ export function ToolDock({
   const t = useT();
   const tool = useEditorStore((s) => s.tool);
   const setTool = useEditorStore((s) => s.setTool);
+  const role = useEditorStore((s) => s.projectRole);
   const otherStoreys = useEditorStore((s) => s.otherStoreys);
+  // A viewer or commenter sees only the tools that look; empty groups go with their divider.
+  const groups = GROUPS.map((g) => g.filter((id) => toolAllowed(id, role))).filter(
+    (g) => g.length > 0,
+  );
   const setOtherStoreys = useEditorStore((s) => s.setOtherStoreys);
   const [sheetOpen, setSheetOpen] = useState(false);
   const whole = otherStoreys.below === "solid" && otherStoreys.above === "ghost";
@@ -69,7 +75,7 @@ export function ToolDock({
         aria-label={t("panel.tools")}
         className="flex flex-col items-center gap-1"
       >
-        {GROUPS.map((group, groupIndex) => (
+        {groups.map((group, groupIndex) => (
           <Fragment key={group.join()}>
             {groupIndex > 0 && <span aria-hidden className="my-1 h-px w-8 bg-line" />}
             {group.map((id) => {

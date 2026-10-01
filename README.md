@@ -184,6 +184,12 @@ database (and its migrations), the LoD2 API, the collaboration server, the visio
 is installed, and the app. Ctrl+C stops them all; `npm run db:stop` stops the database. Settings live in one `.env`
 at the root; every value has a working default, see `.env.example`.
 
+Accounts, projects and every user's data are kept in Supabase. `npm run dev` reads its settings
+from `~/.config/bauwerk/supabase.env` (`BAUWERK_DATABASE_URL` and `DATABASE_CA_CERT`, see
+`deploy/README.md`) and does not start without them, so nobody signs in against an empty local
+database by accident. The first line of `collab` names the database in use.
+`npm run dev -- --local-db` uses the local Postgres instead.
+
 The vision service needs Linux or WSL2 and an NVIDIA graphics card. Without it everything works,
 only the automatic detection is hidden. Its setup, and everything else about the LoD2 part, is
 in [`lod2/docs/LOD2.md`](lod2/docs/LOD2.md).

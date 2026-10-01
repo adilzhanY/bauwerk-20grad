@@ -6,7 +6,9 @@ import { Viewport } from "@/scene/Viewport";
 import { useEditorStore } from "@/store/building";
 import { hasWebGL } from "@/lib/webgl";
 import type { Sync } from "@/sync/useSync";
-import { LOCAL_SYNC } from "@/sync/useSync";
+import { LOCAL_SYNC, projectIdFromUrl } from "@/sync/useSync";
+import { NoAccess } from "@/components/editor/NoAccess";
+import { FollowFrame } from "@/components/editor/PeopleHere";
 import { LeftPanel } from "@/components/editor/LeftPanel";
 import { RightPanel } from "@/components/editor/RightPanel";
 import { EmptyState, WebGLMissing } from "@/components/app/States";
@@ -20,6 +22,8 @@ import { useT } from "@/i18n/useT";
 import { LinkImportNotice } from "@/components/editor/LinkImportNotice";
 import { SyncRejectNotice } from "@/components/editor/SyncRejectNotice";
 import { VersionPreviewBanner } from "@/components/editor/VersionPreviewBanner";
+import { SinceLastVisit } from "@/components/editor/SinceLastVisit";
+import { OverwriteNotice } from "@/components/editor/OverwriteNotice";
 import { WallPhotoEditor } from "@/components/editor/WallPhotoEditor";
 import type { LinkNotice } from "@/lib/linkImport";
 
@@ -51,6 +55,10 @@ export function EditorPage({
   const [panelsOpen, setPanelsOpen] = useState(true);
   const [layersOpen, setLayersOpen] = useState(true);
 
+  // Signed in, but not a member and without a share link: ask the owner instead.
+  const blocked = sync.status === "noAccess" ? projectIdFromUrl() : null;
+  if (blocked) return <NoAccess projectId={blocked} />;
+
   return (
     <div className="flex h-full" data-tool={tool}>
       <WallPhotoEditor />
@@ -64,6 +72,7 @@ export function EditorPage({
         <main aria-label={t("a11y.scene")} className="absolute inset-0">
           {!hasStoreys ? <EmptyState /> : webgl ? <Viewport /> : <WebGLMissing />}
         </main>
+        <FollowFrame />
         {/* Under the view switch, which owns the top centre. */}
         <ToastStack offset="below-bar">
           <Presence value={notice} kind="float">
@@ -77,6 +86,8 @@ export function EditorPage({
             )}
           </Presence>
           <VersionPreviewBanner />
+          <SinceLastVisit />
+          <OverwriteNotice sync={sync} />
           <Presence value={sync.rejection} kind="float">
             {(r) => <SyncRejectNotice rejection={r} onDismiss={sync.dismissRejection} />}
           </Presence>

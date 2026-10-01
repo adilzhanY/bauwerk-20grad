@@ -7,12 +7,20 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from "@nestjs/websockets";
-import type { OnGatewayDisconnect, OnGatewayInit } from "@nestjs/websockets";
+import type { OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit } from "@nestjs/websockets";
+import { NotificationsService } from "../notifications/notifications.service";
+import type { Notice } from "../notifications/notifications.service";
+import { MembersService } from "./members.service";
+import { LiveProjects } from "./live.service";
+import { ThreadsService } from "../threads/threads.service";
+import { FilesService } from "../files/files.service";
 import type { Server, Socket } from "socket.io";
 import { actorOf, batchOf } from "./projects.controller";
 import { colorFor } from "@/sync/colors";
 import { ProjectsService } from "./projects.service";
 import { AuthService, Unauthenticated, displayName } from "../auth/auth.service";
+import { can } from "@/projects/roles";
+import type { Role } from "@/projects/roles";
 import type { AuthUser } from "../auth/auth.service";
 import type { ProjectOps } from "./projects.service";
 
@@ -23,17 +31,38 @@ interface Member {
   actor: string;
   color: string;
   selection: unknown;
+  /** The person's role in the project, checked on join; only editors and owners send ops. */
+  role: Role;
+  /** Here, or away (the tab hidden for a while), and where in the project. */
+  state: "here" | "away";
+  page: string | null;
+  storeyId: string | null;
   /** The signed in user, set by the connection middleware when accounts are on. */
   user?: AuthUser;
 }
 
-/** One entry of the presence list: every tab in the project room. */
+/**
+ * One entry of the presence list: every tab in the project room. The editor groups the tabs
+ * of one person (`userId`) into one avatar; cursors and selections stay per tab.
+ */
 export interface PresenceEntry {
   clientId: string;
   actor: string;
   color: string;
   selection: unknown;
+  userId: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  state: "here" | "away";
+  page: string | null;
+  storeyId: string | null;
 }
+
+const PAGES = new Set(["building", "editor", "variants", "report"]);
+const isNumber = (value: unknown): value is number =>
+  typeof value === "number" && Number.isFinite(value) && Math.abs(value) < 1e5;
+const isVec3 = (value: unknown): value is [number, number, number] =>
+  Array.isArray(value) && value.length === 3 && value.every(isNumber);
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
@@ -78,14 +107,16 @@ const isDrag = (value: unknown) =>
   isCoordinate(value.offset);
 
 const room = (projectId: string) => `project:${projectId}`;
+const userRoom = (userId: string) => `user:${userId}`;
 const member = (socket: Socket) => socket.data as Partial<Member>;
 
 /**
  * One Socket.IO room per project.
  *
- *   join       { projectId, clientId, actor, color }  ack: the building, its version, and the
- *              last batch of this client the project applied
- *   ops        { seq, ops }                            ack: applied (version) or the reason not
+ *   join       { projectId, clientId, actor, color, link? }  ack: the building, its version,
+ *              the person's role and the last batch of this client the project applied; `link`
+ *              is the share link's token for someone who is not a member yet
+ *   ops        { seq, ops }    editors and owners only; ack: applied (version) or the reason not
  *   selection  { selection }
  *   cursor     { cursor }     the pointer on the ground, passed on to the others
  *   drag       { dragging }   the opening being dragged, passed on to the others
@@ -94,17 +125,69 @@ const member = (socket: Socket) => socket.data as Partial<Member>;
  * version, so all tabs replay the same batches in the same order. Presence goes out on
  * every join, leave and selection change.
  */
-@WebSocketGateway({ cors: { origin: true }, maxHttpBufferSize: 5e6 })
-export class ProjectsGateway implements OnGatewayInit, OnGatewayDisconnect, OnModuleDestroy {
+// A closed or frozen tab is noticed within 30 s: a ping every 10 s, 20 s to answer.
+@WebSocketGateway({
+  cors: { origin: true },
+  maxHttpBufferSize: 5e6,
+  pingInterval: 10_000,
+  pingTimeout: 20_000,
+})
+export class ProjectsGateway
+  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect, OnModuleDestroy
+{
   @WebSocketServer() private readonly server!: Server;
 
   constructor(
     @Inject(ProjectsService) private readonly projects: ProjectsService,
     @Inject(AuthService) private readonly auth: AuthService,
+    @Inject(NotificationsService) private readonly notifications: NotificationsService,
+    @Inject(MembersService) private readonly members: MembersService,
+    @Inject(LiveProjects) private readonly live: LiveProjects,
+    @Inject(ThreadsService) private readonly threads: ThreadsService,
+    @Inject(FilesService) private readonly files: FilesService,
   ) {}
+
+  /** A file was added, replaced or removed: every tab in the project reloads its pictures. */
+  private readonly onFiles = (projectId: string) => {
+    this.server.to(room(projectId)).emit("files", { projectId });
+  };
+
+  /** Threads changed: every tab in the project reloads them. */
+  private readonly onThreads = (projectId: string) => {
+    this.server.to(room(projectId)).emit("threads", { projectId });
+  };
 
   private readonly onOps = (event: ProjectOps) => {
     this.server.to(room(event.projectId)).emit("ops", event);
+  };
+
+  /** A new inbox item goes to every tab of its person, wherever on the site they are. */
+  private readonly onNotification = (userId: string, notice: Notice) => {
+    this.server.to(userRoom(userId)).emit("notification", notice);
+  };
+
+  /**
+   * A role changed or was taken away: the person's tabs in that project learn it at once
+   * ("access" with the new role or null), and a removed person's tabs leave the room.
+   */
+  private readonly onAccess = (projectId: string, userId: string, role: Role | null) => {
+    void this.server
+      .in(room(projectId))
+      .fetchSockets()
+      .then(async (sockets) => {
+        for (const socket of sockets) {
+          const data = socket.data as Partial<Member>;
+          if (data.user?.id !== userId) continue;
+          socket.emit("access", { projectId, role });
+          if (role) data.role = role;
+          else {
+            socket.leave(room(projectId));
+            data.projectId = undefined;
+            this.live.remove(projectId, socket.id);
+          }
+        }
+        if (!role) await this.sendPresence(projectId);
+      });
   };
 
   afterInit(server: Server) {
@@ -126,10 +209,24 @@ export class ProjectsGateway implements OnGatewayInit, OnGatewayDisconnect, OnMo
         });
     });
     this.projects.events.on("ops", this.onOps);
+    this.notifications.events.on("notification", this.onNotification);
+    this.members.events.on("access", this.onAccess);
+    this.threads.events.on("changed", this.onThreads);
+    this.files.events.on("changed", this.onFiles);
+  }
+
+  /** Every tab of a signed in person is in their own room, for notifications. */
+  async handleConnection(socket: Socket) {
+    const user = (socket.data as Partial<Member>).user;
+    if (user) await socket.join(userRoom(user.id));
   }
 
   onModuleDestroy() {
     this.projects.events.off("ops", this.onOps);
+    this.notifications.events.off("notification", this.onNotification);
+    this.members.events.off("access", this.onAccess);
+    this.threads.events.off("changed", this.onThreads);
+    this.files.events.off("changed", this.onFiles);
   }
 
   @SubscribeMessage("join")
@@ -147,20 +244,26 @@ export class ProjectsGateway implements OnGatewayInit, OnGatewayDisconnect, OnMo
     const previous = member(socket).projectId;
     if (previous && previous !== body.projectId) {
       await socket.leave(room(previous));
-      await this.sendPresence(previous);
+      await this.left(socket, previous);
     }
     // Signed in, the name and colour are the account's, not what the client sent.
     const user = member(socket).user;
-    const access = await this.projects.access(body.projectId, user, true);
-    if (access !== "ok") return { ok: false, reason: access };
+    const link = typeof body.link === "string" ? body.link : undefined;
+    const access = await this.projects.roleIn(body.projectId, user, link);
+    if (!access.ok) return { ok: false, reason: access.reason };
     socket.data = {
       projectId: body.projectId,
       clientId: body.clientId,
       actor: user ? displayName(user) : actorOf(body.actor),
       color: user ? colorFor(user.id) : body.color,
       selection: null,
+      role: access.role,
+      state: "here",
+      page: typeof body.page === "string" && PAGES.has(body.page) ? body.page : null,
+      storeyId: isText(body.storeyId, 128) ? body.storeyId : null,
       ...(user ? { user } : {}),
     } satisfies Member;
+    this.track(socket);
     // Join before reading, so no batch can fall between the snapshot and the room. A batch
     // that lands in between arrives twice, as part of the snapshot and as a message, and
     // the client skips the message by its version.
@@ -168,14 +271,24 @@ export class ProjectsGateway implements OnGatewayInit, OnGatewayDisconnect, OnMo
     const project = await this.projects.get(body.projectId);
     if (!project) return { ok: false, reason: "notFound" };
     const lastSeq = await this.projects.lastSeq(body.projectId, body.clientId);
+    // For "since your last visit": when this person was last in it, before this visit.
+    const lastSeenAt = user ? await this.members.lastSeen(body.projectId, user.id) : null;
     await this.sendPresence(body.projectId);
-    return { ok: true, version: project.version, building: project.building, lastSeq };
+    return {
+      ok: true,
+      version: project.version,
+      building: project.building,
+      lastSeq,
+      role: access.role,
+      lastSeenAt,
+    };
   }
 
   @SubscribeMessage("ops")
   async ops(@ConnectedSocket() socket: Socket, @MessageBody() body: unknown) {
     const { projectId, clientId, actor } = member(socket);
     if (!projectId || !clientId || !actor) return { ok: false, reason: "notJoined" };
+    if (!can(member(socket).role, "edit")) return { ok: false, reason: "notAllowed" };
     const batch = batchOf(isRecord(body) ? { ...body, clientId } : null);
     if (!batch) return { ok: false, reason: "invalidBatch" };
     const result = await this.projects.applyBatch(projectId, batch, actor, member(socket).user?.id);
@@ -214,9 +327,61 @@ export class ProjectsGateway implements OnGatewayInit, OnGatewayDisconnect, OnMo
     socket.to(room(projectId)).emit("drag", { clientId, dragging });
   }
 
+  /**
+   * Here or away, and where in the project: page and storey. Sent on joining and whenever one
+   * of them changes; others see it in the avatars, and the Projects page sees who is in it.
+   */
+  @SubscribeMessage("status")
+  async status(@ConnectedSocket() socket: Socket, @MessageBody() body: unknown) {
+    const data = member(socket);
+    if (!data.projectId || !isRecord(body)) return;
+    if (body.state !== "here" && body.state !== "away") return;
+    data.state = body.state;
+    data.page = typeof body.page === "string" && PAGES.has(body.page) ? body.page : null;
+    data.storeyId = isText(body.storeyId, 128) ? body.storeyId : null;
+    this.track(socket);
+    await this.sendPresence(data.projectId);
+  }
+
+  /**
+   * Where this tab's camera is, for whoever follows it (TODO Part 21, CC.5). Fire and forget,
+   * like the pointer: a lost one is replaced by the next.
+   */
+  @SubscribeMessage("view")
+  view(@ConnectedSocket() socket: Socket, @MessageBody() body: unknown) {
+    const { projectId, clientId } = member(socket);
+    if (!projectId || !isRecord(body) || !isVec3(body.position) || !isVec3(body.target)) return;
+    const storeyId = isText(body.storeyId, 128) ? body.storeyId : null;
+    socket.volatile
+      .to(room(projectId))
+      .emit("view", { clientId, position: body.position, target: body.target, storeyId });
+  }
+
   async handleDisconnect(socket: Socket) {
     const { projectId } = member(socket);
-    if (projectId) await this.sendPresence(projectId);
+    if (projectId) await this.left(socket, projectId);
+  }
+
+  /** Keeps the live list of the Projects page in step with this tab. */
+  private track(socket: Socket) {
+    const data = member(socket);
+    if (!data.projectId || !data.user) return;
+    this.live.set(data.projectId, socket.id, {
+      userId: data.user.id,
+      firstName: data.user.firstName,
+      lastName: data.user.lastName,
+      state: data.state ?? "here",
+    });
+  }
+
+  /** A tab left a project: when it was the person's last one there, note when they were in it. */
+  private async left(socket: Socket, projectId: string) {
+    this.live.remove(projectId, socket.id);
+    const user = member(socket).user;
+    if (user && !this.live.stillIn(projectId, user.id)) {
+      await this.members.markSeen(projectId, user.id);
+    }
+    await this.sendPresence(projectId);
   }
 
   private async sendPresence(projectId: string) {
@@ -228,6 +393,12 @@ export class ProjectsGateway implements OnGatewayInit, OnGatewayDisconnect, OnMo
         actor: data.actor,
         color: data.color,
         selection: data.selection,
+        userId: data.user?.id ?? null,
+        firstName: data.user?.firstName ?? null,
+        lastName: data.user?.lastName ?? null,
+        state: data.state,
+        page: data.page,
+        storeyId: data.storeyId,
       };
     });
     this.server.to(room(projectId)).emit("presence", { actors });

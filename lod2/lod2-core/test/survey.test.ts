@@ -244,6 +244,24 @@ test('UTM zone 33 back to latitude and longitude matches PROJ to a few millimetr
   }
 })
 
+test('a door a few steps above the street stays a door, on the floor at its measured height', () => {
+  // BOo's two doors as marked in the photo editor: the photo's bottom edge sits a little above
+  // the street, so their bottoms land 0.34 m and 0.39 m above the ground floor. A third "door"
+  // high on the wall is a window that reaches low.
+  const doors = [
+    { kind: 'door' as const, x: 5.633, y: 0.092, width: 1.254, height: 2.685 },
+    { kind: 'door' as const, x: 12.036, y: 0.142, width: 0.944, height: 1.957 },
+    { kind: 'door' as const, x: 2, y: 5.5, width: 1, height: 2 },
+  ]
+  const result = build('DEBE02YY40000BOo', (input) => ({ ...input, walls: [{ ...input.walls[0]!, openings: doors }] }))
+  const openings = result.file.building.storeys.flatMap((s) => s.openings)
+  const kept = openings.filter((o) => o.kind === 'door').sort((a, b) => a.offset - b.offset)
+  assert.equal(kept.length, 2)
+  assert.deepEqual(kept.map((o) => [o.sill, o.width, o.height]), [[0, 1.254, 2.685], [0, 0.944, 1.957]])
+  assert.equal(openings.filter((o) => o.kind === 'window').length, 1)
+  assertEditorValid(result.file.building)
+})
+
 // ---------------------------------------------------------------- the whole file
 
 /** The rules Bauwerk's importer checks for every opening. */

@@ -10,6 +10,7 @@ import { io } from "socket.io-client";
 import type { Socket } from "socket.io-client";
 import { exampleHouse } from "@/lib/examples";
 import { resetIds } from "@/lib/ids";
+import { DatabaseStore } from "../files/store";
 import { createApp } from "../app";
 import { authConfigFromEnv, resetLimits } from "./auth.service";
 import { hashPassword, verifyPassword } from "./password";
@@ -65,6 +66,7 @@ beforeAll(async () => {
   pool = new Pool({ connectionString: url });
   app = await createApp(pool, {
     logger: false,
+    files: new DatabaseStore(pool),
     auth: { mode: "on", secret: new TextEncoder().encode(SECRET) },
   });
   await app.listen(0);
@@ -83,7 +85,7 @@ beforeEach(async () => {
   resetLimits();
   await pool.query(
     `TRUNCATE app.project_photos, app.project_members, app.project_events, app.projects,
-       app.user_buildings, app.user_bookmarks, app.user_settings, app.users`,
+       app.user_buildings, app.user_bookmarks, app.user_settings, app.users CASCADE`,
   );
 });
 
@@ -237,23 +239,81 @@ describe("tokens", () => {
 });
 
 describe("projects with accounts", () => {
-  it("makes the creator the owner, lets a signed in stranger join by the link, and only the owner delete", async () => {
+  it("makes the creator the owner, lets nobody in by the address, a stranger in by the share link with its role, and only the owner delete", async () => {
     const adaToken = (await signUp(ada)).token;
     const bobToken = (await signUp(bob)).token;
     const created = await call("POST", "/projects", adaToken, { building: exampleHouse("en") });
     expect(created.status).toBe(201);
     const { id } = (await created.json()) as { id: string };
 
+    // The project's address alone lets nobody in, and its report stays closed too.
     expect((await call("GET", `/projects/${id}`, bobToken)).status).toBe(403);
     expect(await (await call("GET", "/projects", bobToken)).json()).toEqual([]);
-    expect((await call("POST", `/projects/${id}/join`, bobToken)).status).toBe(200);
+    expect((await call("POST", `/projects/${id}/join`, bobToken)).status).toBe(403);
+    expect((await call("POST", `/reports/${id}`, bobToken)).status).toBe(403);
+
+    // Only the owner sets the link; it never grants editing, and never into the past.
+    expect((await call("PUT", `/projects/${id}/link`, bobToken, { role: "viewer" })).status).toBe(
+      403,
+    );
+    expect((await call("PUT", `/projects/${id}/link`, adaToken, { role: "editor" })).status).toBe(
+      400,
+    );
+    const past = new Date(Date.now() - 60_000).toISOString();
+    expect(
+      (await call("PUT", `/projects/${id}/link`, adaToken, { role: "viewer", expiresAt: past }))
+        .status,
+    ).toBe(400);
+    const set = (await (
+      await call("PUT", `/projects/${id}/link`, adaToken, { role: "viewer" })
+    ).json()) as { link: { token: string; role: string } };
+    expect(set.link.role).toBe("viewer");
+
+    // With the token Bob becomes a viewer: he sees, but cannot edit or manage.
+    const joined = await call("POST", `/projects/${id}/join`, bobToken, { link: set.link.token });
+    expect(await joined.json()).toEqual({ ok: true, role: "viewer" });
+    expect(await (await call("GET", `/projects/${id}`, bobToken)).json()).toEqual(
+      expect.objectContaining({ id, role: "viewer" }),
+    );
+    expect(
+      (await call("POST", `/projects/${id}/ops`, bobToken, { clientId: "b", seq: 1, ops: [] }))
+        .status,
+    ).toBe(403);
+    expect((await call("GET", `/projects/${id}/link`, bobToken)).status).toBe(403);
+
+    // A reset link, and a link turned off, let nobody else in.
+    const carol = {
+      firstName: "Carol",
+      lastName: "Chen",
+      username: "carol_c",
+      password: "Analytical-Engine3",
+      confirmPassword: "Analytical-Engine3",
+    };
+    const carolToken = (await signUp(carol)).token;
+    const reset = (await (
+      await call("PUT", `/projects/${id}/link`, adaToken, { role: "commenter", reset: true })
+    ).json()) as { link: { token: string } };
+    expect(reset.link.token).not.toBe(set.link.token);
+    expect(
+      (await call("POST", `/projects/${id}/join`, carolToken, { link: set.link.token })).status,
+    ).toBe(403);
+    expect((await call("DELETE", `/projects/${id}/link`, adaToken)).status).toBe(204);
+    expect(
+      (await call("POST", `/projects/${id}/join`, carolToken, { link: reset.link.token })).status,
+    ).toBe(403);
+    // Bob stays a member: turning the link off does not throw out who came in by it.
     expect((await call("GET", `/projects/${id}`, bobToken)).status).toBe(200);
     const listed = (await (await call("GET", "/projects", bobToken)).json()) as {
       id: string;
-      owner: string;
+      owner: { firstName: string; lastName: string };
       summary: { energyClass: string };
     }[];
-    expect(listed).toEqual([expect.objectContaining({ id, owner: "Ada Lovelace" })]);
+    expect(listed).toEqual([
+      expect.objectContaining({
+        id,
+        owner: expect.objectContaining({ firstName: "Ada", lastName: "Lovelace" }) as object,
+      }),
+    ]);
     // The card is stored with its version: the second list reads it without the building.
     const stored = await pool.query<{ summary_version: number; version: number }>(
       "SELECT summary_version, version FROM app.projects WHERE id = $1",
@@ -282,10 +342,12 @@ describe("projects with accounts", () => {
     });
     expect(reason).toBe("signIn");
 
-    const created = await call("POST", "/projects", (await signUp(ada)).token, {
-      building: exampleHouse("en"),
-    });
+    const adaToken = (await signUp(ada)).token;
+    const created = await call("POST", "/projects", adaToken, { building: exampleHouse("en") });
     const { id } = (await created.json()) as { id: string };
+    const { link } = (await (
+      await call("PUT", `/projects/${id}/link`, adaToken, { role: "commenter" })
+    ).json()) as { link: { token: string } };
     const bobToken = (await signUp(bob)).token;
     const socket = io(base, {
       transports: ["websocket"],
@@ -303,8 +365,15 @@ describe("projects with accounts", () => {
       clientId: "tab",
       actor: "Mallory pretending",
       color: "#000000",
-    })) as { ok: boolean };
-    expect(joined.ok).toBe(true);
+      link: link.token,
+    })) as { ok: boolean; role: string };
+    expect(joined).toEqual(expect.objectContaining({ ok: true, role: "commenter" }));
+    // A commenter's edits are refused, whatever the client sends.
+    const ops = (await socket.emitWithAck("ops", { seq: 1, ops: [] })) as {
+      ok: boolean;
+      reason: string;
+    };
+    expect(ops).toEqual({ ok: false, reason: "notAllowed" });
     const { actors } = await presence;
     expect(actors[0]?.actor).toBe("Bob Builder");
     expect(actors[0]?.color).not.toBe("#000000");

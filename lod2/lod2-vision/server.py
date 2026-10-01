@@ -4,6 +4,7 @@ Local vision service for the LoD2 viewer: SAM 3 behind two routes.
   POST /corners   photo + wall size in metres  ->  four corners, hidden-base fraction,
                   and the photo with occluders painted flat (base64 JPEG)
   POST /openings  rectified wall image + pixels per metre  ->  windows and doors in metres
+  GET  /queue/<id>  how many jobs are ahead of this one (the browser sends <id> as X-Job-Id)
   GET  /health    model and device
 
 Listens on 127.0.0.1 only. There is no authentication, like lod2-api, and for the same
@@ -18,7 +19,6 @@ import hmac
 import io
 import os
 import sys
-import threading
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 from pathlib import Path
@@ -50,12 +50,13 @@ if BUNDLED_MODEL.is_dir():
 
 import torch  # noqa: E402
 import uvicorn  # noqa: E402
-from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile  # noqa: E402
+from fastapi import FastAPI, File, Form, Header, HTTPException, Request, UploadFile  # noqa: E402
 from fastapi.exceptions import RequestValidationError  # noqa: E402
 from fastapi.responses import JSONResponse  # noqa: E402
 from huggingface_hub.errors import HfHubHTTPError, LocalEntryNotFoundError  # noqa: E402
 from PIL import Image, ImageOps  # noqa: E402
 
+from gpu_queue import Abandoned, GpuLine  # noqa: E402
 from pipeline import Sam3, find_openings, find_wall  # noqa: E402
 
 # Loopback on the development PC. On a rented GPU instance the provider's proxy has to reach
@@ -77,7 +78,7 @@ OUT_OF_MEMORY = "The GPU ran out of memory on this image. Close other programs t
 
 sam: Sam3 | None = None
 # One model serves every request, and sync routes run in a thread pool, so jobs take turns.
-gpu_lock = threading.Lock()
+gpu_line = GpuLine()
 
 
 def fail(message: str) -> None:
@@ -149,20 +150,24 @@ def release_gpu_cache() -> None:
         torch.cuda.empty_cache()
 
 
-def run_model(job, *args):
+def run_model(job_id: str | None, job, *args):
     """
-    One model job at a time. Out of memory becomes a 503; the error is dropped before the
-    cache is released, because its traceback still holds the tensors that filled the card.
+    One model job at a time, in the order they came. Out of memory becomes a 503; the error is
+    dropped before the cache is released, because its traceback still holds the tensors that
+    filled the card.
     """
     assert sam is not None
-    with gpu_lock:
-        out_of_memory = False
-        try:
-            return job(sam, *args)
-        except torch.OutOfMemoryError:
-            out_of_memory = True
-        finally:
-            release_gpu_cache()
+    out_of_memory = False
+    try:
+        with gpu_line.turn(job_id):
+            try:
+                return job(sam, *args)
+            except torch.OutOfMemoryError:
+                out_of_memory = True
+            finally:
+                release_gpu_cache()
+    except Abandoned as exc:
+        raise HTTPException(409, "Nobody waits for this job any more.") from exc
     if out_of_memory:
         raise HTTPException(503, OUT_OF_MEMORY)
 
@@ -178,6 +183,15 @@ def gpu_memory() -> dict:
     }
 
 
+@app.get("/queue/{job_id}")
+def queue(job_id: str) -> dict:
+    """Jobs ahead of this one; 0 while it runs. 404 before it arrives and after it ends."""
+    ahead = gpu_line.ahead(job_id)
+    if ahead is None:
+        raise HTTPException(404, "No such job in line.")
+    return {"ahead": ahead}
+
+
 @app.get("/health")
 def health() -> dict:
     return {"model": "sam3", "device": sam.device if sam else None, "gpu": gpu_memory()}
@@ -188,10 +202,11 @@ def corners(
     photo: UploadFile = File(...),
     wallWidth: float = Form(..., gt=0),
     wallHeight: float = Form(..., gt=0),
+    x_job_id: str | None = Header(None),
 ) -> dict:
     image = read_image(photo)
     try:
-        result = run_model(find_wall, image, wallWidth, wallHeight)
+        result = run_model(x_job_id, find_wall, image, wallWidth, wallHeight)
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
     buf = io.BytesIO()
@@ -210,9 +225,13 @@ def corners(
 
 
 @app.post("/openings")
-def openings(image: UploadFile = File(...), pixelsPerMetre: float = Form(100.0, gt=0)) -> dict:
+def openings(
+    image: UploadFile = File(...),
+    pixelsPerMetre: float = Form(100.0, gt=0),
+    x_job_id: str | None = Header(None),
+) -> dict:
     rectified = read_image(image)
-    found = run_model(find_openings, rectified, pixelsPerMetre)
+    found = run_model(x_job_id, find_openings, rectified, pixelsPerMetre)
     return {"openings": [asdict(o) for o in found]}
 
 

@@ -54,4 +54,6 @@ export interface DetectionState {
   failedAt?: DetectionStage;
   /** Fraction of the wall's base hidden by parked things, once the corners are known. */
   baseHidden?: number;
+  /** Jobs of other people the AI service does before this stage's; 0 or unset once it runs. */
+  ahead?: number;
 }

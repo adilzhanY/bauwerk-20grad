@@ -15,9 +15,11 @@ export function usePresence<T>(
   value: T | null,
   leaveMs: number = MOTION_MS,
 ): { shown: T | null; leaving: boolean } {
-  const [last, setLast] = useState<T | null>(value);
+  // Always through a function: a value that is itself a function (a dialog's answer) would
+  // otherwise be taken by React as an updater and called while rendering.
+  const [last, setLast] = useState<T | null>(() => value);
   // Remember every new value while rendering, the way React adjusts state to a prop.
-  if (value !== null && value !== last) setLast(value);
+  if (value !== null && value !== last) setLast(() => value);
   // Without motion there is no exit to wait for: the content goes in the same render.
   const instant = value === null && last !== null && reducedMotion();
   if (instant) setLast(null);

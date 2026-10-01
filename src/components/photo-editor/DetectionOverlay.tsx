@@ -40,13 +40,20 @@ export function DetectionOverlay({
   const failed = state.stage === "failed";
   const done = state.stage === "done";
   const current = ORDER.indexOf(failed ? (state.failedAt ?? "corners") : state.stage);
+  const ahead = !failed && !done ? (state.ahead ?? 0) : 0;
 
   return (
     <div className="shrink-0 px-4 pt-4 pb-2">
       <AiCard
         status={failed ? "failed" : done ? "done" : "working"}
         title={t(
-          failed ? "photo.detect.stopped" : done ? "photo.detect.ready" : "photo.detect.running",
+          failed
+            ? "photo.detect.stopped"
+            : done
+              ? "photo.detect.ready"
+              : ahead > 0
+                ? "ai.queue.title"
+                : "photo.detect.running",
         )}
         meta={
           done
@@ -61,6 +68,8 @@ export function DetectionOverlay({
             <>
               {state.message} {t("photo.detect.keepAsIs")}
             </>
+          ) : ahead > 0 ? (
+            t(ahead === 1 ? "ai.queue.one" : "ai.queue.many", { n: ahead })
           ) : undefined
         }
         actions={

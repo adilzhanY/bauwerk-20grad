@@ -6,6 +6,7 @@ import { PDFParse } from "pdf-parse";
 import { exampleHouse } from "@/lib/examples";
 import { resetIds } from "@/lib/ids";
 import { clientServed, createApp } from "../app";
+import { DatabaseStore } from "../files/store";
 import { ReportService } from "./report.service";
 
 const url = process.env.DATABASE_URL ?? "postgres://bauwerk@127.0.0.1:5499/bauwerk_test";
@@ -16,7 +17,7 @@ let base: string;
 
 beforeAll(async () => {
   pool = new Pool({ connectionString: url });
-  app = await createApp(pool, { logger: false });
+  app = await createApp(pool, { logger: false, files: new DatabaseStore(pool) });
   await app.listen(0);
   const address = (app.getHttpServer() as Server).address() as { port: number };
   base = `http://127.0.0.1:${address.port}`;

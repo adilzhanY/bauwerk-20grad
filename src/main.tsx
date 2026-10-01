@@ -9,6 +9,9 @@ import { useEditorStore } from "./store/building";
 import { startPersistence } from "./store/persist";
 import { startPhotoSync } from "./projects/photoSync";
 import { startLeaveGuard } from "./projects/session";
+import { startThreads } from "./projects/threads";
+import { startFiles } from "./projects/files";
+import { startInbox } from "./projects/inbox";
 import { applyLinkImport } from "./lib/linkImport";
 import { useRouter } from "./app/router";
 
@@ -26,6 +29,9 @@ const linkNotice = applyLinkImport(useEditorStore.getState().language, (building
 if (linkNotice) useRouter.getState().navigate({ page: "editor" }, { replace: true });
 
 startUserData();
+startThreads();
+startFiles();
+startInbox();
 void startAuth();
 createRoot(root).render(
   <StrictMode>

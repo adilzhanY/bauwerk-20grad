@@ -12,6 +12,7 @@ import { Wall } from "./Wall";
 import { InteriorWall } from "./InteriorWall";
 import { prismGeometry } from "./three";
 import { Outline } from "./Outline";
+import { useGhost } from "./ghost";
 import type { StoreyDisplay } from "./display";
 import { StoreyHvac } from "./Hvac";
 import { useDisposableGeometry } from "./useDisposableGeometry";
@@ -33,11 +34,20 @@ export function Storey({ building, storey, elevation, active, display, ghostOpac
     () => buildWalls(building.footprint, thickness, storey.height),
     [building.footprint, thickness, storey.height],
   );
+  // Between the walls' inner faces, not on the outline: a slab on the outline shares the
+  // outer face of the storey below for its 20 cm, and the two flicker against each other in a
+  // hatched band along every storey line, worse the further away the camera is.
   const slab = useMemo(
-    () => prismGeometry(building.footprint, elevation - SLAB, elevation),
-    [building.footprint, elevation],
+    () =>
+      prismGeometry(
+        walls.map((w) => w.innerA),
+        elevation - SLAB,
+        elevation,
+      ),
+    [walls, elevation],
   );
   useDisposableGeometry(slab);
+  const ghost = useGhost(display, ghostOpacity);
   const zones = useMemo(() => new Map(building.zones.map((z) => [z.id, z])), [building.zones]);
 
   return (
@@ -46,13 +56,7 @@ export function Storey({ building, storey, elevation, active, display, ghostOpac
         <Outline geometry={slab} />
       ) : (
         <mesh geometry={slab} receiveShadow raycast={() => null}>
-          <meshStandardMaterial
-            color={colors.floor}
-            roughness={1}
-            transparent={display === "ghost"}
-            opacity={display === "ghost" ? ghostOpacity : 1}
-            depthWrite={display !== "ghost"}
-          />
+          <meshStandardMaterial color={ghost(colors.floor)} roughness={1} />
         </mesh>
       )}
       {walls.map((wall) => {

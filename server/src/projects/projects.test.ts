@@ -8,6 +8,7 @@ import { exampleHouse, exampleTower } from "@/lib/examples";
 import { resetIds } from "@/lib/ids";
 import type { Building } from "@/geometry/types";
 import type { Op } from "@/sync/ops";
+import { DatabaseStore } from "../files/store";
 import { createApp } from "../app";
 import { ProjectsService } from "./projects.service";
 
@@ -20,7 +21,7 @@ let base: string;
 
 beforeAll(async () => {
   pool = new Pool({ connectionString: url });
-  app = await createApp(pool, { logger: false });
+  app = await createApp(pool, { logger: false, files: new DatabaseStore(pool) });
   await app.listen(0);
   const address = (app.getHttpServer() as Server).address() as { port: number };
   base = `http://127.0.0.1:${address.port}`;

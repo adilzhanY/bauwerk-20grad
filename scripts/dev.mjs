@@ -10,6 +10,11 @@
  *
  * Every line is prefixed with the name of the process that wrote it. Ctrl+C stops them all.
  *
+ * Accounts, projects and every user's data live in Supabase (TODO Part 20). Its settings
+ * stay out of the repository, in ~/.config/bauwerk/supabase.env (BAUWERK_SUPABASE_ENV for
+ * another file), which is loaded here: no start without it, so nobody signs in against an
+ * empty local database by accident. `npm run dev -- --local-db` uses the local Postgres.
+ *
  * `npm run dev -- --host` also serves the app on this computer's network address, so a
  * second machine on the same Wi-Fi can open it and join a shared project. Only the app
  * listens on the network: the API, the vision service and the collaboration server stay on
@@ -18,12 +23,31 @@
  */
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
+import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const envFile = join(root, ".env");
 if (existsSync(envFile)) process.loadEnvFile(envFile);
+
+const localDb = process.argv.includes("--local-db");
+const supabaseEnv =
+  process.env.BAUWERK_SUPABASE_ENV ?? join(homedir(), ".config", "bauwerk", "supabase.env");
+if (localDb) {
+  delete process.env.DATABASE_CA_CERT;
+} else {
+  if (existsSync(supabaseEnv)) process.loadEnvFile(supabaseEnv);
+  if (!process.env.BAUWERK_DATABASE_URL) {
+    console.error(
+      `No Supabase settings: ${supabaseEnv} is missing or has no BAUWERK_DATABASE_URL (deploy/README.md, "The database and accounts on Supabase"). Use npm run dev -- --local-db for the local database.`,
+    );
+    process.exit(1);
+  }
+}
+const databaseUrl = localDb
+  ? `postgres://lod2:lod2@127.0.0.1:${process.env.LOD2_DB_PORT ?? "55433"}/bauwerk`
+  : (process.env.BAUWERK_DATABASE_URL ?? "");
 
 const COLORS = { db: 90, api: 34, collab: 36, vision: 35, plans: 33, app: 32 };
 const children = [];
@@ -131,10 +155,17 @@ if (dbUp) {
     "-c",
     `${exists} || createdb -U lod2 bauwerk`,
   ]);
+  console.log(
+    `${label("collab")} Database: ${localDb ? "local Postgres (--local-db)" : `Supabase, ${new URL(databaseUrl).host}`}`,
+  );
+  // Files go to Supabase Storage only with both settings; without them the server keeps them
+  // in the database (app.file_blobs) and moves them over on the first start that has them.
+  const storage = Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SECRET_KEY);
+  console.log(
+    `${label("collab")} Files: ${storage ? `Supabase Storage, bucket "projects" on ${new URL(process.env.SUPABASE_URL ?? "").host}` : `in the database (no SUPABASE_URL and SUPABASE_SECRET_KEY${localDb ? "" : ` in ${supabaseEnv}`})`}`,
+  );
   start("collab", "npm", ["--prefix", "server", "run", "dev"], {
-    DATABASE_URL:
-      process.env.BAUWERK_DATABASE_URL ??
-      `postgres://lod2:lod2@127.0.0.1:${process.env.LOD2_DB_PORT ?? "55433"}/bauwerk`,
+    DATABASE_URL: databaseUrl,
     PORT: process.env.BAUWERK_SERVER_PORT ?? "8789",
     // Accounts on, with a fixed secret for this machine only, so a session survives a
     // restart. ACCOUNTS=off in the environment runs without accounts.

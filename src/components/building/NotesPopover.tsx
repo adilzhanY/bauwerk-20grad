@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { CustomTextArea } from "@/components/shared/CustomTextArea";
 import { X } from "lucide-react";
 import { CustomIconButton } from "@/components/shared/CustomIconButton";
 import { Popover } from "@/components/shared/Popover";
@@ -43,14 +44,14 @@ export function NotesPopover({ gid, onClose }: { gid: string; onClose: () => voi
           <X size={16} aria-hidden />
         </CustomIconButton>
       </div>
-      <textarea
+      <CustomTextArea
+        label={t("building.notesPlaceholder")}
+        hideLabel
         value={text}
         autoFocus
+        rows={6}
         placeholder={t("building.notesPlaceholder")}
-        onChange={(e) => {
-          save(e.target.value);
-        }}
-        className="h-36 w-full resize-none rounded-inner border border-line bg-panel p-3 text-sm outline-none focus:border-select"
+        onChange={save}
       />
     </Popover>
   );

@@ -17,6 +17,7 @@ import { createDefaultBuilding, useEditorStore } from "@/store/building";
 import { openBuilding } from "./session";
 import { syncConfigFromEnv } from "@/sync/client";
 import { leaveProject, listProjects, openProject, syncEnabled, whenJoined } from "@/sync/useSync";
+import type { HereNow } from "@/sync/useSync";
 import { localPhotos } from "./localPhotos";
 
 export type ProjectRef = { kind: "server"; id: string } | { kind: "local"; id: string };
@@ -26,8 +27,11 @@ export interface ProjectCard {
   buildingId: string;
   summary: CardSummary;
   updatedAt: string;
-  /** People who work on it, when accounts are on. */
-  owner: string | null;
+  /** Its owner, when accounts are on. */
+  owner: { id: string; firstName: string; lastName: string } | null;
+  /** Who has it open right now, and when the viewer last had it open (server projects). */
+  here: HereNow[];
+  lastSeenAt: string | null;
 }
 
 const refKey = (ref: ProjectRef) => `${ref.kind}:${ref.id}`;
@@ -47,6 +51,8 @@ export async function listProjectCards(): Promise<ProjectCard[]> {
               summary: p.summary,
               updatedAt: p.updatedAt,
               owner: p.owner ?? null,
+              here: p.here ?? [],
+              lastSeenAt: p.lastSeenAt ?? null,
             },
           ]
         : [],
@@ -58,17 +64,23 @@ export async function listProjectCards(): Promise<ProjectCard[]> {
     summary: projectSummary(building),
     updatedAt: savedAt,
     owner: null,
+    here: [],
+    lastSeenAt: null,
   }));
 }
 
-/** The saved project an editor state has open, or null while its work is not saved. */
+/**
+ * The saved project an editor state has open, or null while its work is not saved. With a
+ * server a copy kept in this browser (from before there was one) is not saved: the Projects
+ * page does not list it, so work in it would be lost without anyone being asked.
+ */
 export function projectRefOf(state: {
   projectId: string | null;
   building: Building;
 }): ProjectRef | null {
   if (state.projectId) return { kind: "server", id: state.projectId };
   const localId = state.building.project?.localId;
-  return localId ? { kind: "local", id: localId } : null;
+  return localId && !syncEnabled ? { kind: "local", id: localId } : null;
 }
 
 /** The project open in the editor, or null when the editor holds a loose building. */
@@ -79,16 +91,23 @@ export function currentProjectRef(): ProjectRef | null {
 /** Opens a project in the editor: joins it on the server, or loads its kept building. */
 export async function openProjectCard(card: ProjectCard): Promise<void> {
   if (sameRef(currentProjectRef(), card.ref)) return;
-  leaveProject();
   if (card.ref.kind === "server") {
-    // Nothing of the project open before may show while this one arrives.
-    openBuilding(createDefaultBuilding(useEditorStore.getState().language));
-    openProject(card.ref.id);
-    await whenJoined(card.ref.id);
+    await openServerProject(card.ref.id);
     return;
   }
+  leaveProject();
   const building = loadProjectCopy(card.ref.id);
   if (building) openBuilding(building);
+}
+
+/** Opens a server project by its id (a card, a notification) and waits until it has joined. */
+export async function openServerProject(id: string): Promise<void> {
+  if (useEditorStore.getState().projectId === id) return;
+  leaveProject();
+  // Nothing of the project open before may show while this one arrives.
+  openBuilding(createDefaultBuilding(useEditorStore.getState().language));
+  openProject(id);
+  await whenJoined(id);
 }
 
 /** Deletes a project with its pictures. */
@@ -120,6 +139,8 @@ export interface PhotoSlot {
   slot: string;
   width: number;
   height: number;
+  /** When the picture in this slot was put there; a new time means it was replaced. */
+  updatedAt?: string;
 }
 
 function serverUrl(path: string): string | null {
@@ -183,13 +204,18 @@ export async function photoUrl(ref: ProjectRef, slot: string): Promise<string | 
 
 /** The card picture of a project: its facade photo, else its 3D view, else nothing. */
 export async function cardPicture(ref: ProjectRef): Promise<string | null> {
-  return (await photoUrl(ref, "thumbnail")) ?? (await photoUrl(ref, "model"));
+  // The building in 3D when there is one, else the facade photo.
+  return (await photoUrl(ref, "model")) ?? (await photoUrl(ref, "thumbnail"));
 }
 
-/** A small JPEG of an image, `maxSide` pixels on its long side, for a card. */
+/**
+ * A small copy of an image, `maxSide` pixels on its long side, for a card: a JPEG, or a WebP
+ * when it must keep its transparency.
+ */
 export async function shrinkImage(
   source: Blob,
   maxSide = 480,
+  type: "image/jpeg" | "image/webp" = "image/jpeg",
 ): Promise<{ blob: Blob; width: number; height: number } | null> {
   if (typeof createImageBitmap === "undefined") return null;
   const bitmap = await createImageBitmap(source);
@@ -202,7 +228,7 @@ export async function shrinkImage(
   canvas.getContext("2d")?.drawImage(bitmap, 0, 0, width, height);
   bitmap.close();
   const blob = await new Promise<Blob | null>((resolve) => {
-    canvas.toBlob(resolve, "image/jpeg", 0.82);
+    canvas.toBlob(resolve, type, 0.82);
   });
   return blob ? { blob, width, height } : null;
 }

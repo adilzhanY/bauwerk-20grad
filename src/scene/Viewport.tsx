@@ -24,13 +24,14 @@ import type { RenderSample } from "./FrameProbe";
 import { UValueBands } from "./UValueBand";
 import { useEditorStore } from "@/store/building";
 import { Camera } from "./Camera";
+import { FollowCamera } from "./FollowCamera";
 import { Grid } from "./Grid";
 import { Storey } from "./Storey";
 import { Ground } from "./Ground";
 import { RemoteCursors, ShareCursor } from "./RemoteCursors";
 import { FacadePhotos } from "./FacadePhotos";
 import { NotePins } from "./NotePins";
-import { PLAN_MIRROR } from "./three";
+import { PLAN_MIRROR, SHADOW_BIAS, SHADOW_NORMAL_BIAS } from "./three";
 import { Tools } from "./tools/Tools";
 import { Compass } from "./Compass";
 import { FacadeLines } from "./FacadeLines";
@@ -67,84 +68,90 @@ export function Viewport({ onSample }: ViewportProps = {}) {
   const footprintBounds = useMemo(() => bounds(building.footprint), [building.footprint]);
 
   return (
-    <Canvas
-      shadows
-      dpr={[1, 2]}
-      camera={{ position: [18, 14, -18], fov: 45, near: 0.1, far: 500 }}
-      gl={{ antialias: true, preserveDrawingBuffer: false }}
-      style={{ background: "transparent" }}
-    >
-      <hemisphereLight args={["#eef1f7", "#7d838c", 1.25]} />
-      {/* World space: the camera, the pointer, the renderer's clipping (three.ts). */}
-      <SectionCut />
-      <Walkthrough />
-      {isPlanView && <PlanViewCamera bounds={footprintBounds} elevation={activeElevation} />}
-      <ShareCursor />
-      <HoverCursor />
-      {/* Everything drawn is built in plan space; this group turns it into world space. */}
-      <group scale={PLAN_MIRROR}>
-        <Sun />
-        <DefaultDirectionalLight bounds={footprintBounds} intensity={sunEnabled ? 0.25 : 1.6} />
-        <Ground />
-        <Grid />
-        <MapUnderlay />
-        <Underlay />
-        <ProposalOverlay />
-        <UValueBands />
-        <ThermalBridges />
-        {!isPlanView && <Roof />}
-        <HeatPumps />
-        <Dimensions />
-        {isPlanView && <PlanDrawing />}
-        {building.storeys
-          .filter((storey) => !isPlanView || storey.id === activeStoreyId)
-          .filter(
-            (storey) =>
-              storeyDisplay(building, storey.id, activeStoreyId, otherStoreys) !== "hidden",
-          )
-          .map((storey) => (
-            <Storey
-              key={storey.id}
-              building={building}
-              storey={storey}
-              elevation={storeyElevation(building, storey.id)}
-              active={storey.id === activeStoreyId}
-              display={storeyDisplay(building, storey.id, activeStoreyId, otherStoreys)}
-              ghostOpacity={otherStoreys.ghostOpacity}
-            />
-          ))}
-        {!isPlanView && <FacadeLines />}
-        <FacadePhotos />
-        <NotePins />
-        <Measurements />
-        <Compass />
-        <RemoteCursors />
-        <Tools />
-      </group>
-      {!walking && !isPlanView && (
-        <OrbitControls
-          makeDefault
-          enableDamping
-          dampingFactor={0.12}
-          minDistance={2}
-          maxDistance={150}
-          maxPolarAngle={Math.PI / 2 - 0.03}
-          mouseButtons={{ LEFT: 0, MIDDLE: 1, RIGHT: 2 }}
-        />
-      )}
-      <Camera />
-      {!isPlanView && !walking && (
-        <GizmoHelper alignment="bottom-right" margin={[GIZMO_SIDE, GIZMO_BOTTOM]}>
-          <GizmoViewport
-            axisColors={[colors.muted, colors.muted, colors.muted]}
-            labelColor="#ffffff"
-            axisHeadScale={0.9}
+    <>
+      <Canvas
+        shadows
+        dpr={[1, 2]}
+        camera={{ position: [18, 14, -18], fov: 45, near: 0.1, far: 500 }}
+        gl={{ antialias: true, preserveDrawingBuffer: false }}
+        style={{ background: "transparent" }}
+      >
+        {/* Sky above, light pavement below: faces turned away from the sun still get the light
+          that bounces off the street, as a facade does, instead of going near black. */}
+        <hemisphereLight args={["#f1f4f9", "#b3b8c0", 1.3]} />
+        {/* World space: the camera, the pointer, the renderer's clipping (three.ts). */}
+        <SectionCut />
+        <Walkthrough />
+        {isPlanView && <PlanViewCamera bounds={footprintBounds} elevation={activeElevation} />}
+        <ShareCursor />
+        <HoverCursor />
+        {/* Everything drawn is built in plan space; this group turns it into world space. */}
+        <group scale={PLAN_MIRROR}>
+          <Sun />
+          <DefaultDirectionalLight bounds={footprintBounds} intensity={sunEnabled ? 0.25 : 1.6} />
+          <Ground />
+          <Grid />
+          <MapUnderlay />
+          <Underlay />
+          <ProposalOverlay />
+          <UValueBands />
+          <ThermalBridges />
+          {!isPlanView && <Roof />}
+          <HeatPumps />
+          <Dimensions />
+          {isPlanView && <PlanDrawing />}
+          {building.storeys
+            .filter((storey) => !isPlanView || storey.id === activeStoreyId)
+            .filter(
+              (storey) =>
+                storeyDisplay(building, storey.id, activeStoreyId, otherStoreys) !== "hidden",
+            )
+            .map((storey) => (
+              <Storey
+                key={storey.id}
+                building={building}
+                storey={storey}
+                elevation={storeyElevation(building, storey.id)}
+                active={storey.id === activeStoreyId}
+                display={storeyDisplay(building, storey.id, activeStoreyId, otherStoreys)}
+                ghostOpacity={otherStoreys.ghostOpacity}
+              />
+            ))}
+          {!isPlanView && <FacadeLines />}
+          <FacadePhotos />
+          <NotePins />
+          <Measurements />
+          <Compass />
+          <RemoteCursors />
+          <Tools />
+        </group>
+        {!walking && !isPlanView && (
+          <OrbitControls
+            makeDefault
+            enableDamping
+            dampingFactor={0.12}
+            minDistance={2}
+            maxDistance={150}
+            maxPolarAngle={Math.PI / 2 - 0.03}
+            mouseButtons={{ LEFT: 0, MIDDLE: 1, RIGHT: 2 }}
           />
-        </GizmoHelper>
-      )}
-      {onSample && <FrameProbe onSample={onSample} />}
+        )}
+        <Camera />
+        <FollowCamera />
+        {!isPlanView && !walking && (
+          <GizmoHelper alignment="bottom-right" margin={[GIZMO_SIDE, GIZMO_BOTTOM]}>
+            <GizmoViewport
+              axisColors={[colors.muted, colors.muted, colors.muted]}
+              labelColor="#ffffff"
+              axisHeadScale={0.9}
+            />
+          </GizmoHelper>
+        )}
+        {onSample && <FrameProbe onSample={onSample} />}
+      </Canvas>
+      {/* The project card's picture, drawn apart from this view. */}
       <ModelSnapshot />
-    </Canvas>
+    </>
   );
 }
 
@@ -218,10 +225,19 @@ function DefaultDirectionalLight({
         intensity={intensity}
         castShadow
         shadow-mapSize={[2048, 2048]}
+        shadow-bias={SHADOW_BIAS}
+        shadow-normalBias={SHADOW_NORMAL_BIAS}
         shadow-camera-left={-40}
         shadow-camera-right={40}
         shadow-camera-top={40}
         shadow-camera-bottom={-40}
+      />
+      {/* A weak fill from the opposite side, without shadows, so the walls the main light
+          does not reach keep their colour and their openings stay readable. */}
+      <directionalLight
+        position={[centre[0] - 20, 18, centre[2] - 10]}
+        target={target}
+        intensity={intensity * 0.3}
       />
     </>
   );

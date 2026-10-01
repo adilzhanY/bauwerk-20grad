@@ -5,6 +5,7 @@ import { bounds } from "@/geometry/polygon";
 import { sunPath } from "@/geometry/sun";
 import { BERLIN_FALLBACK, instantFor, sunAt } from "@/lib/sunTime";
 import { sunWorldPosition } from "./sunWorld";
+import { SHADOW_BIAS, SHADOW_NORMAL_BIAS } from "./three";
 import { useEditorStore } from "@/store/building";
 import { selectTotalHeight } from "@/store/selectors";
 
@@ -52,6 +53,8 @@ export function Sun() {
             color={position.elevation < 10 ? "#ffd2a1" : "#fff6e6"}
             castShadow
             shadow-mapSize={[2048, 2048]}
+            shadow-bias={SHADOW_BIAS}
+            shadow-normalBias={SHADOW_NORMAL_BIAS}
             shadow-camera-left={-radius}
             shadow-camera-right={radius}
             shadow-camera-top={radius}

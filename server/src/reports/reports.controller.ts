@@ -13,6 +13,8 @@ import {
   ServiceUnavailableException,
 } from "@nestjs/common";
 import type { Request, Response } from "express";
+import type { AuthedRequest } from "../auth/auth.guard";
+import { granted } from "../projects/projects.controller";
 import { EXPORT_VERSION, fromJson } from "@/geometry/export";
 import { clientServed } from "../app";
 import { ProjectsService } from "../projects/projects.service";
@@ -47,13 +49,24 @@ export class ReportsController {
   async forProject(
     @Param("projectId") id: string,
     @Query("lang") language: string | undefined,
-    @Req() req: Request,
+    @Query("version") rawVersion: string | undefined,
+    @Req() req: AuthedRequest,
     @Res() res: Response,
   ) {
+    // A member's report only, like every other project route, and before anything else.
+    granted(await this.projects.access(id, req.user, "see"));
     if (!clientServed()) throw new ServiceUnavailableException("client build not served");
     const project = await this.projects.get(id);
     if (!project) throw new NotFoundException();
-    const pdf = await this.reports.renderPdf(project.building, lang(language), baseUrlOf(req));
+    // The report of a named version prints the building as it was then (TODO Part 21, CG.2).
+    const version = Number(rawVersion);
+    let building = project.building;
+    if (rawVersion !== undefined && Number.isInteger(version) && version !== project.version) {
+      const then = await this.projects.buildingAt(id, version);
+      if (!then.ok) throw new NotFoundException();
+      building = then.building;
+    }
+    const pdf = await this.reports.renderPdf(building, lang(language), baseUrlOf(req));
     res.setHeader(
       "Content-Disposition",
       `attachment; filename="${fileName(project.building.name)}"`,

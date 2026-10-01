@@ -1,6 +1,8 @@
 import "reflect-metadata";
 import { existsSync } from "node:fs";
 import { fileURLToPath, URL } from "node:url";
+import { FILE_TYPES } from "./files/files.service";
+import type { FileStore } from "./files/store";
 import { NestFactory } from "@nestjs/core";
 import type { NestExpressApplication } from "@nestjs/platform-express";
 import { IoAdapter } from "@nestjs/platform-socket.io";
@@ -16,11 +18,11 @@ export const clientServed = (): boolean => existsSync(`${DIST}index.html`);
 
 export async function createApp(
   pool: Pool,
-  options: { logger?: boolean; auth?: AuthConfig } = {},
+  options: { logger?: boolean; auth?: AuthConfig; files?: FileStore } = {},
 ): Promise<INestApplication> {
   await ensureSchema(pool);
   const app = await NestFactory.create<NestExpressApplication>(
-    createAppModule(pool, options.auth),
+    createAppModule(pool, options.auth, options.files),
     {
       logger: options.logger === false ? false : ["log", "warn", "error"],
       bodyParser: false,
@@ -31,8 +33,9 @@ export async function createApp(
   // networks are believed, so a client cannot fake its address from outside.
   app.set("trust proxy", "loopback, linklocal, uniquelocal");
   app.useBodyParser("json", { limit: "5mb" });
-  // Facade photos and card pictures, sent as the raw image.
-  app.useBodyParser("raw", { type: "image/*", limit: "15mb" });
+  // Project files (photos, plans, PDFs, documents), sent as the raw file; 50 MB as Supabase's
+  // free plan allows. What each route accepts is checked there.
+  app.useBodyParser("raw", { type: ["image/*", ...FILE_TYPES], limit: "50mb" });
   app.useWebSocketAdapter(new IoAdapter(app));
   app.enableCors({ origin: true, exposedHeaders: ["ETag"] });
   if (clientServed()) app.useStaticAssets(DIST);

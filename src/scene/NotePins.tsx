@@ -4,6 +4,7 @@ import { pinPosition, sameTarget } from "@/geometry/notes";
 import type { NoteTarget } from "@/geometry/types";
 import { useT } from "@/i18n/useT";
 import { useEditorStore } from "@/store/building";
+import { useThreads } from "@/projects/threads";
 
 /**
  * A pin in 3D for every element with open notes, with their number. A click selects the
@@ -16,9 +17,14 @@ export function NotePins() {
   const planView = useEditorStore((s) => s.planView);
   const select = useEditorStore((s) => s.select);
   const clearSelection = useEditorStore((s) => s.clearSelection);
+  const serverProject = useEditorStore((s) => s.projectId !== null);
+  const threads = useThreads((s) => s.threads);
   if (planView) return null;
 
-  const open = (building.notes ?? []).filter((n) => !n.done);
+  // In a server project the open threads, otherwise the building's own notes.
+  const open: { target: NoteTarget }[] = serverProject
+    ? threads.filter((thread) => !thread.resolvedAt).map((thread) => ({ target: thread.target }))
+    : (building.notes ?? []).filter((n) => !n.done);
   const groups: { target: NoteTarget; count: number }[] = [];
   for (const note of open) {
     const group = groups.find((g) => sameTarget(g.target, note.target));

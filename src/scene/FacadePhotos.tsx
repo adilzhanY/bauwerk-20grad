@@ -41,6 +41,7 @@ export function FacadePhotos() {
 }
 
 function FacadePhoto({ wall, photo, building }: { wall: Wall; photo: Photo; building: Building }) {
+  const lit = useEditorStore((s) => s.highlightedWall === wall.index);
   const [texture, setTexture] = useState<Texture | null>(null);
   const opacity = useEditorStore((s) => 1 - s.facadePhotoTransparency / 100);
   useEffect(() => {
@@ -62,6 +63,23 @@ function FacadePhoto({ wall, photo, building }: { wall: Wall; photo: Photo; buil
   // may reach above the eaves (a gable) or differ a little from the model's wall length.
   const width = photo.width / WALL_PX_PER_METRE;
   const height = photo.height / WALL_PX_PER_METRE;
+  // The photo ends where the solid building ends: at the top of the storey being edited (the
+  // storeys above it are only outlines or hidden), so it never hangs in the air above the walls.
+  const activeStoreyId = useEditorStore((s) => s.activeStoreyId);
+  const shown = useMemo(() => {
+    if (!activeStoreyId) return height;
+    let top = 0;
+    for (const storey of building.storeys) {
+      top += storey.height;
+      if (storey.id === activeStoreyId) return Math.min(height, top);
+    }
+    return height;
+  }, [activeStoreyId, building.storeys, height]);
+  useEffect(() => {
+    if (!texture) return;
+    // The lower part of the picture only (texture v runs from the bottom).
+    texture.repeat.set(1, shown / height);
+  }, [texture, shown, height]);
   const cx = wall.outerA.x + (wall.direction.x * width) / 2 + wall.normal.x * OUT;
   const cz = wall.outerA.y + (wall.direction.y * width) / 2 + wall.normal.y * OUT;
 
@@ -72,6 +90,7 @@ function FacadePhoto({ wall, photo, building }: { wall: Wall; photo: Photo; buil
     );
     return building.storeys.flatMap((storey, i) => {
       const base = bases[i] ?? 0;
+      if (base >= shown - 1e-6) return [];
       return storey.openings
         .filter((o) => !o.interior && o.wallIndex === wall.index)
         .map((o) => {
@@ -89,15 +108,17 @@ function FacadePhoto({ wall, photo, building }: { wall: Wall; photo: Photo; buil
           };
         });
     });
-  }, [building.storeys, wall.index, width, height]);
+  }, [building.storeys, wall.index, width, height, shown]);
 
   if (!texture) return null;
   return (
     <group position={[cx, height / 2, cz]} rotation={[0, yawFor(wall.direction), 0]}>
-      <mesh raycast={() => null}>
-        <planeGeometry args={[width, height]} />
+      <mesh raycast={() => null} position={[0, (shown - height) / 2, 0]}>
+        <planeGeometry args={[width, shown]} />
         <meshBasicMaterial
           map={texture}
+          // Tinted selection blue while the wall's row in the layers tree is hovered.
+          color={lit ? colors.accent : "#ffffff"}
           side={DoubleSide}
           toneMapped={false}
           transparent={opacity < 1}

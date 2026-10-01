@@ -1,13 +1,14 @@
-import { useMemo } from "react";
+import { useContext, useMemo } from "react";
 import type { ThreeEvent } from "@react-three/fiber";
 import { BufferAttribute, BufferGeometry, ShapeUtils, Vector2 } from "three";
 import { buildRoof } from "@/geometry/roof";
 import type { RoofFace } from "@/geometry/roof";
 import { colors } from "@/lib/colors";
 import { Outline } from "./Outline";
-import { sameSelection, useEditorStore } from "@/store/building";
+import { useEditorStore } from "@/store/building";
 import { selectTotalHeight } from "@/store/selectors";
-import { useHover } from "./hover";
+import { useGhost } from "./ghost";
+import { PictureMode, useHover, useMarked } from "./hover";
 import { mergeAll, prismGeometry } from "./three";
 import { useDisposableGeometry } from "./useDisposableGeometry";
 
@@ -21,12 +22,13 @@ export function Roof() {
   const top = useEditorStore(selectTotalHeight);
   const select = useEditorStore((s) => s.select);
   const tool = useEditorStore((s) => s.tool);
-  const selected = useEditorStore((s) => sameSelection(s.selection, ROOF_SELECTION));
-  const hovered = useEditorStore((s) => sameSelection(s.hovered, ROOF_SELECTION));
+  const { selected, hovered } = useMarked(ROOF_SELECTION);
   const other = useEditorStore((s) => s.otherStoreys);
   // A selected roof is always drawn solid so pitch and overhang edits are visible.
-  const display = selected ? "solid" : other.roof;
+  const picture = useContext(PictureMode);
+  const display = selected || picture ? "solid" : other.roof;
   const hover = useHover(ROOF_SELECTION, display !== "outline");
+  const ghost = useGhost(display, other.ghostOpacity);
 
   const geometry = useMemo(() => {
     if (building.storeys.length === 0) return null;
@@ -47,13 +49,10 @@ export function Roof() {
   return (
     <mesh geometry={geometry} onClick={onClick} castShadow receiveShadow {...hover}>
       <meshStandardMaterial
-        color={selected ? colors.accent : hovered ? "#a1857a" : ROOF_COLOR}
+        color={ghost(selected ? colors.accent : hovered ? "#a1857a" : ROOF_COLOR)}
         emissive={selected ? colors.accent : "#000000"}
         emissiveIntensity={selected ? 0.3 : 0}
         roughness={0.85}
-        transparent={display === "ghost"}
-        opacity={display === "ghost" ? Math.min(1, other.ghostOpacity + 0.35) : 1}
-        depthWrite={display !== "ghost"}
         side={2}
       />
     </mesh>

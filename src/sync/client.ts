@@ -1,13 +1,15 @@
 import { io } from "socket.io-client";
+import { can } from "@/projects/roles";
+import type { Role } from "@/projects/roles";
 import type { Building } from "@/geometry/types";
 import { validateBuilding } from "@/geometry/export";
 import type { ImportError } from "@/geometry/export";
 import type { createEditorStore, Presence, Selection } from "@/store/building";
 import type { Vec2 } from "@/geometry/types";
-import { applyOps, diffBuilding } from "./ops";
-import type { Op } from "./ops";
-import { listenPresence } from "./presence";
-import type { DragPreview } from "./presence";
+import { applyOps, diffBuilding, sameJson } from "./ops";
+import type { Op, Path } from "./ops";
+import { listenPresence, receiveView } from "./presence";
+import type { DragPreview, SharedView } from "./presence";
 
 /** How often a moving pointer or drag is sent, at most. */
 const PRESENCE_MS = 50;
@@ -46,6 +48,8 @@ export interface SyncConfig {
   projectId: string;
   actor: string;
   color: string;
+  /** The share link's token from the address, for someone who is not a member yet. */
+  link?: string;
   /** One per editor tab. Random when left out. */
   clientId?: string;
   /** The access token to connect with, asked for on every (re)connect; accounts off: none. */
@@ -72,7 +76,14 @@ interface OpsMessage {
 }
 
 type JoinAck =
-  | { ok: true; version: number; building: Building; lastSeq: number }
+  | {
+      ok: true;
+      version: number;
+      building: Building;
+      lastSeq: number;
+      role: Role;
+      lastSeenAt?: string | null;
+    }
   | { ok: false; reason: string };
 
 type OpsAck =
@@ -83,7 +94,27 @@ interface PresenceMessage {
   actors: (Presence & { clientId: string })[];
 }
 
-export type SyncStatus = "connecting" | "online" | "offline" | "error";
+/**
+ * Someone else changed what this person had just changed (TODO Part 21, CH.2): their name and
+ * each overwritten value, with this person's value to put back.
+ */
+export interface Overwrite {
+  actor: string;
+  changes: { path: Path; mine: unknown }[];
+}
+
+/** An own change counts as fresh for this long when someone else's lands on it. */
+const FRESH_MS = 10_000;
+
+/** Here, or away with the tab hidden for a while; which page of the project and which storey. */
+export interface Place {
+  state: "here" | "away";
+  page: string | null;
+  storeyId: string | null;
+}
+
+/** `noAccess`: signed in, but not a member and without a valid share link. */
+export type SyncStatus = "connecting" | "online" | "offline" | "error" | "noAccess";
 
 /** Why the server refused a local edit, for the message shown to the user. */
 export interface Rejection {
@@ -92,7 +123,7 @@ export interface Rejection {
 }
 
 /** Opens a Socket.IO connection to the server under `apiUrl`, which may carry a path. */
-function openSocket(apiUrl: string, token?: () => Promise<string | null>): SocketLike {
+export function openSocket(apiUrl: string, token?: () => Promise<string | null>): SocketLike {
   const url = new URL(apiUrl, window.location.href);
   return io(url.origin, {
     path: `${url.pathname.replace(/\/$/, "")}/socket.io`,
@@ -134,6 +165,18 @@ export class SyncClient {
   private dragEndWaiting = false;
   /** An old version is on screen; the live building waits behind it. */
   private previewing = false;
+  /**
+   * Batches not yet confirmed, kept in this browser per project (TODO Part 21, CH.1) so a
+   * tab closed while offline sends them the next time the project opens. ponytail: two tabs
+   * of one project offline at once can both send the same edits; per-tab queues if it shows.
+   */
+  private readonly queueKey: string;
+  private restored: Op[][] = [];
+  /** Own values set in the last moments, by path, for noticing an overwrite. */
+  private readonly recent = new Map<string, { value: unknown; at: number }>();
+  private readonly overwriteListeners = new Set<(o: Overwrite) => void>();
+  /** Here or away, and where in the project, as last reported (TODO Part 21, CC.1). */
+  private place: Place = { state: "here", page: null, storeyId: null };
   /** Other people's edits that arrived during a preview, for the history on the way back. */
   private previewRebases: ((snapshot: Building) => Building)[] = [];
 
@@ -142,6 +185,29 @@ export class SyncClient {
     private readonly config: SyncConfig,
   ) {
     this.clientId = config.clientId ?? randomId();
+    this.queueKey = `bauwerk.queue.${config.projectId}`;
+    this.restored = readQueue(this.queueKey);
+  }
+
+  onOverwrite(listener: (o: Overwrite) => void): () => void {
+    this.overwriteListeners.add(listener);
+    return () => this.overwriteListeners.delete(listener);
+  }
+
+  /** Puts this person's values back after an overwrite: one ordinary change of theirs. */
+  keepMine(overwrite: Overwrite): void {
+    const ops: Op[] = overwrite.changes.map((c) => ({ op: "set", path: c.path, value: c.mine }));
+    const next = applyOps(this.store.getState().building, ops).value;
+    this.store.setState({ building: next });
+  }
+
+  private saveQueue() {
+    try {
+      if (this.pending.length === 0) localStorage.removeItem(this.queueKey);
+      else localStorage.setItem(this.queueKey, JSON.stringify(this.pending.map((b) => b.ops)));
+    } catch {
+      // Storage full or blocked: the queue stays in memory, as before.
+    }
   }
 
   onStatus(listener: (s: SyncStatus) => void): () => void {
@@ -179,6 +245,24 @@ export class SyncClient {
       this.setStatus("offline");
       this.store.getState().setPresence([]);
     });
+    // The owner changed this person's role, or took them out of the project.
+    socket.on("access", (message: { projectId: string; role: Role | null }) => {
+      if (message.projectId !== this.config.projectId) return;
+      if (message.role) this.store.getState().setProjectRole(message.role);
+      else {
+        this.joined = false;
+        this.setStatus("noAccess");
+      }
+    });
+    // Someone wrote in a thread: the threads are loaded again (projects/threads.ts).
+    socket.on("threads", () => {
+      window.dispatchEvent(new Event("bauwerk:threads"));
+    });
+    // A file was added, replaced or removed, here or by someone else: the file list and the
+    // pictures on the walls and storeys follow (projects/files.ts, projects/photoSync.ts).
+    socket.on("files", () => {
+      window.dispatchEvent(new Event("bauwerk:files"));
+    });
     socket.on("ops", (message: OpsMessage) => {
       this.receive(message);
     });
@@ -197,12 +281,18 @@ export class SyncClient {
     socket.on("cursor", (message: { clientId: string; cursor: Vec2 | null }) => {
       this.store.getState().patchPresence(message.clientId, { cursor: message.cursor });
     });
+    socket.on("view", (message: SharedView & { clientId: string }) => {
+      receiveView(message.clientId, message);
+    });
     socket.on("drag", (message: { clientId: string; dragging: DragPreview | null }) => {
       this.store.getState().patchPresence(message.clientId, { dragging: message.dragging });
     });
     listenPresence({
       cursor: (point) => {
         this.throttled("cursor", { cursor: point }, point === null);
+      },
+      view: (view) => {
+        if (this.store.getState().presence.length > 0) this.throttled("view", view, false);
       },
       drag: (drag) => {
         // A drag that ended in a move says so only once the move is confirmed: the server
@@ -236,6 +326,18 @@ export class SyncClient {
         if (this.joined) this.socket?.emit("selection", { selection: state.selection });
       }
     });
+  }
+
+  /** Where this person is in the project; sent when it changes, and again on every join. */
+  report(place: Place): void {
+    if (
+      place.state === this.place.state &&
+      place.page === this.place.page &&
+      place.storeyId === this.place.storeyId
+    )
+      return;
+    this.place = place;
+    if (this.joined) this.socket?.emit("status", place);
   }
 
   stop(): void {
@@ -294,13 +396,15 @@ export class SyncClient {
         clientId: this.clientId,
         actor: this.config.actor,
         color: this.config.color,
+        ...(this.config.link ? { link: this.config.link } : {}),
       },
       (ack: JoinAck) => {
         if (this.stopped) return;
         if (!ack.ok) {
-          this.setStatus("error");
+          this.setStatus(ack.reason === "notMember" ? "noAccess" : "error");
           return;
         }
+        this.store.getState().setProjectRole(ack.role);
         this.joined = true;
         const first = this.confirmed === null;
         const before = this.confirmed;
@@ -308,16 +412,29 @@ export class SyncClient {
         this.confirmedVersion = ack.version;
         // Batches the server already has are part of the snapshot.
         this.pending = this.pending.filter((batch) => batch.seq > ack.lastSeq);
+        this.saveQueue();
         const early = this.early;
         this.early = [];
         // A fresh project starts with an empty history; after a reconnect the history
         // takes in whatever changed while this tab was away.
         const missed = before ? diffBuilding(before, ack.building) : [];
         this.show(first ? null : missed.length > 0 ? rebaseWith(missed) : undefined);
-        if (first) this.store.getState().setProjectId(this.config.projectId);
+        if (first) {
+          this.store.getState().setProjectId(this.config.projectId);
+          this.store.getState().setLastSeenAt(ack.lastSeenAt ?? null);
+        }
         for (const message of early) this.receive(message);
         for (const batch of this.pending) this.send(batch);
+        // What a tab closed while offline left unsent: applied now as this person's change.
+        const restored = this.restored.flat();
+        this.restored = [];
+        if (first && restored.length > 0 && can(ack.role, "edit")) {
+          this.store.setState({
+            building: applyOps(this.store.getState().building, restored).value,
+          });
+        }
         this.socket?.emit("selection", { selection: this.store.getState().selection });
+        this.socket?.emit("status", this.place);
         this.setStatus("online");
       },
     );
@@ -327,13 +444,21 @@ export class SyncClient {
   private local(building: Building) {
     const before = this.shown;
     this.shown = building;
-    // A preview is read only: what is changed in it is dropped on the way back.
+    // A preview is read only: what is changed in it is dropped on the way back. A viewer or
+    // commenter sends nothing either; the store takes the change back (store/history.ts).
     if (this.previewing || !before || !this.confirmed) return;
+    const role = this.store.getState().projectRole;
+    if (role && !can(role, "edit")) return;
     const ops = diffBuilding(before, building);
     if (ops.length === 0) return;
     this.seq += 1;
     const batch = { seq: this.seq, ops, valid: validateBuilding(building) === null };
     this.pending.push(batch);
+    this.saveQueue();
+    const now = Date.now();
+    for (const op of ops) {
+      if (op.op === "set") this.recent.set(JSON.stringify(op.path), { value: op.value, at: now });
+    }
     if (this.joined) this.send(batch);
   }
 
@@ -343,6 +468,7 @@ export class SyncClient {
       // Refused: take it out of the queue and show the building without it.
       if (!this.pending.includes(batch)) return;
       this.pending = this.pending.filter((b) => b !== batch);
+      this.saveQueue();
       this.endDragWhenSettled();
       this.show(undefined);
       const rejection: Rejection = ack.error
@@ -368,13 +494,33 @@ export class SyncClient {
     if (message.clientId === this.clientId) {
       const head = this.pending[0];
       this.pending = this.pending.filter((batch) => batch.seq > message.seq);
+      this.saveQueue();
       this.endDragWhenSettled();
       // Our oldest batch came back whole: confirmed plus the queue is what is shown already.
       if (head?.seq === message.seq && head.ops.length === message.ops.length) return;
       this.show(undefined);
       return;
     }
+    this.noticeOverwrite(message);
     this.show(rebaseWith(message.ops));
+  }
+
+  /** Someone else's batch set a value this person set moments ago to something else. */
+  private noticeOverwrite(message: OpsMessage) {
+    const now = Date.now();
+    const changes: Overwrite["changes"] = [];
+    for (const op of message.ops) {
+      if (op.op !== "set") continue;
+      const key = JSON.stringify(op.path);
+      const mine = this.recent.get(key);
+      if (!mine) continue;
+      this.recent.delete(key);
+      if (now - mine.at <= FRESH_MS && !sameJson(mine.value, op.value)) {
+        changes.push({ path: op.path, mine: mine.value });
+      }
+    }
+    if (changes.length === 0) return;
+    for (const listener of this.overwriteListeners) listener({ actor: message.actor, changes });
   }
 
   /**
@@ -427,6 +573,16 @@ export class SyncClient {
       this.applying = false;
     }
     this.shown = this.store.getState().building;
+  }
+}
+
+/** The queue a tab of this project left in this browser, or nothing. */
+function readQueue(key: string): Op[][] {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(key) ?? "[]");
+    return Array.isArray(parsed) ? parsed.filter((b): b is Op[] => Array.isArray(b)) : [];
+  } catch {
+    return [];
   }
 }
 

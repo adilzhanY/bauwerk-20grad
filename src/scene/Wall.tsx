@@ -1,4 +1,4 @@
-import { useMemo, useRef } from "react";
+import { useContext, useMemo, useRef } from "react";
 import type { ThreeEvent } from "@react-three/fiber";
 import { defaultOpening, snapOffset } from "@/geometry/openings";
 import { dot, sub } from "@/geometry/polygon";
@@ -10,7 +10,8 @@ import { Outline } from "./Outline";
 import type { StoreyDisplay } from "./display";
 import { sameSelection, useEditorStore } from "@/store/building";
 import type { Selection } from "@/store/building";
-import { useHover } from "./hover";
+import { useGhost } from "./ghost";
+import { PictureMode, useHover, useMarked } from "./hover";
 import { mergeAll, meshRaycast, noRaycast, prismGeometry, worldToPlan } from "./three";
 import { placeRadiatorFromWallClick } from "./tools/placeRadiator";
 import { useDisposableGeometry } from "./useDisposableGeometry";
@@ -38,8 +39,12 @@ export function Wall({
     () => ({ kind: "wall", storeyId, wallIndex: wall.index }),
     [storeyId, wall.index],
   );
-  const selected = useEditorStore((s) => sameSelection(s.selection, target));
-  const hovered = useEditorStore((s) => sameSelection(s.hovered, target));
+  const marked = useMarked(target);
+  const { selected } = marked;
+  // Lit while its row in the layers tree is hovered, on every storey (not in the card picture).
+  const picture = useContext(PictureMode);
+  const lit = useEditorStore((s) => !picture && s.highlightedWall === wall.index);
+  const { hovered } = marked;
   const facadeColor = useEditorStore((s) => s.building.facadeColor);
   const remoteColor = useEditorStore(
     (s) => s.presence.find((p) => sameSelection(p.selection, target))?.color ?? null,
@@ -48,6 +53,7 @@ export function Wall({
   const tool = useEditorStore((s) => s.tool);
   const addOpening = useEditorStore((s) => s.addOpening);
   const hover = useHover(target, active);
+  const ghost = useGhost(display, ghostOpacity);
   const shared = useEditorStore((s) => (s.building.sharedEdges ?? []).includes(wall.index));
 
   // Memoised by a hash of the inputs: the wall quad, height and the openings on it.
@@ -98,12 +104,17 @@ export function Wall({
     }
   };
 
-  const color = selected
-    ? colors.accent
-    : (remoteColor ??
-      (hovered ? colors.wallHover : shared ? colors.wallShared : (facadeColor ?? colors.wall)));
+  // Every wall takes the facade colour from the photo; a shared wall stays grey only while
+  // there is none.
+  const color =
+    selected || lit
+      ? colors.accent
+      : (remoteColor ??
+        (hovered ? colors.wallHover : (facadeColor ?? (shared ? colors.wallShared : colors.wall))));
 
-  if (display === "outline") return <Outline geometry={geometry} position={[0, elevation, 0]} />;
+  // A lit wall shows solid even on a storey drawn as an outline, so the whole facade lights up.
+  if (display === "outline" && !lit)
+    return <Outline geometry={geometry} position={[0, elevation, 0]} />;
   return (
     <mesh
       geometry={geometry}
@@ -119,13 +130,10 @@ export function Wall({
       {...hover}
     >
       <meshStandardMaterial
-        color={color}
-        emissive={selected ? colors.accent : (remoteColor ?? "#000000")}
-        emissiveIntensity={selected ? 0.35 : remoteColor ? 0.25 : 0}
+        color={lit ? color : ghost(color)}
+        emissive={selected || lit ? colors.accent : (remoteColor ?? "#000000")}
+        emissiveIntensity={selected || lit ? 0.35 : remoteColor ? 0.25 : 0}
         roughness={0.9}
-        transparent={display === "ghost"}
-        opacity={display === "ghost" ? ghostOpacity : 1}
-        depthWrite={display !== "ghost"}
       />
     </mesh>
   );

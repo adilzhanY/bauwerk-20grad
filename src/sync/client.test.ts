@@ -6,7 +6,7 @@ import { exampleHouse } from "@/lib/examples";
 import { createEditorStore } from "@/store/building";
 import { SyncClient } from "./client";
 import { shareCursor, shareDrag } from "./presence";
-import type { Rejection } from "./client";
+import type { Overwrite, Rejection } from "./client";
 import { sameJson } from "./ops";
 import { TestHub } from "./testHub";
 import type { FakeSocket } from "./testHub";
@@ -298,5 +298,67 @@ describe("SyncClient", () => {
     hub.flush();
     expect(hub.version).toBe(2);
     expectConverged(a);
+  });
+
+  it("follows the role the owner gives, and stops when taken out of the project", () => {
+    const a = openTab("a");
+    hub.flush();
+    expect(a.store.getState().projectRole).toBe("editor");
+    const statuses: string[] = [];
+    a.client.onStatus((s) => statuses.push(s));
+    // Made a viewer while the tab is open: its edits are taken back at once.
+    a.socket.fire("access", { projectId: "p1", role: "viewer" });
+    const before = a.store.getState().building;
+    move(a, 0, 0.5);
+    expect(a.store.getState().building).toBe(before);
+    expect(a.client.unconfirmed).toBe(0);
+    // A change for another project is not this tab's business.
+    a.socket.fire("access", { projectId: "p2", role: null });
+    expect(statuses).toEqual([]);
+    a.socket.fire("access", { projectId: "p1", role: null });
+    expect(statuses).toEqual(["noAccess"]);
+  });
+
+  it("sends what a tab closed while offline left unsent, the next time the project opens", () => {
+    localStorage.clear();
+    const a = openTab("a");
+    hub.flush();
+    a.socket.drop();
+    move(a, 1, 0.5);
+    expect(a.client.unconfirmed).toBe(1);
+    a.client.stop();
+    expect(opening(hub.building, 1).offset).not.toBe(0.5);
+    // Later, a new tab of the same project.
+    const again = openTab("again");
+    hub.flush();
+    expect(opening(hub.building, 1).offset).toBe(0.5);
+    expectConverged(again);
+    expect(localStorage.getItem("bauwerk.queue.p1")).toBeNull();
+  });
+
+  it("tells the earlier person when someone else changed the same thing right after, and keeps theirs on request", () => {
+    localStorage.clear();
+    const a = openTab("a");
+    const b = openTab("b");
+    hub.flush();
+    const told: Overwrite[] = [];
+    a.client.onOverwrite((o) => told.push(o));
+    move(a, 1, 0.5);
+    hub.flush();
+    move(b, 1, 0.2);
+    hub.flush();
+    expect(told).toHaveLength(1);
+    expect(told[0]?.actor).toBeTruthy();
+    expect(told[0]?.changes[0]?.mine).toBe(0.5);
+    // A different window changed by b is nobody's overwrite.
+    move(b, 2, 8);
+    hub.flush();
+    expect(told).toHaveLength(1);
+    const first = told[0];
+    if (!first) throw new Error("no overwrite");
+    a.client.keepMine(first);
+    hub.flush();
+    expect(opening(hub.building, 1).offset).toBe(0.5);
+    expectConverged(a, b);
   });
 });

@@ -1,4 +1,5 @@
 import { Hint } from "@/components/shared/Hint";
+import { fullName, useAuth } from "@/auth/store";
 import { useState } from "react";
 import { Check, Trash2 } from "lucide-react";
 import { notesAbout } from "@/geometry/notes";
@@ -27,7 +28,9 @@ export function NotesSection({ target }: { target: NoteTarget }) {
   // A new key empties the field after a note is added.
   const [draftKey, setDraftKey] = useState(0);
   const notes = notesAbout(building, target);
-  const author = projectId ? actorIdentity().actor : t("notes.me");
+  // Signed in, a note is the account's; otherwise the tab's name in a shared project.
+  const account = useAuth((s) => s.account);
+  const author = account ? fullName(account) : projectId ? actorIdentity().actor : t("notes.me");
 
   return (
     <div className="flex flex-col gap-2 border-t border-line pt-3">

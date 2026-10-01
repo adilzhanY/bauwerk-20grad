@@ -4,6 +4,7 @@ import { cx } from "@/components/shared/cx";
 import { useT } from "@/i18n/useT";
 import { useEditorStore } from "@/store/building";
 import { AccountButton } from "@/components/app/AccountButton";
+import { NotificationBell } from "@/components/app/NotificationBell";
 import { Logo } from "@/components/app/Logo";
 import { ThemeToggle } from "@/components/app/ThemeToggle";
 import { useRouter } from "@/app/router";
@@ -74,6 +75,7 @@ export function AppHeader({
         {language === "de" ? "DE" : "EN"}
       </button>
       <ThemeToggle />
+      <NotificationBell />
       <AccountButton />
     </header>
   );

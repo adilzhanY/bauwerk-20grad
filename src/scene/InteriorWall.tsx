@@ -6,9 +6,10 @@ import { interiorWallAsWall, wallSolids } from "@/geometry/walls";
 import type { Id, Opening, Segment } from "@/geometry/types";
 import { colors } from "@/lib/colors";
 import type { StoreyDisplay } from "./display";
-import { sameSelection, useEditorStore } from "@/store/building";
+import { useEditorStore } from "@/store/building";
 import type { Selection } from "@/store/building";
-import { useHover } from "./hover";
+import { useGhost } from "./ghost";
+import { useHover, useMarked } from "./hover";
 import { mergeAll, meshRaycast, noRaycast, prismGeometry, worldToPlan } from "./three";
 import { useDisposableGeometry } from "./useDisposableGeometry";
 
@@ -46,12 +47,12 @@ export function InteriorWall({
     () => ({ kind: "interiorWall", storeyId, index }),
     [storeyId, index],
   );
-  const selected = useEditorStore((s) => sameSelection(s.selection, target));
-  const hovered = useEditorStore((s) => sameSelection(s.hovered, target));
+  const { selected, hovered } = useMarked(target);
   const select = useEditorStore((s) => s.select);
   const tool = useEditorStore((s) => s.tool);
   const addOpening = useEditorStore((s) => s.addOpening);
   const hover = useHover(target, active);
+  const ghost = useGhost(display, ghostOpacity);
 
   const wall = useMemo(
     () => interiorWallAsWall(segment, index, height, thickness),
@@ -113,13 +114,10 @@ export function InteriorWall({
       {...hover}
     >
       <meshStandardMaterial
-        color={selected ? colors.accent : hovered ? colors.wallHover : colors.interiorWall}
+        color={ghost(selected ? colors.accent : hovered ? colors.wallHover : colors.interiorWall)}
         emissive={selected ? colors.accent : "#000000"}
         emissiveIntensity={selected ? 0.35 : 0}
         roughness={0.9}
-        transparent={display === "ghost"}
-        opacity={display === "ghost" ? ghostOpacity : 1}
-        depthWrite={display !== "ghost"}
       />
     </mesh>
   );

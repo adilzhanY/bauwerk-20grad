@@ -6,7 +6,8 @@ import { colors } from "@/lib/colors";
 import type { StoreyDisplay } from "./display";
 import { sameSelection, useEditorStore } from "@/store/building";
 import type { Selection } from "@/store/building";
-import { useHover } from "./hover";
+import { useGhost } from "./ghost";
+import { useHover, useMarked } from "./hover";
 import { yawFor } from "./three";
 import { pointOnVertical } from "./tools/plane";
 import { useDragLock } from "./tools/useDragLock";
@@ -43,8 +44,7 @@ export function Opening({
     () => ({ kind: "opening", storeyId, id: opening.id }),
     [storeyId, opening.id],
   );
-  const selected = useEditorStore((s) => sameSelection(s.selection, target));
-  const hovered = useEditorStore((s) => sameSelection(s.hovered, target));
+  const { selected, hovered } = useMarked(target);
   const remoteColor = useEditorStore(
     (s) => s.presence.find((p) => sameSelection(p.selection, target))?.color ?? null,
   );
@@ -124,7 +124,10 @@ export function Opening({
     : selected
       ? colors.accent
       : (remoteDrag?.color ?? remoteColor ?? base);
-  const opacity = display === "ghost" ? ghostOpacity : opening.kind === "window" ? 0.55 : 1;
+  const ghost = useGhost(display, ghostOpacity);
+  // Glass is see-through on the storey being edited; on a ghost storey it is opaque like
+  // everything else there (ghost.ts).
+  const opacity = display !== "ghost" && opening.kind === "window" ? 0.55 : 1;
   if (display === "outline") return null;
 
   return (
@@ -149,7 +152,7 @@ export function Opening({
         <boxGeometry args={[opening.width, opening.height, 0.03]} />
       )}
       <meshStandardMaterial
-        color={color}
+        color={ghost(color)}
         emissive={selected || hovered ? colors.accent : "#000000"}
         emissiveIntensity={selected ? 0.4 : hovered ? 0.15 : 0}
         transparent={opacity < 1}

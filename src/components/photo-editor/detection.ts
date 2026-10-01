@@ -16,6 +16,8 @@ export interface DetectionHooks {
   showPaintedPhoto: (url: string, corners: Quad) => Promise<HTMLImageElement>;
   /** Called with the rectified wall as soon as it exists, before the openings are read. */
   onWallImage: (image: WallImage) => void;
+  /** Called while a stage waits for the AI service, with the jobs ahead of it. */
+  onAhead: (ahead: number) => void;
 }
 
 export interface DetectionResult {
@@ -36,7 +38,7 @@ export async function detectWall(
 ): Promise<DetectionResult | null> {
   const { signal } = hooks;
   const clock = stageClock();
-  const found = await findWallCorners(file, wall.width, wall.height, signal);
+  const found = await findWallCorners(file, wall.width, wall.height, signal, hooks.onAhead);
   if (isAborted(signal)) return null;
   clock.lap(`corners (service ${found.seconds.toFixed(1)} s)`);
   const corners = found.corners.map(([x, y]) => ({ x, y })) as Quad;
@@ -52,7 +54,7 @@ export async function detectWall(
   clock.lap(`wall straightened (${built.width} x ${built.height} px)`);
 
   hooks.onStage("openings", found.baseHidden);
-  const openings = await findOpenings(built.blob, WALL_PX_PER_METRE, signal);
+  const openings = await findOpenings(built.blob, WALL_PX_PER_METRE, signal, hooks.onAhead);
   if (isAborted(signal)) return null;
   clock.lap(`openings (${openings.length})`);
   clock.total();
@@ -63,8 +65,9 @@ export async function detectWall(
 export async function detectOpeningsOnly(
   image: WallImage,
   signal: AbortSignal,
+  onAhead: (ahead: number) => void,
 ): Promise<VisionOpening[] | null> {
-  const openings = await findOpenings(image.blob, WALL_PX_PER_METRE, signal);
+  const openings = await findOpenings(image.blob, WALL_PX_PER_METRE, signal, onAhead);
   return isAborted(signal) ? null : openings;
 }
 

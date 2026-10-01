@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef } from "react";
+import { createPortal } from "react-dom";
 import type { ReactNode } from "react";
 import { X } from "lucide-react";
 import { CustomIconButton } from "./CustomIconButton";
@@ -18,7 +19,8 @@ const FOCUSABLE =
 
 /**
  * Modal with a focus trap. Escape and a click on the backdrop close it; focus returns to the
- * opener. The opener mounts it inside `<Presence show={open} kind="float">`, so it fades in
+ * opener. It renders into the page body: opened from a panel that slides in with a transform
+ * (the layers tree, a tab), a fixed overlay would otherwise cover only that panel. The opener mounts it inside `<Presence show={open} kind="float">`, so it fades in
  * and out with the rest of the site.
  */
 export function CustomDialog({ title, closeLabel, onClose, children, width = 440 }: Props) {
@@ -65,7 +67,7 @@ export function CustomDialog({ title, closeLabel, onClose, children, width = 440
     };
   }, []);
 
-  return (
+  return createPortal(
     <div
       className={cx(
         "fixed inset-0 z-50 flex items-center justify-center bg-night/40 p-6 backdrop-blur-sm",
@@ -98,6 +100,7 @@ export function CustomDialog({ title, closeLabel, onClose, children, width = 440
         </header>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

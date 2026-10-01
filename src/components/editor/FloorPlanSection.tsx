@@ -59,7 +59,7 @@ export function FloorPlanSection() {
   const available = useFloorplanAvailable();
   const fileInput = useRef<HTMLInputElement>(null);
   /** The plan the AI is reading right now, shown under the scan while it works. */
-  const [job, setJob] = useState<{ url: string; startedAt: number } | null>(null);
+  const [job, setJob] = useState<{ url: string; startedAt: number; ahead: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{
     reading: FloorPlanReading;
@@ -96,9 +96,11 @@ export function FloorPlanSection() {
     discard();
     const url = URL.createObjectURL(plan);
     const startedAt = performance.now();
-    setJob({ url, startedAt });
+    setJob({ url, startedAt, ahead: 0 });
     try {
-      const reading = await readFloorPlan(plan, building.footprint);
+      const reading = await readFloorPlan(plan, building.footprint, undefined, (ahead) => {
+        setJob((current) => current && { ...current, ahead });
+      });
       setResult({ reading, url, seconds: (performance.now() - startedAt) / 1000 });
     } catch (e) {
       URL.revokeObjectURL(url);
@@ -189,7 +191,9 @@ export function FloorPlanSection() {
           e.target.value = "";
         }}
       />
-      <Presence value={job}>{(j) => <Reading url={j.url} startedAt={j.startedAt} />}</Presence>
+      <Presence value={job}>
+        {(j) => <Reading url={j.url} startedAt={j.startedAt} ahead={j.ahead} />}
+      </Presence>
       <Presence value={error}>
         {(message) => (
           <AiCard
@@ -257,19 +261,23 @@ export function FloorPlanSection() {
 
 /**
  * While the AI reads the plan: the plan itself under the AI scan, the working badge, a
- * clock, and what it is doing. The service answers once, at the end, so no step is ticked
- * off that has not really finished.
+ * clock, and what it is doing, or how many jobs of other people the AI does first. The service
+ * answers once, at the end, so no step is ticked off that has not really finished.
  */
-function Reading({ url, startedAt }: { url: string; startedAt: number }) {
+function Reading({ url, startedAt, ahead }: { url: string; startedAt: number; ahead: number }) {
   const t = useT();
   const language = useEditorStore((s) => s.language);
   const seconds = useElapsed(startedAt, undefined);
   return (
     <AiCard
       status="working"
-      title={t("floorPlan.aiTitle")}
+      title={t(ahead > 0 ? "ai.queue.title" : "floorPlan.aiTitle")}
       meta={`${formatNumber(seconds, language, 1)} s`}
-      detail={t("floorPlan.aiDetail")}
+      detail={
+        ahead > 0
+          ? t(ahead === 1 ? "ai.queue.one" : "ai.queue.many", { n: ahead })
+          : t("floorPlan.aiDetail")
+      }
     >
       <div className="relative overflow-hidden rounded-inner">
         <img src={url} alt="" className="block w-full" />

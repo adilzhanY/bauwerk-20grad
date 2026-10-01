@@ -1,4 +1,6 @@
 import { normalizeWalls } from "@/geometry/wallGraph";
+import { can } from "@/projects/roles";
+import type { Role } from "@/projects/roles";
 import { create } from "zustand";
 import { asOpening } from "@/geometry/floorPlanImport";
 import type { FloorPlanEdits } from "@/geometry/floorPlanImport";
@@ -73,6 +75,14 @@ export type Theme = "light" | "dark" | "system";
 export type Tool =
   "select" | "footprint" | "opening" | "interiorWall" | "zone" | "measure" | "hvac" | "move";
 
+/** The tools that change nothing, all a viewer or commenter gets (TODO Part 21, CB). */
+export const LOOK_TOOLS: readonly Tool[] = ["select", "measure"];
+
+/** Every tool for an editor or a project not on the server; only looking for the rest. */
+export function toolAllowed(tool: Tool, role: Role | null): boolean {
+  return role === null || can(role, "edit") || LOOK_TOOLS.includes(tool);
+}
+
 export type Selection =
   | { kind: "vertex"; index: number }
   | { kind: "wall"; storeyId: Id; wallIndex: number }
@@ -107,6 +117,8 @@ export interface EditorState {
   selection: Selection | null;
   /** Throttled hover target from the viewport. UI state, never in history. */
   hovered: Selection | null;
+  /** A footprint edge lit on every storey while its row in the tree is hovered. UI state. */
+  highlightedWall: number | null;
   tool: Tool;
   language: Language;
   showGrid: boolean;
@@ -137,6 +149,15 @@ export interface EditorState {
   facadePhotoTransparency: number;
   /** Project id on the server when sync is active. UI state. */
   projectId: string | null;
+  /**
+   * This person's role in the open server project (projects/roles.ts), from the server on
+   * joining; null without one. The editor shows only the tools the role may use. UI state.
+   */
+  projectRole: Role | null;
+  /** The tab whose camera this view follows (TODO Part 21, CC.5), or null. UI state. */
+  following: string | null;
+  /** When this person last had the open server project open, before now (CG.4). UI state. */
+  lastSeenAt: string | null;
   /** Orthographic top-down view of the active storey. UI state. */
   planView: boolean;
   /**
@@ -220,6 +241,14 @@ export interface Presence {
   cursor?: Vec2 | null;
   /** The opening they are dragging right now, where it is at this moment. */
   dragging?: DragPreview | null;
+  /** The account behind the tab; the header shows one avatar per person, not per tab. */
+  userId?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  /** Here, or away with the tab hidden; which page of the project and which storey. */
+  state?: "here" | "away";
+  page?: string | null;
+  storeyId?: string | null;
 }
 
 export interface EditorActions {
@@ -319,6 +348,7 @@ export interface EditorActions {
   select: (selection: Selection) => void;
   clearSelection: () => void;
   setHovered: (hovered: Selection | null) => void;
+  setHighlightedWall: (edge: number | null) => void;
   setActiveZone: (zoneId: Id | null) => void;
   setRenovatedView: (on: boolean) => void;
   setViewScenario: (id: string | null) => void;
@@ -349,6 +379,9 @@ export interface EditorActions {
   /** Updates one other tab's presence, when it is known. */
   patchPresence: (clientId: string, patch: Partial<Omit<Presence, "clientId">>) => void;
   setProjectId: (projectId: string | null) => void;
+  setProjectRole: (role: Role | null) => void;
+  setFollowing: (clientId: string | null) => void;
+  setLastSeenAt: (at: string | null) => void;
   /** The facade colour read from a photo, or null for the neutral wall colour. */
   setFacadeColor: (color: string | null) => void;
   /** Changes the project facts the Projects page shows: client, stage, report time. */
@@ -486,6 +519,7 @@ export function createEditorStore(initial?: Partial<EditorState>) {
           activeStoreyId: initial?.activeStoreyId ?? building.storeys[0]?.id ?? null,
           selection: initial?.selection ?? null,
           hovered: null,
+          highlightedWall: null,
           tool: initial?.tool ?? "select",
           language,
           showGrid: initial?.showGrid ?? true,
@@ -500,6 +534,9 @@ export function createEditorStore(initial?: Partial<EditorState>) {
           showFacadePhotos: true,
           facadePhotoTransparency: 0,
           projectId: null,
+          projectRole: null,
+          following: null,
+          lastSeenAt: null,
           planView: false,
           planReveal: null,
           showUValueBands: false,
@@ -1315,6 +1352,12 @@ export function createEditorStore(initial?: Partial<EditorState>) {
             });
           },
 
+          setHighlightedWall: (edge) => {
+            set((state) => {
+              state.highlightedWall = edge;
+            });
+          },
+
           setHovered: (hovered) => {
             set((state) => {
               if (sameSelection(state.hovered, hovered)) return;
@@ -1613,6 +1656,27 @@ export function createEditorStore(initial?: Partial<EditorState>) {
           setProjectId: (projectId) => {
             set((state) => {
               state.projectId = projectId;
+              if (projectId === null) state.projectRole = null;
+            });
+          },
+
+          setProjectRole: (role) => {
+            set((state) => {
+              state.projectRole = role;
+              // Losing edit rights mid-drawing drops the drawing tool.
+              if (!toolAllowed(state.tool, role)) state.tool = "select";
+            });
+          },
+
+          setFollowing: (clientId) => {
+            set((state) => {
+              state.following = clientId;
+            });
+          },
+
+          setLastSeenAt: (at) => {
+            set((state) => {
+              state.lastSeenAt = at;
             });
           },
 
@@ -1702,7 +1766,7 @@ export function createEditorStore(initial?: Partial<EditorState>) {
 
           setTool: (tool) => {
             set((state) => {
-              state.tool = tool;
+              if (toolAllowed(tool, state.projectRole)) state.tool = tool;
             });
           },
 

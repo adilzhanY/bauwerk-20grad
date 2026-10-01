@@ -6,6 +6,7 @@
 import { useEffect, useState } from "react";
 import { z } from "zod";
 import type { Vec2 } from "@/geometry/types";
+import { postInLine } from "./queue";
 
 const BASE = "/floorplan";
 const POLL_MS = 15000;
@@ -72,16 +73,20 @@ export function useFloorplanAvailable(): boolean | null {
   return available;
 }
 
-/** Reads `plan` into interior walls and doors inside `footprint` (plan metres). */
+/**
+ * Reads `plan` into interior walls and doors inside `footprint` (plan metres). `onAhead` hears
+ * how many plans of other people are read before this one.
+ */
 export async function readFloorPlan(
   plan: Blob,
   footprint: readonly Vec2[],
   signal?: AbortSignal,
+  onAhead?: (ahead: number) => void,
 ): Promise<FloorPlanReading> {
   const form = new FormData();
   form.append("plan", plan, "plan.png");
   form.append("footprint", JSON.stringify(footprint.map((p) => ({ x: p.x, y: p.y }))));
-  const res = await fetch(`${BASE}/walls`, { method: "POST", body: form, signal });
+  const res = await postInLine(BASE, "/walls", form, signal, onAhead);
   if (!res.ok) {
     const detail = ((await res.json().catch(() => ({}))) as { detail?: unknown }).detail;
     throw new Error(typeof detail === "string" ? detail : `lod2-floorplan ${String(res.status)}`);

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { safeNext } from "@/app/router";
-import { initialsOf } from "@/components/app/initials";
+import { initialsOf } from "@/components/shared/initials";
 import { colorFor, PRESENCE_COLORS } from "@/sync/colors";
 import { failureOf, storedToken, storeToken } from "./api";
 import { signIn, signOut, startAuth, useAuth } from "./store";

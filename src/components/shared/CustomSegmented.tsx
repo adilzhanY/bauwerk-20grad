@@ -64,8 +64,15 @@ export function CustomSegmented<V extends string>({
       role="radiogroup"
       aria-label={label}
       className={cx(
-        "flex gap-1 rounded-inner border border-line bg-paper p-1",
-        vertical && "flex-col",
+        "gap-1 rounded-inner border border-line bg-paper p-1",
+        // Text options share one column width, the widest label's: a group sized to its
+        // content gives every option room for its whole label (equal flex shares cut the
+        // longer ones to "G..."), and a narrow panel still shrinks them evenly.
+        vertical
+          ? "flex flex-col"
+          : iconsOnly
+            ? "flex"
+            : "grid auto-cols-[minmax(0,1fr)] grid-flow-col",
       )}
     >
       {options.map((o) => {
@@ -86,14 +93,17 @@ export function CustomSegmented<V extends string>({
             onKeyDown={onKeyDown}
             className={cx(
               "relative flex items-center justify-center gap-1.5 rounded-control transition-colors",
-              // Flex items refuse to shrink below their text by default, so a fourth
-              // option pushed the last pill out of the track. min-w-0 lets them share
-              // the width, and dense groups drop to the smaller size.
+              // min-w-0 lets the options shrink in a narrow panel instead of pushing the
+              // last one out of the track; dense groups drop to the smaller size.
               iconsOnly
                 ? o.hint
                   ? "h-9 px-3 text-sm"
                   : "h-9 w-9 text-sm"
-                : cx("h-8 min-w-0 flex-1", options.length > 3 ? "px-2 text-xs" : "px-3 text-sm"),
+                : cx(
+                    "h-8 min-w-0 whitespace-nowrap",
+                    vertical && "flex-1",
+                    options.length > 3 ? "px-2 text-xs" : "px-3 text-sm",
+                  ),
               selected
                 ? "bg-select font-semibold text-white"
                 : "text-muted hover:bg-panel hover:text-ink",

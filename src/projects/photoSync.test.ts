@@ -5,7 +5,9 @@ import type * as Projects from "./projects";
 import type { ProjectRef } from "./projects";
 
 const saved: { ref: ProjectRef; slot: string }[] = [];
-let stored: { slot: string; width: number; height: number }[] = [];
+let stored: { slot: string; width: number; height: number; updatedAt?: string }[] = [];
+/** Changes the URLs handed out, as a replaced picture gets a new one. */
+let urlTag = "";
 
 vi.mock("./projects", async (original) => {
   const real = await original<typeof Projects>();
@@ -16,16 +18,18 @@ vi.mock("./projects", async (original) => {
       return Promise.resolve();
     },
     photoSlots: () => Promise.resolve(stored),
-    photoUrl: (_ref: ProjectRef, slot: string) => Promise.resolve(`blob:stored-${slot}`),
+    photoUrl: (_ref: ProjectRef, slot: string) => Promise.resolve(`blob:stored-${slot}${urlTag}`),
     shrinkImage: () => Promise.resolve({ blob: new Blob(["small"]), width: 48, height: 36 }),
   };
 });
 
 const { startPhotoSync } = await import("./photoSync");
+const { FILES_EVENT } = await import("./files");
 
 beforeEach(() => {
   saved.length = 0;
   stored = [];
+  urlTag = "";
   vi.stubGlobal("fetch", () => Promise.resolve(new Response(new Blob(["jpeg"]))));
   URL.revokeObjectURL = () => undefined;
 });
@@ -82,5 +86,31 @@ describe("startPhotoSync", () => {
     await settle();
     expect(saved.map((s) => s.slot).sort()).toEqual(["0", "plan-s0", "thumbnail"]);
     expect(saved.every((s) => s.ref.kind === "local" && s.ref.id === "p3")).toBe(true);
+  });
+
+  it("follows pictures another tab or person replaced or removed when the files change", async () => {
+    stored = [
+      { slot: "1", width: 640, height: 480, updatedAt: "t1" },
+      { slot: "plan-s0", width: 900, height: 700, updatedAt: "t1" },
+    ];
+    const store = createEditorStore();
+    const stop = startPhotoSync(store);
+    store.getState().loadBuilding(savedProject("p4"));
+    await vi.waitFor(() => {
+      expect(store.getState().facadePhotos[1]?.url).toBe("blob:stored-1");
+    });
+    // A picture put on here that is not uploaded yet must survive the reload.
+    store.getState().setFacadePhoto(3, { url: "blob:mine", width: 10, height: 10 });
+
+    // Someone replaced wall 2's photo and removed the floor plan.
+    stored = [{ slot: "1", width: 640, height: 480, updatedAt: "t2" }];
+    urlTag = "-new";
+    window.dispatchEvent(new Event(FILES_EVENT));
+    await vi.waitFor(() => {
+      expect(store.getState().facadePhotos[1]?.url).toBe("blob:stored-1-new");
+    });
+    expect(store.getState().floorPlanImages).not.toHaveProperty("s0");
+    expect(store.getState().facadePhotos[3]?.url).toBe("blob:mine");
+    stop();
   });
 });

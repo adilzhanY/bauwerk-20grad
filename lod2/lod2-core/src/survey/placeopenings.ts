@@ -48,8 +48,15 @@ export interface PlacementResult {
 /** An edge counts as the wall's edge when it is this parallel and this close. */
 const EDGE_ANGLE_DEG = 8
 const EDGE_DISTANCE_M = 0.6
-/** A door whose bottom is this close to the storey floor stands on it. */
+/** A door whose bottom is this close to the storey floor reaches down to it: measuring slop. */
 const DOOR_FLOOR_M = 0.3
+/**
+ * A door up to this far above the floor still stands on it, at the height measured. The
+ * model's ground floor starts at the street, and the steps up to an old building's entrance
+ * lift a real door by up to a metre above that (BOo: 0.34 m). Higher, it is a window that
+ * reaches low.
+ */
+const DOOR_STEPS_M = 1.0
 /** Openings smaller than this on either side are dropped. */
 const MIN_OPENING_M = 0.2
 /** Bauwerk's own lower limit for an opening side. */
@@ -171,12 +178,18 @@ function placeOne(
   const floor = floorLevel(storey, heights)
   const ceiling = floor + heights[storey]!
   let lower = Math.max(bottom, floor)
-  const upper = Math.min(top, ceiling)
+  let upper = Math.min(top, ceiling)
   if (lower > bottom + 0.01 || upper < top - 0.01) notes.push('an der Geschossdecke gekürzt')
   let kind = opening.kind
   if (kind === 'door') {
     if (lower - floor <= DOOR_FLOOR_M) {
       lower = floor
+    } else if (lower - floor <= DOOR_STEPS_M) {
+      // Onto the floor with the height measured, so its area stays what the photo shows.
+      notes.push(`Tür ${(lower - floor).toFixed(2)} m über dem Fußboden, mit gemessener Höhe auf den Fußboden gesetzt`)
+      const measured = upper - lower
+      lower = floor
+      upper = floor + measured
     } else {
       kind = 'window'
       notes.push('Tür über dem Fußboden als Fenster übernommen')

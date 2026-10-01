@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef } from "react";
 import type { ThreeEvent } from "@react-three/fiber";
 import { sameSelection, useEditorStore } from "@/store/building";
 import type { Selection } from "@/store/building";
@@ -57,4 +57,18 @@ export function useHover(target: Selection | null, enabled = true) {
   }, [schedule]);
 
   return { onPointerOver, onPointerOut };
+}
+
+/**
+ * True inside the project card's picture of the building (ModelThumbnail): nothing there is
+ * selected or hovered, whatever the editor has.
+ */
+export const PictureMode = createContext(false);
+
+/** Whether this target is selected and hovered, as the parts of the building draw it. */
+export function useMarked(target: Selection | null): { selected: boolean; hovered: boolean } {
+  const picture = useContext(PictureMode);
+  const selected = useEditorStore((s) => !picture && sameSelection(s.selection, target));
+  const hovered = useEditorStore((s) => !picture && sameSelection(s.hovered, target));
+  return { selected, hovered };
 }

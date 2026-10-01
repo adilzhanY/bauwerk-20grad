@@ -14,9 +14,17 @@ export interface DragPreview {
   offset: number;
 }
 
+/** Where a tab's camera is: world position and orbit target, and the storey it shows. */
+export interface SharedView {
+  position: [number, number, number];
+  target: [number, number, number];
+  storeyId: string | null;
+}
+
 interface Listener {
   cursor: (point: Vec2 | null) => void;
   drag: (drag: DragPreview | null) => void;
+  view: (view: SharedView) => void;
 }
 
 let listener: Listener | null = null;
@@ -32,4 +40,24 @@ export function shareCursor(point: Vec2 | null): void {
 
 export function shareDrag(drag: DragPreview | null): void {
   listener?.drag(drag);
+}
+
+/** This tab's camera, for whoever follows it (TODO Part 21, CC.5). */
+export function shareView(view: SharedView): void {
+  listener?.view(view);
+}
+
+type ViewWatcher = (clientId: string, view: SharedView) => void;
+const viewWatchers = new Set<ViewWatcher>();
+
+/** Calls `watcher` with every other tab's camera as it arrives. */
+export function watchViews(watcher: ViewWatcher): () => void {
+  viewWatchers.add(watcher);
+  return () => {
+    viewWatchers.delete(watcher);
+  };
+}
+
+export function receiveView(clientId: string, view: SharedView): void {
+  for (const watcher of viewWatchers) watcher(clientId, view);
 }

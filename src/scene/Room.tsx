@@ -6,9 +6,9 @@ import type { Id, Room as RoomData, Zone } from "@/geometry/types";
 import { colors } from "@/lib/colors";
 import type { StoreyDisplay } from "./display";
 import { formatArea } from "@/lib/format";
-import { sameSelection, useEditorStore } from "@/store/building";
+import { useEditorStore } from "@/store/building";
 import type { Selection } from "@/store/building";
-import { useHover } from "./hover";
+import { useHover, useMarked } from "./hover";
 import { flatGeometry, meshRaycast, noRaycast } from "./three";
 import { useDisposableGeometry } from "./useDisposableGeometry";
 
@@ -28,8 +28,7 @@ export function Room({ storeyId, room, zone, elevation, active, display, ghostOp
     () => ({ kind: "room", storeyId, id: room.id }),
     [storeyId, room.id],
   );
-  const selected = useEditorStore((s) => sameSelection(s.selection, target));
-  const hovered = useEditorStore((s) => sameSelection(s.hovered, target));
+  const { selected, hovered } = useMarked(target);
   const language = useEditorStore((s) => s.language);
   const select = useEditorStore((s) => s.select);
   const tool = useEditorStore((s) => s.tool);

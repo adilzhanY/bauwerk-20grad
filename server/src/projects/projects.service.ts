@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events";
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { Inject, Injectable } from "@nestjs/common";
 import type { Pool } from "pg";
 import { EXPORT_VERSION, checkBuildingShape, fromJson, validateBuilding } from "@/geometry/export";
@@ -7,7 +7,11 @@ import type { ImportError } from "@/geometry/export";
 import type { Building } from "@/geometry/types";
 import { projectSummary } from "@/geometry/project";
 import type { ProjectSummary as CardSummary } from "@/geometry/project";
+import { can, isRole } from "@/projects/roles";
+import type { LinkRole, ProjectAction, Role } from "@/projects/roles";
 import { applyOps } from "@/sync/ops";
+import { summarizeOps } from "@/sync/summary";
+import type { ChangeSummary } from "@/sync/summary";
 import type { Op } from "@/sync/ops";
 import { DB } from "../db";
 import type { AuthUser } from "../auth/auth.service";
@@ -20,17 +24,29 @@ export interface ProjectRecord {
   updatedAt: string;
 }
 
+/** Someone shown by name and avatar. */
+export interface Person {
+  id: string;
+  firstName: string;
+  lastName: string;
+}
+
 export interface ProjectSummary {
   id: string;
   name: string;
   version: number;
   updatedAt: string;
-  /** The owner's full name, with accounts on. */
-  owner?: string;
+  /** The owner, with accounts on: for the avatar on the card. */
+  owner?: Person;
   /** The id of the building inside, so a building opened from the map finds its project. */
   buildingId: string;
   /** What the Projects page shows on the card. */
   summary: CardSummary;
+  /** The signed in person's role in it, and when they last had it open. */
+  role?: Role;
+  lastSeenAt: string | null;
+  /** Who has it open right now (added by the controller from the live sockets). */
+  here?: { userId: string; firstName: string; lastName: string; state: "here" | "away" }[];
 }
 
 export type WriteResult =
@@ -55,6 +71,19 @@ export type BatchResult =
   | { ok: false; reason: "invalid"; error: ImportError }
   | { ok: false; reason: "notFound" };
 
+/** May this person do it: their role, or why not (no such project, not a member, too low a role). */
+export type Access =
+  { ok: true; role: Role } | { ok: false; reason: "notFound" | "notMember" | "notAllowed" };
+
+/** A project's share link: its token (for the address), what it grants, until when. */
+export interface ShareLink {
+  token: string;
+  role: LinkRole;
+  expiresAt: string | null;
+}
+
+const LINK_TOKEN = /^[A-Za-z0-9_-]{32,64}$/;
+
 /** How many versions the history list shows at most. */
 export const VERSION_LIST_LIMIT = 500;
 
@@ -65,6 +94,10 @@ export interface VersionEntry {
   kind: "create" | "ops";
   /** Operations in the batch; 0 for the creation. */
   changes: number;
+  /** The account behind it, when there are accounts. */
+  actorId: string | null;
+  /** What the batch did, in things: walls changed, doors added (sync/summary.ts). */
+  summary: ChangeSummary;
 }
 
 /** Emitted as "ops" after every applied batch: what every client replays, in version order. */
@@ -83,21 +116,6 @@ export interface ProjectOps {
  */
 export const PHOTO_SLOT = /^(\d{1,3}|thumbnail|model|plan-[A-Za-z0-9_-]{1,64})$/;
 
-export interface PhotoInput {
-  slot: string;
-  mime: string;
-  width: number;
-  height: number;
-  data: Buffer;
-}
-
-export interface PhotoMeta {
-  slot: string;
-  width: number;
-  height: number;
-  updatedAt: string;
-}
-
 /** A stored card: the Projects page summary and the building's own id. */
 type StoredCard = CardSummary & { buildingId: string };
 
@@ -108,7 +126,11 @@ interface ListRow {
   updated_at: Date;
   summary: StoredCard | null;
   building: Building | null;
-  owner: string | null;
+  owner_id: string | null;
+  owner_first: string | null;
+  owner_last: string | null;
+  role: string | null;
+  last_seen_at: Date | null;
 }
 
 interface Row {
@@ -157,7 +179,8 @@ export class ProjectsService {
       ? await this.pool.query<ListRow>(
           `SELECT p.id, p.name, p.version, p.updated_at, p.summary,
                   CASE WHEN p.summary_version = p.version THEN NULL ELSE p.building END AS building,
-                  o.first_name || ' ' || o.last_name AS owner
+                  p.owner_id, o.first_name AS owner_first, o.last_name AS owner_last,
+                  m.role, m.last_seen_at
              FROM app.projects p
              JOIN app.project_members m ON m.project_id = p.id AND m.user_id = $1
              LEFT JOIN app.users o ON o.id = p.owner_id
@@ -167,7 +190,8 @@ export class ProjectsService {
       : await this.pool.query<ListRow>(
           `SELECT p.id, p.name, p.version, p.updated_at, p.summary,
                   CASE WHEN p.summary_version = p.version THEN NULL ELSE p.building END AS building,
-                  NULL AS owner
+                  NULL AS owner_id, NULL AS owner_first, NULL AS owner_last,
+                  NULL AS role, NULL AS last_seen_at
              FROM app.projects p
             ORDER BY p.updated_at DESC`,
         );
@@ -191,39 +215,105 @@ export class ProjectsService {
         updatedAt: r.updated_at.toISOString(),
         buildingId,
         summary,
-        ...(r.owner ? { owner: r.owner } : {}),
+        ...(r.owner_id && r.owner_first !== null
+          ? {
+              owner: { id: r.owner_id, firstName: r.owner_first, lastName: r.owner_last ?? "" },
+            }
+          : {}),
+        ...(isRole(r.role) ? { role: r.role } : {}),
+        lastSeenAt: r.last_seen_at?.toISOString() ?? null,
       });
     }
     return out;
   }
 
   /**
-   * May this user use the project? With accounts off, anyone may. Signed in, a member may;
-   * with `join`, opening the project makes a signed in user a member first: the link is the
-   * invitation, and its random id cannot be guessed.
+   * This person's role in the project. With accounts off everyone owns everything. Signed in,
+   * a member has their role; someone who is not one gets in only with the project's share link
+   * token, and then becomes a member with the link's role (view or comment, never edit). The
+   * project's address alone lets nobody in.
    */
+  async roleIn(id: string, user: AuthUser | undefined, linkToken?: string): Promise<Access> {
+    if (!isUuid(id)) return { ok: false, reason: "notFound" };
+    const exists = await this.pool.query("SELECT 1 FROM app.projects WHERE id = $1", [id]);
+    if (exists.rowCount === 0) return { ok: false, reason: "notFound" };
+    if (!user) return { ok: true, role: "owner" };
+    const member = await this.pool.query<{ role: string }>(
+      "SELECT role FROM app.project_members WHERE project_id = $1 AND user_id = $2",
+      [id, user.id],
+    );
+    const role = member.rows[0]?.role;
+    if (isRole(role)) return { ok: true, role };
+    if (typeof linkToken !== "string" || !LINK_TOKEN.test(linkToken)) {
+      return { ok: false, reason: "notMember" };
+    }
+    const link = await this.pool.query<{ role: string }>(
+      `SELECT role FROM app.project_links
+       WHERE project_id = $1 AND token = $2 AND (expires_at IS NULL OR expires_at > now())`,
+      [id, linkToken],
+    );
+    const linkRole = link.rows[0]?.role;
+    if (linkRole !== "viewer" && linkRole !== "commenter")
+      return { ok: false, reason: "notMember" };
+    await this.pool.query(
+      `INSERT INTO app.project_members (project_id, user_id, role) VALUES ($1, $2, $3)
+       ON CONFLICT DO NOTHING`,
+      [id, user.id, linkRole],
+    );
+    return { ok: true, role: linkRole };
+  }
+
+  /** May this person do `action` in the project, and with which role. */
   async access(
     id: string,
     user: AuthUser | undefined,
-    join: boolean,
-  ): Promise<"ok" | "notFound" | "forbidden"> {
-    if (!isUuid(id)) return "notFound";
-    const exists = await this.pool.query("SELECT 1 FROM app.projects WHERE id = $1", [id]);
-    if (exists.rowCount === 0) return "notFound";
-    if (!user) return "ok";
-    if (join) {
-      await this.pool.query(
-        `INSERT INTO app.project_members (project_id, user_id, role) VALUES ($1, $2, 'editor')
-         ON CONFLICT DO NOTHING`,
-        [id, user.id],
-      );
-      return "ok";
-    }
-    const member = await this.pool.query(
-      "SELECT 1 FROM app.project_members WHERE project_id = $1 AND user_id = $2",
-      [id, user.id],
+    action: ProjectAction,
+    linkToken?: string,
+  ): Promise<Access> {
+    const access = await this.roleIn(id, user, linkToken);
+    if (!access.ok) return access;
+    return can(access.role, action) ? access : { ok: false, reason: "notAllowed" };
+  }
+
+  /** The project's share link, or null when it has none. */
+  async link(id: string): Promise<ShareLink | null> {
+    const res = await this.pool.query<{ token: string; role: LinkRole; expires_at: Date | null }>(
+      "SELECT token, role, expires_at FROM app.project_links WHERE project_id = $1",
+      [id],
     );
-    return member.rowCount === 0 ? "forbidden" : "ok";
+    const row = res.rows[0];
+    return row
+      ? { token: row.token, role: row.role, expiresAt: row.expires_at?.toISOString() ?? null }
+      : null;
+  }
+
+  /**
+   * Turns the share link on or changes what it grants and until when. `reset` (or a link that
+   * did not exist) makes a new token, so the old address stops working.
+   */
+  async setLink(
+    id: string,
+    settings: { role: LinkRole; expiresAt: Date | null; reset: boolean },
+    by: string | undefined,
+  ): Promise<ShareLink> {
+    const token = randomBytes(24).toString("base64url");
+    await this.pool.query(
+      `INSERT INTO app.project_links (project_id, token, role, expires_at, created_by)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (project_id) DO UPDATE SET
+         role = EXCLUDED.role,
+         expires_at = EXCLUDED.expires_at,
+         token = CASE WHEN $6 THEN EXCLUDED.token ELSE app.project_links.token END`,
+      [id, token, settings.role, settings.expiresAt, by ?? null, settings.reset],
+    );
+    const link = await this.link(id);
+    if (!link) throw new Error("share link not written");
+    return link;
+  }
+
+  /** Turns the share link off: its address lets nobody in any more. */
+  async removeLink(id: string): Promise<void> {
+    await this.pool.query("DELETE FROM app.project_links WHERE project_id = $1", [id]);
   }
 
   async get(id: string): Promise<ProjectRecord | null> {
@@ -368,12 +458,12 @@ export class ProjectsService {
     const res = await this.pool.query<{
       version: number;
       actor: string;
+      actor_id: string | null;
       created_at: Date;
       kind: string | null;
-      changes: number;
+      ops: Op[] | null;
     }>(
-      `SELECT version, actor, created_at, patch->>'type' AS kind,
-              COALESCE(jsonb_array_length(patch->'ops'), 0) AS changes
+      `SELECT version, actor, actor_id, created_at, patch->>'type' AS kind, patch->'ops' AS ops
          FROM app.project_events WHERE project_id = $1
         ORDER BY version DESC LIMIT $2`,
       [id, VERSION_LIST_LIMIT],
@@ -381,9 +471,11 @@ export class ProjectsService {
     return res.rows.map((r) => ({
       version: r.version,
       actor: r.actor,
+      actorId: r.actor_id,
       createdAt: r.created_at.toISOString(),
       kind: r.kind === "create" ? "create" : "ops",
-      changes: r.changes,
+      changes: r.ops?.length ?? 0,
+      summary: r.ops ? summarizeOps(r.ops) : {},
     }));
   }
 
@@ -439,52 +531,4 @@ export class ProjectsService {
   }
 
   /** Saves (or replaces) one picture of a project. False when the project does not exist. */
-  async putPhoto(id: string, photo: PhotoInput): Promise<boolean> {
-    if (!isUuid(id)) return false;
-    const res = await this.pool.query(
-      `INSERT INTO app.project_photos (project_id, slot, mime, width, height, data)
-       SELECT $1, $2, $3, $4, $5, $6 WHERE EXISTS (SELECT 1 FROM app.projects WHERE id = $1)
-       ON CONFLICT (project_id, slot)
-       DO UPDATE SET mime = $3, width = $4, height = $5, data = $6, updated_at = now()`,
-      [id, photo.slot, photo.mime, photo.width, photo.height, photo.data],
-    );
-    return (res.rowCount ?? 0) > 0;
-  }
-
-  /** The pictures a project has, without their bytes. */
-  async listPhotos(id: string): Promise<PhotoMeta[]> {
-    if (!isUuid(id)) return [];
-    const res = await this.pool.query<{
-      slot: string;
-      width: number;
-      height: number;
-      updated_at: Date;
-    }>(
-      "SELECT slot, width, height, updated_at FROM app.project_photos WHERE project_id = $1 ORDER BY slot",
-      [id],
-    );
-    return res.rows.map((r) => ({
-      slot: r.slot,
-      width: r.width,
-      height: r.height,
-      updatedAt: r.updated_at.toISOString(),
-    }));
-  }
-
-  async getPhoto(id: string, slot: string): Promise<{ mime: string; data: Buffer } | null> {
-    if (!isUuid(id)) return null;
-    const res = await this.pool.query<{ mime: string; data: Buffer }>(
-      "SELECT mime, data FROM app.project_photos WHERE project_id = $1 AND slot = $2",
-      [id, slot],
-    );
-    return res.rows[0] ?? null;
-  }
-
-  async removePhoto(id: string, slot: string): Promise<void> {
-    if (!isUuid(id)) return;
-    await this.pool.query("DELETE FROM app.project_photos WHERE project_id = $1 AND slot = $2", [
-      id,
-      slot,
-    ]);
-  }
 }

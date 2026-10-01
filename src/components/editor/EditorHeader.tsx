@@ -6,6 +6,7 @@ import { useEditorStore } from "@/store/building";
 import type { SyncStatus } from "@/sync/client";
 import { ExportMenu } from "@/components/editor/ExportMenu";
 import { ShareButton } from "@/components/editor/ShareButton";
+import { PeopleHere } from "@/components/editor/PeopleHere";
 
 /**
  * The editor's part of the top bar. On the left the building name, its version (one per
@@ -28,7 +29,7 @@ export function EditorHeader({
   const canRedo = useEditorStore((s) => s.future.length > 0);
   const undo = useEditorStore((s) => s.undo);
   const redo = useEditorStore((s) => s.redo);
-  const presence = useEditorStore((s) => s.presence);
+  const role = useEditorStore((s) => s.projectRole);
   const state =
     syncStatus === "local" || syncStatus === "online"
       ? t("editor.saved")
@@ -43,48 +44,22 @@ export function EditorHeader({
         <span className="shrink-0 font-num text-xs text-muted">
           v{version} · {state}
         </span>
-        <CustomUndoRedo canUndo={canUndo} canRedo={canRedo} onUndo={undo} onRedo={redo} />
+        {role === "viewer" || role === "commenter" ? (
+          // Viewers and commenters change nothing (store/history.ts): say so instead of undo.
+          <span className="shrink-0 rounded-full bg-select-soft px-2.5 py-0.5 text-xs font-medium text-select">
+            {t(`role.badge.${role}`)}
+          </span>
+        ) : (
+          <CustomUndoRedo canUndo={canUndo} canRedo={canRedo} onUndo={undo} onRedo={redo} />
+        )}
       </HeaderPortal>
       <HeaderPortal slot="end">
-        {actor && (
-          <div
-            className="mr-1 flex items-center -space-x-1.5"
-            title={t("presence.title")}
-            aria-label={t("presence.title")}
-          >
-            <PresenceDot color={actor.color} name={actor.actor} self />
-            {presence.map((p) => (
-              <PresenceDot key={p.clientId} color={p.color} name={p.actor} />
-            ))}
-          </div>
-        )}
+        {actor && <PeopleHere />}
         {/* Work that is not a project yet has no project bar; Save sits here instead. */}
         {!inProject && <SaveProjectButton />}
         <ShareButton />
         <ExportMenu />
       </HeaderPortal>
     </>
-  );
-}
-
-function PresenceDot({
-  color,
-  name,
-  self = false,
-}: {
-  color: string;
-  name: string;
-  self?: boolean;
-}) {
-  return (
-    <span
-      title={name}
-      className={
-        self
-          ? "h-7 w-7 rounded-full border-2 border-paper ring-2 ring-select"
-          : "h-7 w-7 rounded-full border-2 border-paper"
-      }
-      style={{ background: color }}
-    />
   );
 }

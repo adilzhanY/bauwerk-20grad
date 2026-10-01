@@ -12,11 +12,17 @@ import {
   type VisionOpening,
 } from "lod2-core/api";
 import { UserError } from "./errors.ts";
+import { postInLine } from "./queue.ts";
 
 const BASE = "/vision";
 
-async function postForm(path: string, form: FormData, signal?: AbortSignal): Promise<unknown> {
-  const res = await fetch(`${BASE}${path}`, { method: "POST", body: form, signal });
+async function postForm(
+  path: string,
+  form: FormData,
+  signal?: AbortSignal,
+  onAhead?: (ahead: number) => void,
+): Promise<unknown> {
+  const res = await postInLine(BASE, path, form, signal, onAhead);
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     throw describeFailure(res.status, text);
@@ -59,12 +65,13 @@ export async function findWallCorners(
   wallWidthM: number,
   wallHeightM: number,
   signal?: AbortSignal,
+  onAhead?: (ahead: number) => void,
 ): Promise<VisionCorners> {
   const form = new FormData();
   form.append("photo", photo);
   form.append("wallWidth", String(wallWidthM));
   form.append("wallHeight", String(wallHeightM));
-  return VisionCornersSchema.parse(await postForm("/corners", form, signal));
+  return VisionCornersSchema.parse(await postForm("/corners", form, signal, onAhead));
 }
 
 /** Windows and doors on a rectified wall image, in wall metres. */
@@ -72,9 +79,10 @@ export async function findOpenings(
   rectified: Blob,
   pixelsPerMetre: number,
   signal?: AbortSignal,
+  onAhead?: (ahead: number) => void,
 ): Promise<VisionOpening[]> {
   const form = new FormData();
   form.append("image", rectified, "wall.png");
   form.append("pixelsPerMetre", String(pixelsPerMetre));
-  return VisionOpeningsSchema.parse(await postForm("/openings", form, signal)).openings;
+  return VisionOpeningsSchema.parse(await postForm("/openings", form, signal, onAhead)).openings;
 }

@@ -166,6 +166,7 @@ export class TestHub {
         version: this.version,
         building: this.building,
         lastSeq: this.lastSeq.get(socket.clientId) ?? 0,
+        role: "editor",
       });
       const actors = [...this.members].map((m) => ({
         clientId: m.clientId,

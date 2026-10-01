@@ -1,4 +1,5 @@
 import { useId, useRef, useState } from "react";
+import { authHeaders } from "@/auth/api";
 import { ChevronDown, Download, FileBox, FileDown, FileText } from "lucide-react";
 import { CustomButton } from "@/components/shared/CustomButton";
 import { cx } from "@/components/shared/cx";
@@ -55,7 +56,8 @@ export function ExportMenu() {
     try {
       const res = await fetch(`${cfg.apiUrl}/reports?lang=${language}`, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        // Signed in, the server wants the token on every route, the report included.
+        headers: { "content-type": "application/json", ...(await authHeaders()) },
         body: JSON.stringify({ building }),
       });
       if (!res.ok) throw new Error(String(res.status));

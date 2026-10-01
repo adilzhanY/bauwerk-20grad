@@ -1,4 +1,3 @@
-import { useRowMotion } from "@/components/shared/presenceMotion";
 import { Hint } from "@/components/shared/Hint";
 import { Presence } from "@/components/shared/Presence";
 import { useId, useState } from "react";
@@ -8,7 +7,6 @@ import {
   ArrowUp,
   Box,
   Building2,
-  ChevronRight,
   Copy,
   DoorOpen,
   Eye,
@@ -35,6 +33,11 @@ import { CustomIconButton } from "@/components/shared/CustomIconButton";
 import { CustomSection } from "@/components/shared/CustomField";
 import { ZONE_COLORS } from "@/lib/colors";
 import { cx } from "@/components/shared/cx";
+import { LayerGroup, LayerRow, RowAction } from "@/components/editor/LayerRow";
+import { FilePreview } from "@/components/editor/FilePreview";
+import type { PreviewItem } from "@/components/editor/FilePreview";
+import { MediaLayers } from "@/components/editor/MediaLayers";
+import { planPreview } from "@/components/editor/fileLabel";
 import { LocationSection } from "@/components/editor/LocationSection";
 import { NewBuildingDialog } from "@/components/editor/NewBuildingDialog";
 import { ProjectSwitcher } from "@/components/editor/ProjectSwitcher";
@@ -124,6 +127,7 @@ function LayerTree() {
     setOpenState({ ...openState, [id]: !isOpen(id) });
   };
   const roofHidden = otherStoreys.roof === "hidden";
+  const [preview, setPreview] = useState<PreviewItem | null>(null);
 
   const onStoreyKey = (e: KeyboardEvent<HTMLButtonElement>) => {
     if (activeIndex === -1) return;
@@ -188,6 +192,7 @@ function LayerTree() {
               setOtherStoreys({ roof: roofHidden ? "outline" : "hidden" });
             }}
           />
+          <MediaLayers onPreview={setPreview} />
           {storeys.length === 0 && (
             <li className="px-3 py-2 text-sm text-muted">{t("empty.body")}</li>
           )}
@@ -214,6 +219,7 @@ function LayerTree() {
                 onToggleHidden={() => {
                   toggleStoreyHidden(storey.id);
                 }}
+                onPreview={setPreview}
                 actions={
                   <>
                     <RowAction
@@ -273,6 +279,16 @@ function LayerTree() {
         </ul>
       </CustomSection>
       <SceneLayers />
+      <Presence value={preview} kind="float">
+        {(item) => (
+          <FilePreview
+            item={item}
+            onClose={() => {
+              setPreview(null);
+            }}
+          />
+        )}
+      </Presence>
     </>
   );
 }
@@ -288,6 +304,7 @@ function StoreyLayer({
   onSelect,
   onKeyDown,
   onToggleHidden,
+  onPreview,
   actions,
 }: {
   storey: Storey;
@@ -300,10 +317,12 @@ function StoreyLayer({
   onSelect: () => void;
   onKeyDown: (e: KeyboardEvent<HTMLButtonElement>) => void;
   onToggleHidden: () => void;
+  onPreview: (item: PreviewItem) => void;
   actions: ReactNode;
 }) {
   const t = useT();
   const language = useEditorStore((s) => s.language);
+  const plan = useEditorStore((s) => s.floorPlanImages[storey.id]);
   const footprint = useEditorStore((s) => s.building.footprint);
   const zones = useEditorStore((s) => s.building.zones);
   const select = useEditorStore((s) => s.select);
@@ -339,6 +358,23 @@ function StoreyLayer({
       />
       <Presence show={open} kind="float">
         <>
+          {plan && (
+            <LayerRow
+              level={2}
+              icon={
+                <img
+                  src={plan.url}
+                  alt=""
+                  draggable={false}
+                  className="h-4 w-4 rounded-sm object-cover"
+                />
+              }
+              label={t("tree.floorPlan")}
+              onSelect={() => {
+                onPreview(planPreview(plan.url, storey.name, t("tree.floorPlan")));
+              }}
+            />
+          )}
           <LayerGroup label={t("tree.rooms")} count={storey.rooms.length}>
             {storey.rooms.map((room) => {
               const zone = zones.find((z) => z.id === room.zoneId);
@@ -460,182 +496,6 @@ function StoreyLayer({
         </>
       </Presence>
     </>
-  );
-}
-
-/** A folder inside a storey: its name and count, closed until opened. */
-function LayerGroup({
-  label,
-  count,
-  children,
-}: {
-  label: string;
-  count: number;
-  children: ReactNode;
-}) {
-  const [open, setOpen] = useState(false);
-  return (
-    <>
-      <LayerRow
-        level={2}
-        label={label}
-        meta={String(count)}
-        muted
-        open={count > 0 ? open : undefined}
-        onToggleOpen={() => {
-          setOpen(!open);
-        }}
-        onSelect={() => {
-          if (count > 0) setOpen(!open);
-        }}
-      />
-      <Presence show={open} kind="float">
-        {children}
-      </Presence>
-    </>
-  );
-}
-
-/**
- * One row of the tree, as in Figma's layers: indent, disclosure arrow, icon, name, a value on
- * the right, and on hover the row's actions and its eye. The eye stays visible while hidden.
- */
-function LayerRow({
-  level,
-  icon,
-  label,
-  meta,
-  selected = false,
-  strong = false,
-  current = false,
-  muted = false,
-  open,
-  onToggleOpen,
-  onSelect,
-  onKeyDown,
-  hidden,
-  onToggleHidden,
-  actions,
-}: {
-  level: number;
-  icon?: ReactNode;
-  label: string;
-  meta?: string;
-  selected?: boolean;
-  strong?: boolean;
-  current?: boolean;
-  muted?: boolean;
-  open?: boolean;
-  onToggleOpen?: () => void;
-  onSelect: () => void;
-  onKeyDown?: (e: KeyboardEvent<HTMLButtonElement>) => void;
-  hidden?: boolean;
-  onToggleHidden?: () => void;
-  actions?: ReactNode;
-}) {
-  const t = useT();
-  // Rows under a storey or a group fade in as it opens and out as it closes.
-  const motion = useRowMotion();
-  return (
-    <li
-      role="treeitem"
-      aria-selected={selected}
-      aria-expanded={open}
-      className={cx(
-        "group relative flex h-8 items-center rounded-soft pr-1 transition-colors",
-        selected ? "bg-select-soft" : "hover:bg-panel",
-        motion,
-      )}
-      style={{ paddingLeft: 4 + level * 14 }}
-    >
-      {current && (
-        <span
-          aria-hidden
-          className="absolute top-1.5 bottom-1.5 left-0 w-0.5 rounded-full bg-select"
-        />
-      )}
-      <span className="flex h-6 w-5 shrink-0 items-center justify-center">
-        {open !== undefined && onToggleOpen && (
-          <button
-            type="button"
-            aria-label={open ? t("tree.collapse") : t("tree.expand")}
-            onClick={onToggleOpen}
-            className="flex h-6 w-5 items-center justify-center text-faint hover:text-ink"
-          >
-            <ChevronRight size={13} className={cx("transition-transform", open && "rotate-90")} />
-          </button>
-        )}
-      </span>
-      <button
-        type="button"
-        aria-current={current ? "true" : undefined}
-        onClick={onSelect}
-        onKeyDown={onKeyDown}
-        className={cx(
-          "flex h-8 min-w-0 flex-1 items-center gap-2 text-left text-sm",
-          hidden && "opacity-45",
-        )}
-      >
-        {icon && (
-          <span
-            className={cx(
-              "flex w-4 shrink-0 justify-center",
-              selected ? "text-select" : "text-muted",
-            )}
-          >
-            {icon}
-          </span>
-        )}
-        <span
-          className={cx(
-            "min-w-0 flex-1 truncate",
-            muted ? "text-xs text-muted" : "text-ink",
-            strong && "font-semibold",
-          )}
-        >
-          {label}
-        </span>
-        {meta && (
-          <span className="shrink-0 font-num text-[11px] text-faint group-hover:hidden">
-            {meta}
-          </span>
-        )}
-      </button>
-      {actions && <span className="hidden shrink-0 items-center group-hover:flex">{actions}</span>}
-      {onToggleHidden && (
-        <RowAction
-          label={hidden ? t("tree.show") : t("tree.hide")}
-          onClick={onToggleHidden}
-          className={hidden ? "flex" : "hidden group-hover:flex"}
-        >
-          {hidden ? <EyeOff size={13} /> : <Eye size={13} />}
-        </RowAction>
-      )}
-    </li>
-  );
-}
-
-function RowAction({
-  label,
-  disabled,
-  onClick,
-  className,
-  children,
-}: {
-  label: string;
-  disabled?: boolean;
-  onClick: () => void;
-  className?: string;
-  children: ReactNode;
-}) {
-  return (
-    // `className` shows or hides the action on row hover, so it sits on a wrapper: the
-    // button keeps its own display.
-    <span className={cx("shrink-0", className ?? "flex")}>
-      <CustomIconButton label={label} size="xs" disabled={disabled} onClick={onClick}>
-        {children}
-      </CustomIconButton>
-    </span>
   );
 }
 

@@ -1,4 +1,6 @@
 import { CustomFieldGroup } from "@/components/shared/CustomField";
+import type { NoteTarget } from "@/geometry/types";
+import { ThreadsSection } from "@/components/editor/ThreadsSection";
 import { Presence } from "@/components/shared/Presence";
 import { Notice } from "@/components/shared/Notice";
 import { Hint } from "@/components/shared/Hint";
@@ -25,6 +27,7 @@ import { CustomSelect } from "@/components/shared/CustomSelect";
 import { CustomSwatches } from "@/components/shared/CustomSwatches";
 import { CustomTabPanel, CustomTabs } from "@/components/shared/CustomTabs";
 import { HistoryPanel } from "@/components/editor/HistoryPanel";
+import { FilesPanel } from "@/components/editor/FilesPanel";
 import { CustomTextInput } from "@/components/shared/CustomTextInput";
 import { ConstructionSelect, EnergyPanel } from "@/components/editor/EnergyPanel";
 import { ScenariosPanel } from "@/components/editor/ScenariosPanel";
@@ -55,13 +58,15 @@ const openingErrorKey: Record<OpeningError, MessageKey> = {
   nonFinite: "opening.error.nonFinite",
 };
 
-type Tab = "properties" | "energy" | "scenarios" | "history";
+type Tab = "properties" | "energy" | "scenarios" | "history" | "files";
 
 export function RightPanel() {
   const t = useT();
   const tabsId = useId();
   const selection = useEditorStore((s) => s.selection);
   const [tab, setTab] = useState<Tab>("properties");
+  // Files belong to a project on the server.
+  const serverProject = useEditorStore((s) => s.projectId !== null);
   const [lastSelection, setLastSelection] = useState(selection);
   if (selection !== lastSelection) {
     // A fresh selection brings the properties tab forward.
@@ -83,6 +88,7 @@ export function RightPanel() {
           { value: "energy", label: t("tabs.energy") },
           { value: "scenarios", label: t("tabs.scenarios") },
           { value: "history", label: t("tabs.history") },
+          ...(serverProject ? [{ value: "files" as const, label: t("tabs.files") }] : []),
         ]}
         onChange={setTab}
       />
@@ -92,13 +98,13 @@ export function RightPanel() {
             {selection ? (
               <CustomSection title={t("panel.properties")} first>
                 <Properties selection={selection} />
-                <NotesSection target={noteTargetOf(selection)} />
+                <Notes target={noteTargetOf(selection)} />
               </CustomSection>
             ) : (
               <>
                 <BuildingCard />
                 <CustomSection title={t("notes.building")}>
-                  <NotesSection target={{ kind: "building" }} />
+                  <Notes target={{ kind: "building" }} />
                 </CustomSection>
               </>
             )}
@@ -113,6 +119,12 @@ export function RightPanel() {
           <CustomTabPanel id={tabsId} value="scenarios">
             <CustomSection title={t("scenarios.title")} first>
               <ScenariosPanel />
+            </CustomSection>
+          </CustomTabPanel>
+        ) : tab === "files" && serverProject ? (
+          <CustomTabPanel id={tabsId} value="files">
+            <CustomSection title={t("files.title")} first>
+              <FilesPanel />
             </CustomSection>
           </CustomTabPanel>
         ) : (
@@ -1123,4 +1135,10 @@ function ZoneProperties({ zoneId }: { zoneId: string }) {
       />
     </>
   );
+}
+
+/** Threads in a server project (shared, with replies), notes in the building otherwise. */
+function Notes({ target }: { target: NoteTarget }) {
+  const serverProject = useEditorStore((s) => s.projectId !== null);
+  return serverProject ? <ThreadsSection target={target} /> : <NotesSection target={target} />;
 }

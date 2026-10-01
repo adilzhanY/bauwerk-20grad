@@ -1,4 +1,5 @@
 import { EnergyClassBadge } from "@/components/shared/EnergyClassBadge";
+import { Avatar } from "@/components/shared/Avatar";
 import { Card } from "@/components/shared/Card";
 import { useEffect, useState } from "react";
 import { Trash2 } from "lucide-react";
@@ -136,15 +137,16 @@ export function ProjectCardView({
           <span className="truncate text-[15px] font-semibold text-ink">{s.title}</span>
           <span className="truncate text-sm text-muted">{facts.join(" · ") || " "}</span>
           <StepBar steps={s.steps} />
+          <CardPresence card={card} />
           <span className="mt-1.5 flex items-center justify-between gap-2 text-xs text-muted">
             <span>{t("project.edited", { when: formatRelative(card.updatedAt, language) })}</span>
             {card.owner && (
-              <span
-                title={card.owner}
-                className="flex h-6 w-6 items-center justify-center rounded-full bg-select text-[10px] font-bold text-white uppercase"
-              >
-                {card.owner.slice(0, 2)}
-              </span>
+              <Avatar
+                userId={card.owner.id}
+                firstName={card.owner.firstName}
+                lastName={card.owner.lastName}
+                size="sm"
+              />
             )}
           </span>
         </span>
@@ -187,6 +189,46 @@ export function StepBar({ steps }: { steps: readonly boolean[] }) {
       {steps.map((on, i) => (
         <span key={i} className={cx("h-1 flex-1 rounded-full", on ? "bg-select" : "bg-line")} />
       ))}
+    </span>
+  );
+}
+
+/**
+ * Who is in the project right now, with their avatars, or else when the viewer was last in
+ * it (TODO Part 21, CC.4). Nothing for a project in this browser.
+ */
+function CardPresence({ card }: { card: ProjectCard }) {
+  const t = useT();
+  const language = useEditorStore((s) => s.language);
+  const [first, ...more] = card.here;
+  if (first) {
+    const name = `${first.firstName} ${first.lastName}`;
+    return (
+      <span className="mt-1 flex min-w-0 items-center gap-2 text-xs text-ok">
+        <span className="flex -space-x-1">
+          {card.here.slice(0, 3).map((p) => (
+            <Avatar
+              key={p.userId}
+              userId={p.userId}
+              firstName={p.firstName}
+              lastName={p.lastName}
+              size="xs"
+              ring
+            />
+          ))}
+        </span>
+        <span className="truncate">
+          {more.length === 0
+            ? t("presence.card.here", { name })
+            : t("presence.card.hereMany", { name, count: more.length })}
+        </span>
+      </span>
+    );
+  }
+  if (!card.lastSeenAt) return null;
+  return (
+    <span className="mt-1 truncate text-xs text-muted">
+      {t("presence.card.lastHere", { when: formatRelative(card.lastSeenAt, language) })}
     </span>
   );
 }

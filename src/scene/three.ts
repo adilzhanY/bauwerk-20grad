@@ -19,6 +19,14 @@ import type { Vec2 } from "@/geometry/types";
  */
 export const PLAN_MIRROR: [number, number, number] = [1, 1, -1];
 
+/**
+ * Shadow offsets for every shadow-casting light. Without them a wall shadows itself in a
+ * pattern of stripes (shadow acne) that shifts as the camera zooms. The normal offset does
+ * most of the work; the small depth bias catches faces the light grazes.
+ */
+export const SHADOW_BIAS = -0.0004;
+export const SHADOW_NORMAL_BIAS = 0.04;
+
 /** A plan point at height `height` in world space. */
 export const planToWorld = (point: Vec2, height = 0): Vector3 =>
   new Vector3(point.x, height, -point.y);

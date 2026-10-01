@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { loginPath } from "@/app/router";
+import type { ChangeSummary } from "./summary";
+import { loginPath, useRouter } from "@/app/router";
 import { fullName, useAuth } from "@/auth/store";
 import { accessToken, authHeaders } from "@/auth/api";
 import type { ProjectSummary as CardSummary } from "@/geometry/project";
@@ -7,7 +8,7 @@ import type { Building } from "@/geometry/types";
 import { useEditorStore } from "@/store/building";
 import type { HistoryPreview } from "@/store/building";
 import { SyncClient, randomActor, syncConfigFromEnv } from "./client";
-import type { Rejection, SyncStatus } from "./client";
+import type { Overwrite, Rejection, SyncStatus } from "./client";
 
 export interface ProjectSummary {
   id: string;
@@ -18,7 +19,17 @@ export interface ProjectSummary {
   buildingId?: string;
   /** What the Projects page shows on the card; older servers leave it out. */
   summary?: CardSummary;
-  owner?: string;
+  owner?: { id: string; firstName: string; lastName: string };
+  /** Who has it open right now (oneself left out), and when oneself last had it open. */
+  here?: HereNow[];
+  lastSeenAt?: string | null;
+}
+
+export interface HereNow {
+  userId: string;
+  firstName: string;
+  lastName: string;
+  state: "here" | "away";
 }
 
 const ACTOR_KEY = "bauwerk.actor";
@@ -52,6 +63,60 @@ export function setProjectInUrl(id: string | null) {
 
 export const syncEnabled = syncConfigFromEnv() !== null;
 
+/** A tab hidden this long counts as away. */
+const AWAY_AFTER_MS = 3 * 60_000;
+const PROJECT_PAGES = new Set(["building", "editor", "variants", "report"]);
+
+/**
+ * Tells the project where this person is (TODO Part 21, CC.1): the page of the project and
+ * the active storey, and away once the tab has been hidden for three minutes.
+ */
+function reportPlace(client: SyncClient): () => void {
+  let away = false;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const send = () => {
+    const page = useRouter.getState().route.page;
+    client.report({
+      state: away ? "away" : "here",
+      page: PROJECT_PAGES.has(page) ? page : null,
+      storeyId: useEditorStore.getState().activeStoreyId,
+    });
+  };
+  const onVisibility = () => {
+    if (timer) clearTimeout(timer);
+    timer = null;
+    if (document.visibilityState === "hidden") {
+      timer = setTimeout(() => {
+        away = true;
+        send();
+      }, AWAY_AFTER_MS);
+    } else {
+      away = false;
+      send();
+    }
+  };
+  document.addEventListener("visibilitychange", onVisibility);
+  const offRoute = useRouter.subscribe(send);
+  const offStore = useEditorStore.subscribe((state, prev) => {
+    if (state.activeStoreyId !== prev.activeStoreyId) send();
+  });
+  send();
+  return () => {
+    if (timer) clearTimeout(timer);
+    document.removeEventListener("visibilitychange", onVisibility);
+    offRoute();
+    offStore();
+  };
+}
+
+/** Takes the share link's token out of the address once it has been used. */
+function dropLinkFromUrl() {
+  const url = new URL(window.location.href);
+  if (!url.searchParams.has("link")) return;
+  url.searchParams.delete("link");
+  window.history.replaceState(null, "", url);
+}
+
 /** The client of the project open in this tab, for the history panel. */
 let active: SyncClient | null = null;
 
@@ -61,6 +126,9 @@ export interface VersionEntry {
   createdAt: string;
   kind: "create" | "ops";
   changes: number;
+  /** The account behind it, and what it did; older servers leave them out. */
+  actorId?: string | null;
+  summary?: ChangeSummary;
 }
 
 function projectUrl(path = ""): string | null {
@@ -142,6 +210,10 @@ export interface Sync {
   color: string;
   rejection: Rejection | null;
   dismissRejection: () => void;
+  /** Someone else's change just landed on one of this person's (TODO Part 21, CH.2). */
+  overwrite: Overwrite | null;
+  keepMine: () => void;
+  dismissOverwrite: () => void;
 }
 
 /** No connection: a page shown without a project on the server. */
@@ -151,6 +223,9 @@ export const LOCAL_SYNC: Sync = {
   color: "",
   rejection: null,
   dismissRejection: () => undefined,
+  overwrite: null,
+  keepMine: () => undefined,
+  dismissOverwrite: () => undefined,
 };
 
 /**
@@ -161,6 +236,7 @@ export const LOCAL_SYNC: Sync = {
 export function useSync(): Sync {
   const [status, setStatus] = useState<SyncStatus | "local">(syncEnabled ? "connecting" : "local");
   const [rejection, setRejection] = useState<Rejection | null>(null);
+  const [overwrite, setOverwrite] = useState<Overwrite | null>(null);
   const [tabIdentity] = useState(actorIdentity);
   const [urlProject, setUrlProject] = useState(projectIdFromUrl);
   const authStatus = useAuth((s) => s.status);
@@ -193,19 +269,29 @@ export function useSync(): Sync {
       window.location.assign(loginPath());
       return;
     }
+    // A share link carries its token as ?link=…; once the person is a member it is not needed.
+    const link = new URLSearchParams(window.location.search).get("link") ?? undefined;
     const client = new SyncClient(useEditorStore, {
       ...cfg,
       projectId: urlProject,
       ...identity,
+      ...(link ? { link } : {}),
       ...(authStatus !== "off" ? { token: accessToken } : {}),
     });
-    const offStatus = client.onStatus(setStatus);
+    const offStatus = client.onStatus((next) => {
+      setStatus(next);
+      if (next === "online" && link) dropLinkFromUrl();
+    });
     const offReject = client.onReject(setRejection);
+    const offOverwrite = client.onOverwrite(setOverwrite);
     active = client;
     client.start();
+    const stopPlace = reportPlace(client);
     return () => {
+      stopPlace();
       offStatus();
       offReject();
+      offOverwrite();
       if (active === client) active = null;
       useEditorStore.getState().setHistoryPreview(null);
       client.stop();
@@ -218,6 +304,14 @@ export function useSync(): Sync {
     rejection,
     dismissRejection: () => {
       setRejection(null);
+    },
+    overwrite,
+    keepMine: () => {
+      if (overwrite) active?.keepMine(overwrite);
+      setOverwrite(null);
+    },
+    dismissOverwrite: () => {
+      setOverwrite(null);
     },
   };
 }

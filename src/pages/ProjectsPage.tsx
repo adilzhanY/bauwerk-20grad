@@ -170,16 +170,19 @@ export function ProjectsPage() {
               ))}
               <span className="flex-1" />
               <span className="text-xs text-muted">{t("projects.sorted")}</span>
-              <CustomSegmented
-                label={t("projects.view")}
-                value={view}
-                options={[
-                  { value: "grid", label: t("projects.grid") },
-                  { value: "list", label: t("projects.list") },
-                  { value: "map", label: t("projects.map") },
-                ]}
-                onChange={chooseView}
-              />
+              {/* Its own width, so the row never squeezes the labels. */}
+              <div className="shrink-0">
+                <CustomSegmented
+                  label={t("projects.view")}
+                  value={view}
+                  options={[
+                    { value: "grid", label: t("projects.grid") },
+                    { value: "list", label: t("projects.list") },
+                    { value: "map", label: t("projects.map") },
+                  ]}
+                  onChange={chooseView}
+                />
+              </div>
             </div>
 
             {cards === null ? (

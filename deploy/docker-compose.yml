@@ -65,6 +65,9 @@ services:
       # Signs the sessions of our own accounts. "off" runs without accounts; without either the
       # server refuses to start.
       AUTH_SECRET: ${AUTH_SECRET:-}
+      # Project files (photos, plans, PDFs) in Supabase Storage; without them in the database.
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_SECRET_KEY: ${SUPABASE_SECRET_KEY:-}
       ACCOUNTS: ${ACCOUNTS:-}
     depends_on:
       postgis:

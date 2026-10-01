@@ -5,9 +5,10 @@ import { edges } from "@/geometry/polygon";
 import { effectiveWallThickness } from "@/geometry/layers";
 import type { Building, HeatPump, Storey } from "@/geometry/types";
 import { colors } from "@/lib/colors";
-import { sameSelection, useEditorStore } from "@/store/building";
+import { useEditorStore } from "@/store/building";
 import type { Selection } from "@/store/building";
-import { useHover } from "./hover";
+import { useGhost } from "./ghost";
+import { useHover, useMarked } from "./hover";
 import { lineRaycast, meshRaycast, noRaycast, yawFor } from "./three";
 import { useSceneColors } from "./useSceneColors";
 import type { StoreyDisplay } from "./display";
@@ -18,8 +19,7 @@ const RADIATOR_DEPTH = 0.1;
 const EMPTY_PUMPS: HeatPump[] = [];
 
 function useSelect(target: Selection, active: boolean) {
-  const selected = useEditorStore((s) => sameSelection(s.selection, target));
-  const hovered = useEditorStore((s) => sameSelection(s.hovered, target));
+  const { selected, hovered } = useMarked(target);
   const select = useEditorStore((s) => s.select);
   const tool = useEditorStore((s) => s.tool);
   const hover = useHover(target, active);
@@ -103,6 +103,7 @@ function RadiatorMesh(props: {
 }) {
   const { edge, thickness, elevation, active, display, ghostOpacity, offset, width, height } =
     props;
+  const ghost = useGhost(display, ghostOpacity);
   const target: Selection = useMemo(
     () => ({ kind: "radiator", storeyId: props.storeyId, id: props.id }),
     [props.storeyId, props.id],
@@ -123,14 +124,11 @@ function RadiatorMesh(props: {
     >
       <boxGeometry args={[width, height, RADIATOR_DEPTH]} />
       <meshStandardMaterial
-        color={selected ? colors.accent : hovered ? "#ffffff" : RADIATOR_COLOR}
+        color={ghost(selected ? colors.accent : hovered ? "#ffffff" : RADIATOR_COLOR)}
         emissive={selected ? colors.accent : "#000000"}
         emissiveIntensity={selected ? 0.3 : 0}
         roughness={0.4}
         metalness={0.3}
-        transparent={display === "ghost"}
-        opacity={display === "ghost" ? ghostOpacity : 1}
-        depthWrite={display !== "ghost"}
       />
     </mesh>
   );

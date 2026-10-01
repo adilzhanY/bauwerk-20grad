@@ -1,5 +1,81 @@
 # TODO
 
+## Part 21: Working on one building together (2026-10-01)
+
+Asked for: projects stay private; others get in only through a link or an invitation found by user search; avatars of the people inside a project and when they were last in it (in this project, not on the site); history, notifications, async work, notes and versioning designed after products that do this well; every image and file (PDF and others) stored per project and visible to everyone with access. Researched Figma, Onshape, Speckle, Autodesk Docs, Google Docs, Notion, Miro and Linear; design concepts reviewed in `.lavish/collaboration.html`. Decided in that review: files in Supabase Storage with their records in Postgres; a share link grants view or comment, never edit; notifications in the app only (accounts have no email); all of the parts below. No git-like branches: variants already cover "what if", and nobody merges building models.
+
+### CA. Close the holes first
+
+- [x] CA.1 `POST /reports/:projectId` checks membership like every project route (today it renders any project's PDF).
+- [x] CA.2 The bare project address no longer makes anyone who opens it an editor (socket `join` and `POST /:id/join` call `access(..., true)`); only members, an invitation or a valid link token get in.
+- [x] CA.3 Notes are written with the account's name, not the tab's random name (`NotesSection.tsx`).
+- [x] CA.4 Tests for all three.
+      Done: `ProjectsService.roleIn` and `access(id, user, action, link?)` replace the old join that made anyone an editor; the report route checks membership before anything else; notes take the account's full name. Server tests cover the bare address, the report, a link with the editor role, reset and off.
+
+### CB. Roles and access
+
+- [x] CB.1 Migration: `project_members.role` in owner, editor, commenter, viewer; `invited_by`, `last_seen_at`.
+- [x] CB.2 One permission table in the server (see, comment, edit, manage, delete) used by every route and every socket message; viewers and commenters cannot send ops, upload or restore. A test matrix role by action.
+- [x] CB.3 `GET /users/search?q=` (at least 2 characters, at most 8 results, username, first and last name, initials only; rate limited; never lists people without accounts details beyond that).
+- [x] CB.4 Invitations: owner picks a person and a role; the invited person becomes a member and gets a notification; owner changes roles and removes members; ownership can be transferred.
+- [x] CB.5 Share link: `project_links` (token hash, role view or comment, optional expiry); the address carries the token; reset makes the old one stop working; off by default.
+- [x] CB.6 Request access: a person without access sees "You need access" with an optional message; the owner gets a notification and lets them in with a role or declines.
+- [x] CB.7 Share dialog (user search, people with roles, link with role, expiry, copy and reset), i18n English and German.
+- [x] CB.8 The editor follows the role: a viewer sees no editing tools, a commenter only notes.
+      Done: migration 009 (roles, last_seen_at, access_requests, notifications) and 010 (the link keeps its token so the owner can copy it any time; it grants view or comment only). One table in `src/projects/roles.ts` for server and editor. Routes: `/users/search`, `/projects/:id/members`, `/projects/:id/link`, `/projects/:id/access-requests`, `/notifications`; role changes and removals reach open tabs over the socket ("access"). In the editor: the Share dialog (search, invite with a role, change roles, hand over, remove, leave, answer requests, link with role, expiry, copy, reset), "You need access" with Request access, a "View only" or "Can comment" badge instead of undo, and the history middleware takes back any local change of a viewer or commenter. A viewer or commenter gets only Select and Measure in the tool dock, and the store refuses the other tools for them (shortcuts included). Manual check pending.
+
+### CC. Presence
+
+- [x] CC.1 One presence entry per person, not per tab; heartbeat every 15 s, gone after 30 s without one; away after 3 minutes with the tab hidden; what each person is on (page, storey).
+- [x] CC.2 `last_seen_at` per member written when the person leaves the project.
+- [x] CC.3 Avatar stack in the editor header (initials, own colour, green dot here, grey away, +N), popover with page and storey, and the members not here with "last here".
+- [x] CC.4 Projects page card: who is in it now, when you were last in it.
+- [x] CC.5 Follow mode: click a person to follow their camera and storey (never their edits); a frame in their colour; Esc or any own move stops it.
+      Done: presence entries carry the account, here or away, page and storey (`status` message); the socket ping notices a closed tab within 30 s; `last_seen_at` is written when a person's last tab leaves; `LiveProjects` feeds the Projects list (`here`, `lastSeenAt`). In the editor: one avatar per person (`PeopleHere`, grouped in `people.ts`), a list with where each is, Follow, and the members not here with when they last were; `FollowCamera` shares the camera and glides to the followed one, `FollowFrame` frames the view in their colour; project cards say who is in it now or when you were last there. Manual check pending: two accounts in two browsers.
+
+### CD. Files in Supabase Storage
+
+- [x] CD.1 Private bucket `projects`, path `projects/<projectId>/<fileId>`; the server keeps the service key, the browser never talks to Supabase.
+- [x] CD.2 Migration: `project_files` (id, project, slot, name, mime, size, width, height, storage path, uploaded by, created at).
+- [x] CD.3 Routes: list, upload (role edit; images, PDF and common office files; 50 MB limit, the free plan's), download through a short signed link after the membership check, delete; deleting a project deletes its folder.
+- [x] CD.4 Move today's `project_photos` into storage once, keep their slots; `photoSync.ts` and the PHOTO_SLOT rules work on the new routes; drop the bytes from the database afterwards.
+- [x] CD.5 Files tab in the editor: every file of the project, who added it and when, what it belongs to (a wall's photo, a storey's plan, a note).
+- [x] CD.6 Tests: access per role, limits, the move of old photos, signed links that expire.
+      Done: migration 011 (`project_files`, `file_blobs`); `files/store.ts` with Supabase Storage through its REST API (private bucket made on first use, checked against the real project) and a table where no storage is set; `FilesService` replaces a slot's file, deletes a project's files with it, moves `project_photos` and any table-kept files into storage at startup (your 4 BOo photos move when `npm run dev` restarts with the key); `/projects/:id/files` (list, upload up to 50 MB of pictures, PDFs and documents, never HTML or SVG, read with nosniff, delete); the photo routes and photo sync run on it unchanged. Decided on the way: bytes pass through the server after the access check instead of signed links (simpler, as safe; ponytail noted). Files tab in the editor for server projects. The key is in `~/.config/bauwerk/supabase.env`, and `deploy/.env.example` names it. Manual check pending.
+
+### CE. Notes become threads
+
+- [x] CE.1 Migration: `threads` (project, target element or 3D point with camera, version, resolved) and `comments` (thread, author, text, created, edited); not in the building JSON, so conversation creates no versions and no undo steps.
+- [x] CE.2 Replies, edit and delete own comment, resolve and reopen, filter for resolved threads; pins in 3D for open threads.
+- [x] CE.3 @mentions of people with access; mentioning someone without access offers to invite them.
+- [x] CE.4 Attachments from the project's files (CD).
+- [x] CE.5 Move existing `building.notes` into threads once, with author and time.
+- [x] CE.6 Live: new comments reach everyone in the project at once.
+      Done: migration 012 (`threads`, `comments`); `ThreadsService` (start, reply, resolve and reopen, edit by the author, delete by the author or owner, attachments only from the same project, @mentions notify members only, replies fold per thread) and `/projects/:id/threads`; a live "threads" message reloads every open tab; notes kept in buildings move into threads once at startup and leave the building in one version. In the editor `ThreadsSection` replaces the notes for server projects (open first, resolved on request, @ suggestions, attach, Ctrl+Enter), 3D pins count open threads, and a shared `CustomTextArea` serves threads and the building notes. Manual check pending.
+
+### CF. Notifications
+
+- [x] CF.1 Migration: `notifications` (user, kind, project, payload, created, read).
+- [x] CF.2 Triggers: invited, access requested, mentioned, reply in a thread you wrote in, role changed or removed, version named (quiet). Several replies in one thread fold into one item.
+- [x] CF.3 Live delivery over the socket wherever the person is on the site; the bell with the unread count in the header; inbox grouped by project; mark read, mark all read; acting on an access request from the inbox.
+      Done: `notifications` (migration 009) with folding by `group_key`; `NotificationsService` writes and pushes each item to the person's own socket room (`user:<id>`, joined on connecting); triggers so far: invited, role changed, removed, access requested and granted, mentioned, replied (version named comes with CG). In the app: `projects/inbox.ts` keeps a socket of its own while signed in, and `NotificationBell` in the top bar shows the unread count, items grouped by project, opens the project on a click (asking first when work is unsaved) and answers access requests in place. Tests: folding, own items only, live delivery without joining a project. Manual check pending.
+
+### CG. History and versions
+
+- [x] CG.1 Sessions: changes grouped by person and pause, each with a short summary written from its ops ("moved 3 walls on the ground floor").
+- [x] CG.2 Named versions (`project_versions`): name the current state; list them first; reports printed from a named version.
+- [x] CG.3 Compare two versions: energy figures, counts and the changed elements, which light up in 3D.
+- [x] CG.4 Since your last visit: on opening, a banner with what others did since `last_seen_at`, "Show me" lights the changes up.
+- [x] CG.5 Restore stays non-destructive (one new step, undo takes it back).
+      Done: `sync/summary.ts` turns a batch into what it did (walls changed, doors added), counting things not operations; the version list carries it with the author's account; the History tab groups versions into sessions (one person, pauses up to 15 minutes) with the summary in words (`changeText`), lists named versions first (migration 013, `/projects/:id/named`; name, rename, remove, show, compare, report of that version), and naming tells the other members quietly. `CompareDialog` puts a version beside now: class, final energy, heating demand, area, walls, openings, rooms, and what changed. The join answer carries the last visit, and `SinceLastVisit` sums up the others' changes per person with Compare. Not done: the changed walls do not light up in 3D yet (the compare names them in words). Fixed on the way: the Export menu's server PDF sent no token and was refused with accounts on. Manual check pending.
+
+### CH. Away and offline
+
+- [x] CH.1 The queue of unsent changes kept in IndexedDB per project and sent on the next open.
+- [x] CH.2 When someone else's change overwrote one of yours on the same property moments later, a toast says so with "Keep mine".
+- [x] CH.3 Tests: close the tab offline and reopen; two people on one property.
+      Done: `SyncClient` keeps its unconfirmed batches in localStorage under `bauwerk.queue.<project>` (a few KB of operations, so localStorage instead of IndexedDB) and applies what a closed tab left as this person's change on the next open, editors only. A set of a property you made in the last 10 s that another person's batch replaces raises `OverwriteNotice` (Keep mine puts your value back as a new change, Keep theirs dismisses). Two tests in `sync/client.test.ts`. Known limit: two tabs of one project offline at once can both send the same edits.
+
 ## Part 20: Accounts of our own, and the database rebuilt for every feature (2026-09-30)
 
 Asked for: sign up with first name, last name, a unique username, a strong password and its confirmation; sign in with username and password, no email; zod on every input; no way in for SQL injection; the avatar shows the initials of first and last name; every user's data in the database, on Supabase. Supabase Auth needs an email for every account, so accounts move into our own server and Supabase is only the Postgres database. This replaces sections F.1 to F.8 of Part 5 (email accounts through Supabase Auth); G (sharing) keeps working on the new users.

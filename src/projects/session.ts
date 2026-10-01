@@ -68,6 +68,8 @@ export async function saveProject(): Promise<boolean> {
   // The project facts mark a building as a project, also one drawn by hand.
   if (!store.building.project) store.setProjectInfo({});
   if (syncEnabled) {
+    // A copy kept in this browser becomes the server project and stops being kept here.
+    if (store.building.project?.localId) store.setProjectInfo({ localId: undefined });
     const id = await createProject().catch(() => null);
     if (!id) return false;
     openProject(id);
@@ -159,7 +161,9 @@ export function startLeaveGuard(): () => void {
   };
   // Ctrl+S (Cmd+S) saves on every page, instead of the browser saving the page as a file.
   const onKey = (e: KeyboardEvent) => {
-    if (e.key.toLowerCase() !== "s" || !(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey) return;
+    // Not e.key.toLowerCase(): the browser's autofill sends key events without a key.
+    if ((e.key !== "s" && e.key !== "S") || !(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey)
+      return;
     e.preventDefault();
     if (isUnsaved()) void saveProject();
   };

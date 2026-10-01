@@ -258,6 +258,20 @@ describe("UI state and history", () => {
     expect(s.building.storeys[0]?.name).toBe("Erdgeschoss");
   });
 
+  it("gives a viewer only the tools that look, and drops a drawing tool when edit rights go", () => {
+    store.getState().setTool("interiorWall");
+    store.getState().setProjectRole("viewer");
+    expect(store.getState().tool).toBe("select");
+    store.getState().setTool("footprint");
+    expect(store.getState().tool).toBe("select");
+    store.getState().setTool("measure");
+    expect(store.getState().tool).toBe("measure");
+    store.getState().setProjectRole("editor");
+    store.getState().setTool("footprint");
+    expect(store.getState().tool).toBe("footprint");
+    store.getState().setProjectRole(null);
+  });
+
   it("localizes known model names in both directions without changing custom names", () => {
     store.getState().renameBuilding("Haus Müller");
     store.getState().setLanguage("de");
@@ -1003,5 +1017,23 @@ describe("facade colour", () => {
     s().setFacadeColor("#e6be5a");
     s().setFacadeColor(null);
     expect(s().building).not.toHaveProperty("facadeColor");
+  });
+});
+
+describe("a viewer or commenter", () => {
+  it("changes nothing in the building, while remote changes still arrive", () => {
+    const store = createEditorStore();
+    store.getState().setProjectId("p1");
+    store.getState().setProjectRole("viewer");
+    const before = store.getState().building;
+    store.getState().setWallThickness(0.5);
+    expect(store.getState().building).toBe(before);
+    expect(store.getState().past).toEqual([]);
+    const remote = { ...before, name: "From the server" };
+    store.getState().applyRemoteBuilding(remote);
+    expect(store.getState().building.name).toBe("From the server");
+    store.getState().setProjectRole("editor");
+    store.getState().setWallThickness(0.5);
+    expect(store.getState().building.wallThickness).toBe(0.5);
   });
 });

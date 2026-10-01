@@ -4,8 +4,15 @@ import { errorText } from "@/lod2/api/errors";
 import { DETECTION_DONE_MS } from "@/components/photo-editor/constants";
 import type { DetectionStage, DetectionState } from "@/components/photo-editor/types";
 
-/** A job reports whether it finished; false means it was aborted or had nothing to do. */
-type Job = (signal: AbortSignal, startedAt: number) => Promise<boolean>;
+/**
+ * A job reports whether it finished; false means it was aborted or had nothing to do. It passes
+ * `onAhead` to the service calls, so the card says when it waits for other people's jobs.
+ */
+type Job = (
+  signal: AbortSignal,
+  startedAt: number,
+  onAhead: (ahead: number) => void,
+) => Promise<boolean>;
 
 /**
  * The progress state of lod2-vision jobs. One job at a time: starting a new one aborts the
@@ -26,7 +33,15 @@ export function useDetectionJob() {
     const startedAt = performance.now();
     setDetection({ stage: first, startedAt });
     try {
-      const finished = await job(controller.signal, startedAt);
+      const onAhead = (ahead: number) => {
+        if (controller.signal.aborted) return;
+        setDetection((current) =>
+          current && current.stage !== "done" && current.stage !== "failed"
+            ? { ...current, ahead }
+            : current,
+        );
+      };
+      const finished = await job(controller.signal, startedAt, onAhead);
       if (!finished || controller.signal.aborted) return;
       const endedAt = performance.now();
       setDetection((current) => ({
