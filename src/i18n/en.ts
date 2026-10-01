@@ -403,6 +403,11 @@ export const en = {
   "projects.emptyText":
     "A project is one building: its survey, its model, its renovation variants and its report.",
   "projects.orExample": "or start with an example building",
+  "project.markDone": "Mark as done",
+  "project.markDoneHint":
+    "The project counts as finished on the Projects page. Its steps stay open.",
+  "project.reopen": "Reopen",
+  "project.reopenHint": "Done again follows the work: survey, variants, report.",
   "project.stage.survey": "Survey",
   "project.stage.variants": "Variants",
   "project.stage.report": "Report",
@@ -413,8 +418,6 @@ export const en = {
   "project.step.report": "Report",
   "project.steps": "Project steps",
   "project.stepsDone": "{n} of {total} steps done",
-  "project.stageLabel": "Stage",
-  "project.stageAuto": "{stage} (auto)",
   "project.storeys": "{n} storeys",
   "project.edited": "Edited {when}",
   "project.openNamed": "Open {name}",

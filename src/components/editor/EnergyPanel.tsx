@@ -280,22 +280,32 @@ function HeatLoads({ building }: { building: Building }) {
     <div className="flex flex-col gap-1 border-t border-line pt-3">
       <span className="text-xs font-medium text-muted">{t("hvac.title")}</span>
       <Hint>{t("hvac.design", { outside: DESIGN_OUTDOOR_TEMPERATURE })}</Hint>
-      {loads.map((l) => (
-        <div key={l.roomId} className="flex items-baseline justify-between gap-2 text-xs">
-          <span
-            className={l.installed > 0 && l.coverage < 0.9 ? "text-mark" : "text-muted"}
-            title={l.installed > 0 && l.coverage < 0.9 ? t("hvac.underSized") : undefined}
-          >
-            {l.name}
-          </span>
-          <span className="font-num text-ink">
-            {formatNumber(l.load, language, 0)} W
-            {l.installed > 0
-              ? ` · ${formatNumber(l.installed, language, 0)} W (${formatNumber(l.coverage * 100, language, 0)} %)`
-              : ""}
-          </span>
-        </div>
-      ))}
+      {/* Grouped by storey: rooms on different storeys often share a name ("Room 1"). */}
+      {building.storeys.map((storey) => {
+        const here = loads.filter((l) => l.storeyId === storey.id);
+        if (here.length === 0) return null;
+        return (
+          <div key={storey.id} className="flex flex-col gap-1">
+            <span className="mt-1 text-xs font-medium text-ink">{storey.name}</span>
+            {here.map((l) => (
+              <div key={l.roomId} className="flex items-baseline justify-between gap-2 text-xs">
+                <span
+                  className={l.installed > 0 && l.coverage < 0.9 ? "text-mark" : "text-muted"}
+                  title={l.installed > 0 && l.coverage < 0.9 ? t("hvac.underSized") : undefined}
+                >
+                  {l.name}
+                </span>
+                <span className="font-num text-ink">
+                  {formatNumber(l.load, language, 0)} W
+                  {l.installed > 0
+                    ? ` · ${formatNumber(l.installed, language, 0)} W (${formatNumber(l.coverage * 100, language, 0)} %)`
+                    : ""}
+                </span>
+              </div>
+            ))}
+          </div>
+        );
+      })}
       <CustomReadOnly
         label={t("hvac.total")}
         value={`${formatNumber(total / 1000, language, 1)} kW`}

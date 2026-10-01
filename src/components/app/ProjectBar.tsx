@@ -1,9 +1,9 @@
 import { SaveProjectButton } from "@/components/shared/SaveProjectButton";
 import { useMemo } from "react";
-import { ArrowLeft, Check } from "lucide-react";
+import { ArrowLeft, Check, CircleCheck, RotateCcw } from "lucide-react";
 import { cx } from "@/components/shared/cx";
-import { CustomSelect } from "@/components/shared/CustomSelect";
-import { PROJECT_STAGES, projectSummary } from "@/geometry/project";
+import { CustomButton } from "@/components/shared/CustomButton";
+import { projectSummary } from "@/geometry/project";
 import { useT } from "@/i18n/useT";
 import type { MessageKey } from "@/i18n";
 import { EnergyClassBadge } from "@/components/shared/EnergyClassBadge";
@@ -21,7 +21,7 @@ const STEPS: { page: Route["page"]; label: MessageKey }[] = [
 /**
  * Inside a project: the way back to the Projects page, the building, its energy class, and the
  * four steps, Survey, Model, Variants, Report. A step done shows a check; the stage the card
- * shows follows the steps unless it is set here by hand.
+ * shows follows the steps, and "Mark as done" (or "Reopen") is the one thing set by hand.
  */
 export function ProjectBar() {
   const t = useT();
@@ -96,23 +96,27 @@ export function ProjectBar() {
         })}
       </ol>
       <SaveProjectButton />
-      <div className="w-52" title={t("project.stageLabel")}>
-        <CustomSelect
-          label={t("project.stageLabel")}
-          hideLabel
-          value={building.project?.stage ?? "auto"}
-          options={[
-            {
-              value: "auto",
-              label: t("project.stageAuto", { stage: t(`project.stage.${summary.stage}`) }),
-            },
-            ...PROJECT_STAGES.map((s) => ({ value: s, label: t(`project.stage.${s}`) })),
-          ]}
-          onChange={(value) => {
-            setProjectInfo({ stage: value === "auto" ? undefined : value });
+      {summary.stage === "done" ? (
+        <CustomButton
+          icon={<RotateCcw size={15} aria-hidden />}
+          title={t("project.reopenHint")}
+          onClick={() => {
+            setProjectInfo({ stage: undefined });
           }}
-        />
-      </div>
+        >
+          {t("project.reopen")}
+        </CustomButton>
+      ) : (
+        <CustomButton
+          icon={<CircleCheck size={15} aria-hidden />}
+          title={t("project.markDoneHint")}
+          onClick={() => {
+            setProjectInfo({ stage: "done" });
+          }}
+        >
+          {t("project.markDone")}
+        </CustomButton>
+      )}
     </nav>
   );
 }

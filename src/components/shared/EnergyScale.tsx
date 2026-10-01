@@ -47,22 +47,27 @@ export function EnergyScale({ current, compare, compareLabel, variant }: Props) 
   }));
   const ticks = [0, 50, 100, 150, 200, 250, 300];
   const marker = (v: number, label: string, above: boolean) => {
-    const markerInset = panel ? 34 : 24;
-    const px = Math.max(markerInset, Math.min(w - markerInset, x(v)));
+    const text = `${label}: ${num(v)}`;
+    // Centred over its arrow, unless that would run past an end of the scale: then it lines
+    // up with that end (values past 300, "Scenario 1: 344", sit at the right end).
+    const half = (text.length * markerFont * 0.62) / 2;
+    const arrowX = Math.max(5, Math.min(w - 5, x(v)));
+    const anchor = arrowX + half > w ? "end" : arrowX - half < 0 ? "start" : "middle";
+    const textX = anchor === "end" ? w : anchor === "start" ? 0 : arrowX;
     const y = above ? barY - 3 : barY + barH + 3;
     const dir = above ? -1 : 1;
     return (
       <g key={label}>
-        <path d={`M${x(v)} ${y} l${-5} ${dir * 7} h10 z`} fill={ink} />
+        <path d={`M${arrowX} ${y} l${-5} ${dir * 7} h10 z`} fill={ink} />
         <text
-          x={px}
+          x={textX}
           y={above ? y - (panel ? 12 : 10) : y + (panel ? 20 : 17)}
           fontSize={markerFont}
           fontWeight="600"
-          textAnchor="middle"
+          textAnchor={anchor}
           fill={ink}
         >
-          {label}: {num(v)}
+          {text}
         </text>
       </g>
     );

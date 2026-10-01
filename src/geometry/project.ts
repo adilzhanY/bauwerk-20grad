@@ -3,9 +3,9 @@
  * stage and the four steps. Pure, so the server computes the same summary for its list as the
  * browser does for projects kept locally.
  *
- * The stage follows the work done unless the consultant set it by hand: a saved scenario means
- * the project is at its variants, an opened report means at its report. "Done" is only ever set
- * by hand.
+ * The stage follows the work done: a saved scenario means the project is at its variants, an
+ * opened report means at its report. Only "Done" is the consultant's own word, set by hand;
+ * a stage pinned by hand before (any other) is ignored and the work decides again.
  */
 import { computeEnergy } from "./energy";
 import type { EnergyClass } from "./energy";
@@ -60,7 +60,7 @@ export function projectSummary(building: Building): ProjectSummary {
     gid: info.gid ?? null,
     energyClass: energy.energyClass,
     endEnergy: energy.specificEndEnergy,
-    stage: info.stage ?? derived,
+    stage: info.stage === "done" ? "done" : derived,
     steps,
     origin: building.origin ?? null,
     footprint: building.footprint,

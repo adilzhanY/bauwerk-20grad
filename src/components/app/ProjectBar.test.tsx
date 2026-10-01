@@ -30,17 +30,17 @@ describe("ProjectBar", () => {
     expect(navigate).toHaveBeenCalledWith({ page: "projects" }, { query: "" });
   });
 
-  it("sets the stage by hand and back to automatic", () => {
+  it("marks the project done and reopens it; nothing else about the stage is set by hand", () => {
     useRouter.setState({ route: { page: "editor" } });
     render(<ProjectBar />);
-    const stage = screen.getByRole("combobox", { name: "Stage" });
-    expect(stage.textContent).toContain("Variants (auto)");
-    fireEvent.click(stage);
-    fireEvent.click(screen.getByRole("option", { name: "Done" }));
+    // No stage picker that looks like the step buttons beside it.
+    expect(screen.queryByRole("combobox", { name: "Stage" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Mark as done" }));
     expect(useEditorStore.getState().building.project?.stage).toBe("done");
-    fireEvent.click(screen.getByRole("combobox", { name: "Stage" }));
-    fireEvent.click(screen.getByRole("option", { name: /\(auto\)/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Reopen" }));
     expect(useEditorStore.getState().building.project).not.toHaveProperty("stage");
     expect(useEditorStore.getState().building.project?.address).toBe("Methfesselstraße 8");
+    // Still on the same step: these buttons change the project, not the page.
+    expect(useRouter.getState().route).toEqual({ page: "editor" });
   });
 });

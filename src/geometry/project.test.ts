@@ -22,7 +22,7 @@ describe("projectSummary", () => {
     expect(s.energyClass).toBe(computeEnergy(b).energyClass);
   });
 
-  it("follows the work done: survey, then variants, then report, unless set by hand", () => {
+  it("follows the work done: survey, then variants, then report, until marked done", () => {
     const b = house();
     expect(projectSummary(b).stage).toBe("survey");
     const withScenario: Building = {
@@ -34,6 +34,9 @@ describe("projectSummary", () => {
     const reported: Building = { ...withScenario, project: { reportAt: "2026-09-28T10:00:00Z" } };
     expect(projectSummary(reported).stage).toBe("report");
     expect(projectSummary({ ...reported, project: { stage: "done" } }).stage).toBe("done");
+    // A stage pinned by hand before "Mark as done" existed no longer holds the work back.
+    const pinned: Building = { ...reported, project: { ...reported.project, stage: "survey" } };
+    expect(projectSummary(pinned).stage).toBe("report");
   });
 
   it("counts the survey as done once a value came from a photo", () => {

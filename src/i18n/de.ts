@@ -408,6 +408,11 @@ export const de: Messages = {
   "projects.emptyText":
     "Ein Projekt ist ein Gebäude: seine Aufnahme, sein Modell, seine Sanierungsvarianten und sein Bericht.",
   "projects.orExample": "oder mit einem Beispielgebäude beginnen",
+  "project.markDone": "Als erledigt markieren",
+  "project.markDoneHint":
+    "Das Projekt zählt auf der Projektseite als erledigt. Seine Schritte bleiben offen.",
+  "project.reopen": "Wieder öffnen",
+  "project.reopenHint": "Der Stand folgt wieder der Arbeit: Aufnahme, Varianten, Bericht.",
   "project.stage.survey": "Aufnahme",
   "project.stage.variants": "Varianten",
   "project.stage.report": "Bericht",
@@ -418,8 +423,6 @@ export const de: Messages = {
   "project.step.report": "Bericht",
   "project.steps": "Projektschritte",
   "project.stepsDone": "{n} von {total} Schritten erledigt",
-  "project.stageLabel": "Phase",
-  "project.stageAuto": "{stage} (auto)",
   "project.storeys": "{n} Geschosse",
   "project.edited": "Bearbeitet {when}",
   "project.openNamed": "{name} öffnen",
