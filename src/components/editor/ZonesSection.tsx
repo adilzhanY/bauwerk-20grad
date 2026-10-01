@@ -26,9 +26,9 @@ export function ZonesSection() {
     const used = new Set(zones.map((z) => z.color));
     const color = ZONE_COLORS.find((c) => !used.has(c)) ?? ZONE_COLORS[0];
     const id = addZone(t("zone.defaultName", { n: zones.length + 1 }), color);
+    setTool("zone");
     setActiveZone(id);
     select({ kind: "zone", id });
-    setTool("zone");
   };
 
   return (

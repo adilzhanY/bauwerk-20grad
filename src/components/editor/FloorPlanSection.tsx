@@ -44,7 +44,12 @@ const DOOR_STAGGER_MS = 70;
  * so the result arrives in the building's own metres. The user sees it over the drawing
  * before anything changes, and applying it is one undo step.
  */
-export function FloorPlanSection() {
+export function FloorPlanSection({
+  onApplied,
+}: {
+  /** Called once a reading is applied, so a dialog around it can close on the reveal. */
+  onApplied?: () => void;
+} = {}) {
   const t = useT();
   const language = useEditorStore((s) => s.language);
   const building = useEditorStore((s) => s.building);
@@ -140,6 +145,7 @@ export function FloorPlanSection() {
     const [width, height] = result.reading.imageSize;
     setFloorPlanImage(storey.id, { url: result.url, width, height });
     setResult(null);
+    onApplied?.();
   };
 
   return (

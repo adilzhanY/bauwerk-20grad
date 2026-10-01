@@ -1,17 +1,7 @@
 import { inTextField } from "@/lib/inTextField";
 import { useEffect } from "react";
 import { useEditorStore } from "@/store/building";
-import type { Tool } from "@/store/building";
-
-export const TOOL_ORDER: Tool[] = [
-  "select",
-  "footprint",
-  "opening",
-  "interiorWall",
-  "zone",
-  "measure",
-  "hvac",
-];
+import { TOOL_ORDER } from "./tools";
 
 function ownsEditingShortcut(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -21,7 +11,8 @@ function ownsEditingShortcut(target: EventTarget | null): boolean {
 
 /**
  * Ctrl+Z undo, Ctrl+Shift+Z or Ctrl+Y redo, Delete removes the selection,
- * Escape clears it and returns to the select tool, 1 to 8 switch tools,
+ * Escape clears it and returns to the select tool, 1 to 8 switch tools in the tool bar's
+ * order (tools.tsx),
  * PageUp and PageDown switch storeys.
  */
 export function useKeyboardShortcuts() {

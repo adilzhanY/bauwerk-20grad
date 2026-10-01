@@ -42,10 +42,10 @@ const PLAN_MARGIN = 0.5;
 const PLAN_MIN_ZOOM = 0.5;
 const PLAN_MAX_PX_PER_METRE = 500;
 /**
- * The tool card, the storeys and the minimap at the left and the view switch at the top cover
- * this much, px, plus 80 px on every side for the dimension lines.
+ * The storeys at the left, the tool bar and the view switch at the top and the status line at
+ * the foot cover this much, px, plus 80 px on every side for the dimension lines.
  */
-const PLAN_INSETS = { left: 272 + 80, right: 24 + 80, top: 72 + 80, bottom: 24 + 80 };
+const PLAN_INSETS = { left: 80 + 80, right: 24 + 80, top: 120 + 80, bottom: 64 + 80 };
 
 export function Viewport({ onSample }: ViewportProps = {}) {
   const building = useEditorStore((s) => s.building);

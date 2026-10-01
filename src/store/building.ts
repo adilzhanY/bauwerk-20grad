@@ -66,8 +66,9 @@ import type { HistorySlice } from "./history";
 
 export type Theme = "light" | "dark" | "system";
 
+/** The editor's tools. Window and door are two tools, so each is one click. */
 export type Tool =
-  "select" | "footprint" | "opening" | "interiorWall" | "zone" | "measure" | "hvac";
+  "select" | "interiorWall" | "window" | "door" | "measure" | "footprint" | "zone" | "hvac";
 
 /** The tools that change nothing, all a viewer or commenter gets (TODO Part 21, CB). */
 export const LOOK_TOOLS: readonly Tool[] = ["select", "measure"];
@@ -1683,7 +1684,11 @@ export function createEditorStore(initial?: Partial<EditorState>) {
 
           setTool: (tool) => {
             set((state) => {
-              if (toolAllowed(tool, state.projectRole)) state.tool = tool;
+              if (!toolAllowed(tool, state.projectRole)) return;
+              state.tool = tool;
+              // The zones to paint with are listed with the building, shown when nothing is
+              // picked; a picked zone stays, it is the one being painted with.
+              if (tool === "zone" && state.selection?.kind !== "zone") state.selection = null;
             });
           },
 

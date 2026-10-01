@@ -15,6 +15,7 @@ export function LayerGroup({
   icon,
   actions,
   alwaysOpenable = false,
+  holdsSelection = false,
   children,
 }: {
   label: string;
@@ -24,9 +25,16 @@ export function LayerGroup({
   actions?: ReactNode;
   /** Opens even at a count of 0, for a folder that lists what is still missing. */
   alwaysOpenable?: boolean;
+  /** One of its rows is selected (in the 3D view, say): the folder opens to show it. */
+  holdsSelection?: boolean;
   children: ReactNode;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(holdsSelection);
+  const [held, setHeld] = useState(holdsSelection);
+  if (held !== holdsSelection) {
+    setHeld(holdsSelection);
+    if (holdsSelection) setOpen(true);
+  }
   const openable = alwaysOpenable || count > 0;
   return (
     <>

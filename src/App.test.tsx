@@ -29,28 +29,34 @@ beforeEach(() => {
 describe("App", () => {
   it("renders the panels and the WebGL-missing state under jsdom", () => {
     render(<App />);
-    const tree = screen.getByRole("tree", { name: "Layers" });
-    expect(within(tree).getByRole("button", { name: "Bauwerk" })).toBeTruthy();
+    const survey = screen.getByRole("complementary", { name: "Building panel" });
+    expect(within(survey).getByRole("list", { name: "Ground floor" })).toBeTruthy();
+    expect(within(survey).getByRole("list", { name: "Facades and roof" })).toBeTruthy();
     // Properties only: no tabs on the right, nothing picked shows the building.
     const properties = screen.getByRole("complementary", { name: "Properties panel" });
     expect(within(properties).queryByRole("tab")).toBeNull();
     expect(within(properties).getByLabelText("Wall thickness", { selector: "input" })).toBeTruthy();
     expect(screen.getByText("WebGL is not available")).toBeTruthy();
-    expect(screen.getByText("Ground floor")).toBeTruthy();
   });
 
-  it("switches tools from the palette and shows the tool hint", () => {
+  it("switches tools from the tool bar and shows the tool hint in the status line", () => {
     render(<App />);
-    fireEvent.click(screen.getByRole("radio", { name: /Opening/ }));
-    expect(useEditorStore.getState().tool).toBe("opening");
-    expect(screen.getByText(/Click an exterior wall for a window/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("radio", { name: "Door" }));
+    expect(useEditorStore.getState().tool).toBe("door");
+    expect(screen.getByText(/Click a wall to place a door/)).toBeTruthy();
+    // The rarer tools sit under More, each one click from there.
+    fireEvent.click(screen.getByRole("button", { name: "More" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /Heating/ }));
+    expect(useEditorStore.getState().tool).toBe("hvac");
+    expect(screen.getByRole("button", { name: "More: Heating" })).toBeTruthy();
+    expect(screen.queryByRole("menu")).toBeNull();
   });
 
   it("adds a storey with the button and undoes it from the bottom bar", () => {
     render(<App />);
     fireEvent.click(screen.getByRole("button", { name: "Add storey" }));
     expect(useEditorStore.getState().building.storeys).toHaveLength(2);
-    expect(screen.getByText("1st floor")).toBeTruthy();
+    expect(screen.getByRole("list", { name: "1st floor" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Undo" }));
     expect(useEditorStore.getState().building.storeys).toHaveLength(1);
     expect(screen.getByRole("button", { name: "Redo" })).not.toHaveProperty("disabled", true);
@@ -74,6 +80,7 @@ describe("App", () => {
     });
     expect(useEditorStore.getState().building.name).toBe("Garden house");
     expect(document.title).toBe("Garden house · Bauwerk");
+    fireEvent.click(screen.getByRole("button", { name: "Elements" }));
     const tree = screen.getByRole("tree", { name: "Layers" });
     expect(within(tree).getByRole("button", { name: "Garden house" })).toBeTruthy();
     expect(useEditorStore.getState().building.storeys).toHaveLength(3);
@@ -84,20 +91,19 @@ describe("App", () => {
   it("switches the whole UI to German", () => {
     render(<App />);
     fireEvent.click(screen.getByRole("button", { name: "Language" }));
-    const tree = screen.getByRole("tree", { name: "Ebenen" });
-    expect(within(tree).getByRole("button", { name: "Bauwerk" })).toBeTruthy();
+    expect(screen.getByRole("list", { name: "Erdgeschoss" })).toBeTruthy();
+    expect(screen.getByRole("list", { name: "Fassaden und Dach" })).toBeTruthy();
+    expect(screen.getByRole("radio", { name: "Fenster" })).toBeTruthy();
     expect(screen.getByRole("complementary", { name: "Eigenschaftenbereich" })).toBeTruthy();
     expect(screen.getByText("WebGL ist nicht verfügbar")).toBeTruthy();
   });
 
   it("loads the large office tower from the example selector, offered only with ?dev", async () => {
     const { unmount } = render(<App />);
-    fireEvent.click(screen.getByRole("tab", { name: "Settings" }));
     expect(screen.queryByRole("combobox", { name: "Load example" })).toBeNull();
     unmount();
     window.history.replaceState(null, "", "/?dev");
     render(<App />);
-    fireEvent.click(screen.getByRole("tab", { name: "Settings" }));
     fireEvent.click(screen.getByRole("combobox", { name: "Load example" }));
     fireEvent.click(screen.getByRole("option", { name: "Large office tower" }));
     await act(async () => {
@@ -172,6 +178,11 @@ describe("App", () => {
 
   it("shows the empty state when the last storey is removed", () => {
     render(<App />);
+    act(() => {
+      useEditorStore
+        .getState()
+        .select({ kind: "storey", id: useEditorStore.getState().activeStoreyId ?? "" });
+    });
     fireEvent.click(screen.getByRole("button", { name: "Remove storey" }));
     expect(screen.getByText("No storeys")).toBeTruthy();
   });
@@ -253,13 +264,38 @@ describe("App", () => {
     window.history.replaceState(null, "", "/");
   });
 
-  it("has seven tools including measure and heating, switchable by key", () => {
+  it("numbers the tools in the tool bar's order, the ones under More after them", () => {
     render(<App />);
     const palette = screen.getByRole("radiogroup", { name: "Tools" });
-    expect(within(palette).getAllByRole("radio")).toHaveLength(7);
-    fireEvent.keyDown(window, { key: "6" });
+    const radios = within(palette).getAllByRole("radio");
+    expect(radios.map((r) => r.getAttribute("aria-label"))).toEqual([
+      "Select",
+      "Wall",
+      "Window",
+      "Door",
+      "Measure",
+    ]);
+    expect(radios.map((r) => r.getAttribute("aria-keyshortcuts"))).toEqual([
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+    ]);
+    fireEvent.keyDown(window, { key: "5" });
     expect(useEditorStore.getState().tool).toBe("measure");
     expect(screen.getByText(/where a distance starts and ends/)).toBeTruthy();
+    for (const [key, tool] of [
+      ["2", "interiorWall"],
+      ["3", "window"],
+      ["4", "door"],
+      ["6", "footprint"],
+      ["7", "zone"],
+      ["8", "hvac"],
+    ] as const) {
+      fireEvent.keyDown(window, { key });
+      expect(useEditorStore.getState().tool).toBe(tool);
+    }
   });
 
   it("uses no native form controls outside the components folder", () => {
@@ -276,7 +312,7 @@ describe("App", () => {
     const upper = [...container.querySelectorAll(".uppercase")];
     expect(upper.length).toBeGreaterThan(0);
     for (const element of upper) expect(element.classList.contains("font-num")).toBe(true);
-    fireEvent.keyDown(window, { key: "6" });
+    fireEvent.keyDown(window, { key: "5" });
     expect(container.querySelector("[data-tool='measure']")).toBeTruthy();
   });
 

@@ -29,14 +29,13 @@
 
 <img src="docs/shots/framed/openings.png" alt="Editing the first floor, the ground floor drawn as an outline below" width="100%" />
 
-Footprint, storeys, walls. Click an exterior wall with the Opening tool and you get a window,
-click an interior wall and you get a door, <kbd>Shift</kbd> swaps them. Drag an interior wall
+Footprint, storeys, walls. Window and Door are one click each in the tool bar: click a wall and
+the opening is there, <kbd>Shift</kbd> places the other kind. Drag an interior wall
 across a floor and rooms appear on their own with their areas; delete it and they merge back
 under their old names.
 
-Grab the whole house with <kbd>8</kbd> and slide it along the street: it is standing on its real
-OpenStreetMap plot, so the latitude and longitude update while you drag. Turn it and the south
-windows become west windows, and the solar gains follow. The floors you are not editing draw as
+The house stands on its real OpenStreetMap plot. Turn it in its location and the south windows
+become west windows, and the solar gains follow. The floors you are not editing draw as
 outlines, the way Revit's halftone underlay does it, so nothing hides your work. **Every drag,
 scrub and typed value is exactly one undo step.**
 

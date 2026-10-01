@@ -74,7 +74,8 @@ export function Opening({
     select(target);
   };
 
-  const draggable = active && (tool === "select" || tool === "opening") && !remoteDrag;
+  const draggable =
+    active && (tool === "select" || tool === "window" || tool === "door") && !remoteDrag;
 
   const offsetAt = (e: ThreeEvent<PointerEvent>): number | null => {
     const hit = pointOnVertical(e, wall.outerA, wall.normal);

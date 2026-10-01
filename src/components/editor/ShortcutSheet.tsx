@@ -1,5 +1,6 @@
 import { useT } from "@/i18n/useT";
 import { CustomDialog } from "@/components/shared/CustomDialog";
+import { TOOL_ORDER, toolKey, toolLabel } from "./tools";
 
 export function ShortcutSheet({ onClose }: { onClose: () => void }) {
   const t = useT();
@@ -8,7 +9,8 @@ export function ShortcutSheet({ onClose }: { onClose: () => void }) {
     [t("shortcuts.redo"), "Ctrl+Shift+Z, Ctrl+Y"],
     [t("shortcuts.delete"), "Delete"],
     [t("shortcuts.escape"), "Esc"],
-    [t("shortcuts.tools"), t("shortcuts.toolKeys")],
+    // The tools in the tool bar's order, then the ones under "More".
+    ...TOOL_ORDER.map((tool): [string, string] => [t(toolLabel[tool]), toolKey(tool)]),
     [t("shortcuts.storeys"), "PageUp, PageDown"],
     [t("shortcuts.orbit"), t("shortcuts.orbitKeys")],
   ];

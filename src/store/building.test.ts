@@ -245,7 +245,7 @@ describe("UI state and history", () => {
   it("selection, tool and language are not recorded and not touched by undo", () => {
     store.getState().setWallThickness(0.4);
     store.getState().select({ kind: "storey", id: storeyId() });
-    store.getState().setTool("opening");
+    store.getState().setTool("window");
     store.getState().setLanguage("de");
     expect(store.getState().past).toHaveLength(1);
 
@@ -253,7 +253,7 @@ describe("UI state and history", () => {
     const s = store.getState();
     expect(s.building.wallThickness).toBe(0.3);
     expect(s.selection).toEqual({ kind: "storey", id: storeyId() });
-    expect(s.tool).toBe("opening");
+    expect(s.tool).toBe("window");
     expect(s.language).toBe("de");
     expect(s.building.storeys[0]?.name).toBe("Erdgeschoss");
   });

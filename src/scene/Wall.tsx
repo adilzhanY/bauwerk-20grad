@@ -83,9 +83,10 @@ export function Wall({
   };
   const act = (e: ThreeEvent<PointerEvent>) => {
     if (!active) return;
-    if (tool === "opening") {
+    if (tool === "window" || tool === "door") {
       e.stopPropagation();
-      const kind = e.nativeEvent.shiftKey ? "door" : "window";
+      // Shift places the other kind, for the odd door in a run of windows.
+      const kind = e.nativeEvent.shiftKey ? (tool === "door" ? "window" : "door") : tool;
       const defaults = defaultOpening(kind);
       const u = dot(sub(worldToPlan(e.point), wall.outerA), wall.direction);
       const offset = snapOffset(u - defaults.width / 2, defaults.width, wall.length);

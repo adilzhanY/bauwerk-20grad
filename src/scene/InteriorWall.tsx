@@ -29,7 +29,7 @@ interface Props {
   ghostOpacity: number;
 }
 
-/** A thin wall inside the footprint, with holes for its openings. Clicking it with the Opening tool adds one. */
+/** A thin wall inside the footprint, with holes for its openings. Clicking it with the Window or Door tool adds one. */
 export function InteriorWall({
   storeyId,
   index,
@@ -77,10 +77,10 @@ export function InteriorWall({
     down.current = null;
     if (!start || !active || e.button !== 0) return;
     if (Math.hypot(e.nativeEvent.clientX - start.x, e.nativeEvent.clientY - start.y) > 6) return;
-    if (tool === "opening") {
+    if (tool === "window" || tool === "door") {
       e.stopPropagation();
-      // Between rooms a door is the common case, so the default flips: Shift makes a window.
-      const kind = e.nativeEvent.shiftKey ? "window" : "door";
+      // Shift places the other kind.
+      const kind = e.nativeEvent.shiftKey ? (tool === "door" ? "window" : "door") : tool;
       const defaults = defaultOpening(kind);
       const u = dot(sub(worldToPlan(e.point), wall.outerA), wall.direction);
       const offset = snapOffset(u - defaults.width / 2, defaults.width, wall.length);
