@@ -312,12 +312,11 @@ function ProjectTable({
         </thead>
         <tbody>
           {cards.map((card) => (
+            // The title button covers the whole row, so the row opens on a click and Tab
+            // reaches it once.
             <tr
               key={card.buildingId}
-              onClick={() => {
-                onOpen(card);
-              }}
-              className="cursor-pointer border-b border-line last:border-0 hover:bg-panel"
+              className="relative border-b border-line last:border-0 hover:bg-panel"
             >
               <td className="px-3 py-2">
                 <ProjectPicture card={card} className="h-10 w-14 rounded-soft" />
@@ -325,11 +324,10 @@ function ProjectTable({
               <td className="px-3 py-2">
                 <button
                   type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
+                  onClick={() => {
                     onOpen(card);
                   }}
-                  className="text-left font-semibold text-ink hover:underline"
+                  className="text-left font-semibold text-ink after:absolute after:inset-0 hover:underline"
                 >
                   {card.summary.title}
                 </button>

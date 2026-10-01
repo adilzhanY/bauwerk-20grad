@@ -1114,6 +1114,7 @@ export const en = {
   "photo.door": "Door",
   "photo.fieldsHint": "Metres, from the bottom left of the wall",
   "photo.openings": "Openings",
+  "photo.openingN": "Opening {n}",
   "photo.openingArea": "Opening area",
   "photo.totalOpeningArea": "Total opening area",
   "photo.wallArea": "Wall area (model)",

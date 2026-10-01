@@ -155,17 +155,28 @@ export function OpeningsList({
           </thead>
           <tbody>
             {openings.map((o, index) => (
+              // The number's button covers the whole row: a click anywhere picks the opening,
+              // and the keyboard reaches it.
               <tr
                 key={index}
                 className={cx(
-                  "cursor-pointer font-num text-ink transition-colors hover:bg-select-soft",
+                  "relative font-num text-ink transition-colors hover:bg-select-soft",
                   index === selected && "bg-select-soft",
                 )}
-                onClick={() => {
-                  onSelect(index);
-                }}
               >
-                <td className="px-1 py-1.5 text-left">{index + 1}</td>
+                <td className="px-1 py-1.5 text-left">
+                  <button
+                    type="button"
+                    aria-label={t("photo.openingN", { n: index + 1 })}
+                    aria-pressed={index === selected}
+                    onClick={() => {
+                      onSelect(index);
+                    }}
+                    className="after:absolute after:inset-0"
+                  >
+                    {index + 1}
+                  </button>
+                </td>
                 <td className="px-1 py-1.5 text-right">{format.num(o.width, 2)} m</td>
                 <td className="px-1 py-1.5 text-right">{format.num(o.height, 2)} m</td>
                 <td className="px-1 py-1.5 text-right">{format.area(openingArea(o))}</td>

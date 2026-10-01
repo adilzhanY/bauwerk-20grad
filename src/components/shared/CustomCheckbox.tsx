@@ -70,7 +70,7 @@ export function CustomCheckbox({
       <label
         id={`${id}-label`}
         onClick={toggle}
-        className={cx("text-sm text-ink select-none", !disabled && "cursor-pointer")}
+        className="text-sm text-ink select-none"
       >
         {label}
       </label>

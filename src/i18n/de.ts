@@ -1127,6 +1127,7 @@ export const de: Messages = {
   "photo.window": "Fenster",
   "photo.door": "Tür",
   "photo.fieldsHint": "Meter, gemessen ab der unteren linken Wandecke",
+  "photo.openingN": "Öffnung {n}",
   "photo.openings": "Öffnungen",
   "photo.openingArea": "Öffnungsfläche",
   "photo.totalOpeningArea": "Öffnungsfläche gesamt",
