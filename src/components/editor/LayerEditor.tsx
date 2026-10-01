@@ -11,7 +11,7 @@ import { CustomIconButton } from "@/components/shared/CustomIconButton";
 import { CustomReadOnly } from "@/components/shared/CustomField";
 import { CustomNumberInput } from "@/components/shared/CustomNumberInput";
 import { CustomTextInput } from "@/components/shared/CustomTextInput";
-import { LayerSection } from "@/components/editor/LayerSection";
+import { LayerSection } from "@/components/shared/LayerSection";
 
 /** Editor for one construction's layer stack with the live U-value and the cross-section. */
 export function LayerEditor({ construction }: { construction: Construction }) {

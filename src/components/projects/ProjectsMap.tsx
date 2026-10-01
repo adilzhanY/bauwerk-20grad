@@ -3,7 +3,7 @@ import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { ENERGY_CLASS_COLORS } from "@/geometry/energy";
 import type { ProjectCard } from "@/projects/projects";
-import { fallBackWhenStyleFails, LIGHT_STYLE } from "@/components/map/mapStyle";
+import { fallBackWhenStyleFails, LIGHT_STYLE } from "@/lib/mapStyle";
 
 /** Berlin, for an office without located projects. */
 const BERLIN: [number, number] = [13.405, 52.52];

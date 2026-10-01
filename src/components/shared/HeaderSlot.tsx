@@ -1,8 +1,8 @@
 import { useContext } from "react";
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { HeaderSlotContext } from "@/components/app/headerSlotContext";
-import type { HeaderSlots } from "@/components/app/headerSlotContext";
+import { HeaderSlotContext } from "@/components/shared/headerSlotContext";
+import type { HeaderSlots } from "@/components/shared/headerSlotContext";
 
 /**
  * Puts page content into the top bar. The editor uses it for the building name, the version

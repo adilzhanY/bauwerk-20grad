@@ -11,7 +11,8 @@ import { NoAccess } from "@/components/editor/NoAccess";
 import { FollowFrame } from "@/components/editor/PeopleHere";
 import { LeftPanel } from "@/components/editor/LeftPanel";
 import { RightPanel } from "@/components/editor/RightPanel";
-import { EmptyState, WebGLMissing } from "@/components/app/States";
+import { WebGLMissing } from "@/components/app/States";
+import { EmptyState } from "@/components/editor/EmptyState";
 import { EditorHeader } from "@/components/editor/EditorHeader";
 import { Minimap } from "@/components/editor/Minimap";
 import { StoreyPill } from "@/components/editor/StoreyPill";
@@ -23,7 +24,7 @@ import { SyncRejectNotice } from "@/components/editor/SyncRejectNotice";
 import { VersionPreviewBanner } from "@/components/editor/VersionPreviewBanner";
 import { SinceLastVisit } from "@/components/editor/SinceLastVisit";
 import { OverwriteNotice } from "@/components/editor/OverwriteNotice";
-import { WallPhotoEditor } from "@/components/editor/WallPhotoEditor";
+import { WallPhotoEditor } from "@/components/photo-editor/WallPhotoEditor";
 
 /** Widths of the side panels, px. */
 const LEFT_PANEL = 300;

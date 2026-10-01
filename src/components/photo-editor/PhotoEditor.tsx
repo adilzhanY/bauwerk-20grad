@@ -9,7 +9,7 @@ import {
 } from "lod2-core/exif";
 import { insetCorners, type Quad } from "lod2-core/photo";
 import { useT } from "@/i18n/useT";
-import { inTextField } from "@/components/editor/useKeyboardShortcuts";
+import { inTextField } from "@/lib/inTextField";
 import { UserError, errorText } from "@/lod2/api/errors";
 import { CustomSection } from "@/components/shared/CustomField";
 import { cx } from "@/components/shared/cx";

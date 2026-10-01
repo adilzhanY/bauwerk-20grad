@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
 import { AppHeader } from "@/components/app/AppHeader";
-import { HeaderSlotContext } from "@/components/app/headerSlotContext";
+import { HeaderSlotContext } from "@/components/shared/headerSlotContext";
 
 /**
  * The frame of every page: the white top bar, a project's step bar when one is open, and the

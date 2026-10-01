@@ -11,7 +11,7 @@ import { search as searchGid } from "@/lod2/api/client";
 import { buildingAtPoint, searchAddress } from "@/lod2/api/geocode";
 import type { Place } from "@/lod2/api/geocode";
 import { useStore } from "@/lod2/state/store";
-import { BuildingMap } from "@/components/map/BuildingMap";
+import { BuildingMap } from "@/components/shared/BuildingMap";
 import { readNewProject } from "@/app/projectRoutes";
 import { SAMPLE_BUILDINGS } from "@/lib/sampleBuildings";
 
