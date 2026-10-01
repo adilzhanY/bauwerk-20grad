@@ -1,4 +1,5 @@
 import { Presence } from "@/components/shared/Presence";
+import { aiOffText } from "@/lib/aiHost";
 import { CustomIconButton } from "@/components/shared/CustomIconButton";
 import { Card } from "@/components/shared/Card";
 import { Camera, X } from "lucide-react";
@@ -72,7 +73,7 @@ export function SelectedWallCard() {
         )}
       </div>
       <Presence show={vision === false}>
-        <Hint className="mt-3">{t("facade.visionOff")}</Hint>
+        <Hint className="mt-3">{aiOffText(t)}</Hint>
       </Presence>
     </Card>
   );

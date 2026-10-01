@@ -73,7 +73,11 @@ describe("the survey panel", () => {
     expect(screen.getByRole("dialog", { name: `Floor plan, ${ground.name}` })).toBeTruthy();
     // The reading works on the active storey: the one the plan is for.
     expect(useEditorStore.getState().activeStoreyId).toBe(ground.id);
-    expect(screen.getByText(/The floor plan reading service is not running/)).toBeTruthy();
+    expect(
+      screen.getByText(
+        /The AI is not running right now\. Everything else works\. A drawing can still be laid under the model/,
+      ),
+    ).toBeTruthy();
   });
 
   it("previews a storey's floor plan once it has one", () => {

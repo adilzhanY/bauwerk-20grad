@@ -511,7 +511,11 @@ export function PhotoEditorView({
                 : null
             }
           />
-          <EditorNotices compassNote={compassNote} baseHidden={baseHiddenNote} />
+          <EditorNotices
+            aiOff={visionUp === false}
+            compassNote={compassNote}
+            baseHidden={baseHiddenNote}
+          />
         </div>
         <div className="relative flex min-h-0 flex-1 gap-3 px-3 pb-3">
           <aside className="flex w-[300px] shrink-0 flex-col overflow-y-auto rounded-card bg-panel">

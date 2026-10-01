@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { aiOffText } from "@/lib/aiHost";
 import { ArrowRight, Camera, HousePlus, ImagePlus, Rows3 } from "lucide-react";
 import { CustomButton } from "@/components/shared/CustomButton";
 import { CustomDialog } from "@/components/shared/CustomDialog";
@@ -239,7 +240,9 @@ function FloorPlanDialog({ storey, onClose }: { storey: Storey; onClose: () => v
           <Spinner />
         </Presence>
         <Presence show={available === false}>
-          <Hint>{t("survey.planServiceDown")}</Hint>
+          <Hint>
+            {aiOffText(t)} {t("survey.planServiceDown")}
+          </Hint>
         </Presence>
         <FloorPlanSection onApplied={onClose} />
         <div className="-mx-4">

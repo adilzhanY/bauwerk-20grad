@@ -36,7 +36,7 @@ export const de: Messages = {
   "survey.replacePlan": "Neuen Grundriss für {storey} einlesen",
   "survey.planTitle": "Grundriss, {storey}",
   "survey.planServiceDown":
-    "Der Dienst zum Einlesen von Grundrissen läuft nicht. Eine Zeichnung kann trotzdem unter das Modell gelegt und von Hand nachgezeichnet werden.",
+    "Eine Zeichnung kann trotzdem unter das Modell gelegt und von Hand nachgezeichnet werden.",
   "survey.room": "1 Raum",
   "survey.rooms": "{n} Räume",
   "survey.named": "{n} benannt",
@@ -529,7 +529,9 @@ export const de: Messages = {
   "facade.detect": "Fenster erkennen",
   "facade.deselect": "Wandauswahl aufheben",
   "facade.addPhoto": "Foto hinzufügen",
-  "facade.visionOff": "Die automatische Erkennung ist aus: der Bildanalyse-Dienst läuft nicht.",
+  "ai.off": "Die KI läuft gerade nicht. Alles andere funktioniert.",
+  "ai.offHost":
+    "Die KI läuft auf {host}, und der ist gerade ausgeschaltet. Alles andere funktioniert; die KI später noch einmal versuchen.",
   "facade.pickWall":
     "Klicken Sie im 3D-Modell auf eine Fassade, um sie zu fotografieren. SAM 3 findet dann ihre Fenster und Türen in Metern.",
   "facade.wall": "Fassade {n}",
@@ -1069,6 +1071,8 @@ export const de: Messages = {
   "photo.wall.groundUnknown": "{size}. Geländehöhe unbekannt, volle Modellhöhe verwendet",
   "photo.wall.aboveGround": "{size} über Gelände",
   "photo.wall.buried": "{size} über Gelände, {buried} m im Erdreich",
+  "photo.byHandMeanwhile":
+    "Bis dahin die vier Ecken auf die Wand ziehen und die Fenster selbst einzeichnen.",
   "photo.baseHidden":
     "{percent} Prozent des Wandfußes sind von geparkten Fahrzeugen oder Gegenständen verdeckt, deshalb wurden die unteren zwei Eckpunkte perspektivisch gesetzt. Prüfen Sie sie mit „Zurück zum Foto“, bevor Sie den Höhen vertrauen.",
   "photo.preview": "Entzerrte Vorschau",

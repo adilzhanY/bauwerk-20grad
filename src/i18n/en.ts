@@ -32,8 +32,7 @@ export const en = {
   "survey.addPlan": "Add a floor plan for {storey}",
   "survey.replacePlan": "Read a new floor plan for {storey}",
   "survey.planTitle": "Floor plan, {storey}",
-  "survey.planServiceDown":
-    "The floor plan reading service is not running. A drawing can still be laid under the model to trace by hand.",
+  "survey.planServiceDown": "A drawing can still be laid under the model to trace by hand.",
   "survey.room": "1 room",
   "survey.rooms": "{n} rooms",
   "survey.named": "{n} named",
@@ -523,7 +522,9 @@ export const en = {
   "facade.detect": "Detect windows",
   "facade.addPhoto": "Add photo",
   "facade.deselect": "Clear the wall selection",
-  "facade.visionOff": "Automatic detection is off: the vision service is not running.",
+  "ai.off": "The AI is not running right now. Everything else works.",
+  "ai.offHost":
+    "The AI runs on {host}, which is turned off right now. Everything else works; try the AI again later.",
   "facade.pickWall":
     "Click a facade in the 3D model to photograph it. SAM 3 then finds its windows and doors in metres.",
   "facade.wall": "Facade {n}",
@@ -1111,6 +1112,8 @@ export const en = {
   "photo.wall.groundUnknown": "{size}. Ground level unknown, full model height used",
   "photo.wall.aboveGround": "{size} above ground",
   "photo.wall.buried": "{size} above ground, {buried} m buried",
+  "photo.byHandMeanwhile":
+    "Drag the four corners onto the wall and draw the windows yourself meanwhile.",
   "photo.baseHidden":
     "{percent} percent of the wall's base is hidden behind parked things, so the bottom two dots were placed by perspective. Check them with Back to photo before trusting the heights.",
   "photo.preview": "Rectified preview",
