@@ -549,14 +549,17 @@ export const en = {
   "survey.footprint": "{corners} corners, {area} m², simplified from the LoD2 footprint",
   "survey.storeys.typed": "{count} storeys as stated, all the same height",
   "survey.storeys.photo": "{count} storeys from the rows of windows in the photo",
-  "survey.storeys.estimated": "{count} storeys estimated from {height} m eaves height above the street",
+  "survey.storeys.estimated":
+    "{count} storeys estimated from {height} m eaves height above the street",
   "survey.roof.type": "{roofType}",
   "survey.roof.unknown": "Roof form unknown",
   "survey.roof.unknownType": "unknown",
   "survey.roof.flatSimplified": "{roofType} simplified to a flat roof",
   "survey.roof.mixedAsGable": "Mixed form simplified to a gable roof",
-  "survey.roof.hipAsGable": "Hip roof on a footprint that is not rectangular, taken as a gable roof",
-  "survey.sharedEdges": "{count} walls against neighbouring buildings, found in the LoD2 footprints",
+  "survey.roof.hipAsGable":
+    "Hip roof on a footprint that is not rectangular, taken as a gable roof",
+  "survey.sharedEdges":
+    "{count} walls against neighbouring buildings, found in the LoD2 footprints",
   "survey.constructions":
     "Default values {ageClass}, from the 2020 German rules for surveying existing homes (8 October 2020)",
   "survey.constructions.assumed":
@@ -568,16 +571,21 @@ export const en = {
   "survey.opening.drawn": "Photo, drawn by hand",
   "survey.opening.wallEnd": "cut at the end of the wall",
   "survey.opening.slab": "cut at the floor slab",
-  "survey.opening.doorRaised": "door {height} m above the floor, set onto the floor with its measured height",
+  "survey.opening.doorRaised":
+    "door {height} m above the floor, set onto the floor with its measured height",
   "survey.opening.doorAsWindow": "a door above the floor, taken as a window",
   "survey.opening.overlap": "cut where it overlapped",
   "survey.warning.noTerrain": "No terrain line: heights are measured from the model's floor slab.",
-  "survey.warning.storeyMismatch": "The photo shows {rows} rows of windows, but {count} storeys are stated.",
-  "survey.warning.tallStoreys": "{count} storey(s) taller than {height} m: check whether a row of windows is missing.",
+  "survey.warning.storeyMismatch":
+    "The photo shows {rows} rows of windows, but {count} storeys are stated.",
+  "survey.warning.tallStoreys":
+    "{count} storey(s) taller than {height} m: check whether a row of windows is missing.",
   "survey.warning.ageClassAssumed": "Age class not stated: {ageClass} assumed.",
-  "survey.warning.partyWall": "Wall {wall} is against a neighbouring building, so its openings were not taken over.",
+  "survey.warning.partyWall":
+    "Wall {wall} is against a neighbouring building, so its openings were not taken over.",
   "survey.warning.noPhoto": "No facade photographed yet: the model has no windows.",
-  "survey.warning.otherParts": "The building has {count} more parts. Only this part is handed over.",
+  "survey.warning.otherParts":
+    "The building has {count} more parts. Only this part is handed over.",
   "survey.failed.noGeometry": "This part of the building has no geometry.",
   "survey.failed.noGround": "This part of the building has no ground surface.",
   "survey.failed.tooSmall": "The footprint is too small.",

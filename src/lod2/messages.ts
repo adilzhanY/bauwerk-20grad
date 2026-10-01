@@ -17,8 +17,6 @@ import { translate } from "@/i18n";
 import type { Language, MessageKey } from "@/i18n";
 import { formatNumber } from "@/lib/format";
 
-type Message = NonNullable<ValueSource["messages"]>[number];
-
 const isKey = (key: unknown): key is MessageKey =>
   typeof key === "string" && key.startsWith("survey.") && Object.hasOwn(en, key);
 
@@ -58,11 +56,12 @@ export function surveyText(
   numbers: Language = language,
 ): string | null {
   if (typeof message !== "object" || message === null) return null;
-  const { key, values } = message as Partial<Message>;
+  // Read as unknown: the message comes from a stored or imported file.
+  const { key, values } = message as { key?: unknown; values?: unknown };
   if (!isKey(key)) return null;
   const params: Record<string, string> = {};
   if (typeof values === "object" && values !== null) {
-    for (const [name, raw] of Object.entries(values)) {
+    for (const [name, raw] of Object.entries(values as Record<string, unknown>)) {
       if (typeof raw === "string" || typeof raw === "number")
         params[name] = value(name, raw, language, numbers);
     }
