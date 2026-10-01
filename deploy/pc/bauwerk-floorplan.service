@@ -1,0 +1,15 @@
+# Floor plan reading for the hosted site, always on, on loopback behind the tunnel. VISION_KEY
+# comes from deploy/.env.pc: without it the public tunnel address would be open to anyone.
+[Unit]
+Description=Bauwerk floor plan service
+After=network-online.target
+
+[Service]
+WorkingDirectory=%h/dev/bauwerk/lod2/lod2-floorplan
+EnvironmentFile=%h/dev/bauwerk/deploy/.env.pc
+ExecStart=%h/dev/bauwerk/lod2/lod2-floorplan/.venv/bin/python server.py
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

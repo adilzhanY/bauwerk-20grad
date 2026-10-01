@@ -176,3 +176,30 @@ systemctl --user enable --now bauwerk-vision bauwerk-tunnel
 The containers and both services come back by themselves after a restart. Check:
 `curl -s https://bauwerk-demo.xyz/vision/health`. Stop hosting with
 `systemctl --user disable --now bauwerk-tunnel bauwerk-vision`.
+
+## Website on a server, AI on this PC
+
+The site stays up day and night on the small server (everything above), while SAM 3 and the
+floor plan reading run on this PC's graphics card and reach the server through a Cloudflare
+Tunnel. When the PC is off, the site keeps working and every AI button says so: "The AI runs on
+Adil's PC, which is turned off right now."
+
+1. Cloudflare dashboard, Zero Trust, Networks, Tunnels: create a tunnel, copy its token into
+   `~/.config/bauwerk/tunnel-token` (`chmod 600`). Public hostnames:
+   `vision.<domain>` to `http://localhost:8790`, `plans.<domain>` to `http://localhost:8791`.
+2. `deploy/.env.pc` on this PC (ignored by git): `VISION_KEY=<a long random string>`. Both
+   services refuse every request without it, so the public tunnel addresses are closed to all
+   but the server.
+3. On the server, `deploy/.env`: `VISION_URL=https://vision.<domain>`,
+   `FLOORPLAN_URL=https://plans.<domain>`, the same `VISION_KEY`, and `AI_HOST=Adil's PC`, then
+   `docker compose -f deploy/docker-compose.yml up -d --build` (the name is baked into the app).
+4. On this PC, once:
+
+```bash
+ln -s ~/dev/bauwerk/deploy/pc/bauwerk-{vision,floorplan,tunnel}.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now bauwerk-vision bauwerk-floorplan bauwerk-tunnel
+```
+
+Only signed in people reach the AI: Caddy asks the collaboration server about the request's
+token before it passes anything on (`signed_in` in the Caddyfile).

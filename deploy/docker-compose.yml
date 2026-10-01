@@ -89,6 +89,8 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.web
+      args:
+        VITE_AI_HOST: ${AI_HOST:-}
     restart: unless-stopped
     environment:
       DOMAIN: ${DOMAIN:-:80}

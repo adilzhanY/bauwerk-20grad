@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import io
 import json
+import hmac
 import os
 import tempfile
 from pathlib import Path
@@ -22,7 +23,8 @@ from pathlib import Path
 import cv2
 import numpy as np
 import uvicorn
-from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, Header, HTTPException, Request, UploadFile
+from fastapi.responses import JSONResponse
 from PIL import Image, ImageOps
 
 import pipeline
@@ -37,7 +39,20 @@ MAX_SIDE = 3000
 # once; one line across both services if the card runs out of memory with three users.
 gpu_line = GpuLine()
 
+# The shared secret the hosted site's proxy sends as X-Vision-Key (the same as lod2-vision's).
+# Set, every request without it is refused: behind a Cloudflare Tunnel the service has a public
+# address, and only the site, which checks the sign in first, may use the graphics card.
+VISION_KEY = os.environ.get("VISION_KEY", "")
+
 app = FastAPI(title="lod2-floorplan")
+
+
+@app.middleware("http")
+async def require_key(request: Request, call_next):
+    """With VISION_KEY set, only the hosted site's proxy, which adds the key, gets through."""
+    if VISION_KEY and not hmac.compare_digest(request.headers.get("x-vision-key", ""), VISION_KEY):
+        return JSONResponse(status_code=401, content={"detail": "Missing or wrong X-Vision-Key."})
+    return await call_next(request)
 
 
 @app.get("/queue/{job_id}")
