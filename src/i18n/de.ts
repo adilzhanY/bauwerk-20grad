@@ -1,3 +1,4 @@
+import { SURVEY_DE } from "lod2-core/survey";
 import type { Messages } from "./en";
 
 export const de: Messages = {
@@ -551,6 +552,9 @@ export const de: Messages = {
   "print.sources.sharedEdges": "Brandwände",
   "print.sources.constructions": "Bauteile",
   "print.sources.opening": "Öffnung {id}",
+  // The survey's sentences, written once in lod2-core.
+  ...SURVEY_DE,
+  "survey.building": "Gebäude",
   "linkImport.dismiss": "Schließen",
   "print.methodText":
     "Der Transmissionswärmeverlust ist die Summe aus Temperatur-Korrekturfaktor mal U-Wert mal Fläche über die beheizte Hüllfläche, zuzüglich der linearen Wärmebrücken als ψ mal Länge. Flächen gegen Außenluft zählen voll, die Bodenplatte gegen Erdreich mit 0,6 und Wände zu unbeheizten Räumen mit 0,5. Der Lüftungswärmeverlust rechnet mit 0,34 Wh/(m³·K), einem Luftwechsel von 0,5 1/h und dem beheizten Volumen. Der Heizwärmebedarf folgt dem Heizperiodenbilanzverfahren der DIN V 4108-6: 66 kKh Gradtagzahl des deutschen Referenzklimas mal Verluste, abzüglich 95 % der solaren Gewinne durch Fenster nach Orientierung und der internen Gewinne von 22 kWh je Quadratmeter beheizter Fläche. Die Effizienzklasse legt die Skala des Wohngebäude-Energieausweises auf den Heizwärmebedarf; ein Ausweis bewertet die Endenergie, die höher liegt, die gezeigte Klasse ist deshalb eine optimistische Näherung.",

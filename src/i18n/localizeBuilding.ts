@@ -1,6 +1,7 @@
 import { ageConstructionName } from "@/geometry/ageDefaults";
 import { defaultConstructions } from "@/geometry/constructions";
 import { windowConstruction, windowType } from "@/geometry/windows";
+import { surveyBuildingName, surveyConstructionName } from "@/lod2/messages";
 import type { Building, Construction } from "@/geometry/types";
 import { defaultRoomName, defaultStoreyName } from "./index";
 import type { Language } from "./index";
@@ -72,6 +73,8 @@ function roomName(value: string, language: Language): string {
 }
 
 function constructionName(construction: Construction, language: Language): Construction {
+  if (construction.id.startsWith("lod2-"))
+    return { ...construction, name: surveyConstructionName(construction.name, language) };
   const age = [
     ageConstructionName(construction.id, "en"),
     ageConstructionName(construction.id, "de"),
@@ -109,7 +112,7 @@ function constructionName(construction: Construction, language: Language): Const
 export function localizeBuilding(building: Building, language: Language): Building {
   return {
     ...building,
-    name: knownName(building.name, BUILDINGS, language),
+    name: surveyBuildingName(knownName(building.name, BUILDINGS, language), language),
     storeys: building.storeys.map((storey) => ({
       ...storey,
       name: storeyName(storey.name, language),

@@ -14,6 +14,8 @@ import { fromJson } from "@/geometry/export";
 import { buildingHeatLoad } from "@/geometry/hvac";
 import type { Building } from "@/geometry/types";
 import type { Language } from "@/i18n";
+import { localizeBuilding } from "@/i18n/localizeBuilding";
+import { surveyText } from "./messages";
 import type { BuildingSurvey } from "./state/survey";
 
 export interface BuildingAnalysis {
@@ -66,11 +68,14 @@ export function analyzePart(
     // that have none, so an unphotographed wall stays closed until someone measures it.
     fillMissingWindows: false,
   });
-  if (!result.ok) return { ok: false, reason: result.reason };
+  if (!result.ok)
+    return { ok: false, reason: surveyText(result.message, language) ?? result.reason };
   // Through the editor's own importer, so the page computes on exactly what the editor loads.
   const imported = fromJson(JSON.stringify(result.file), language);
   if (!imported.ok) return { ok: false, reason: `Bauwerk: ${imported.error.code}` };
-  const energy = computeEnergy(imported.building);
+  // The survey names things in German; the editor shows them in its language.
+  const building = localizeBuilding(imported.building, language);
+  const energy = computeEnergy(building);
   const part = detail.parts.find((p) => p.gid === partGid);
   const pv = estimatePv(
     (part?.roofPlanes ?? []).map((plane) => ({
@@ -82,7 +87,7 @@ export function analyzePart(
   return {
     ok: true,
     analysis: {
-      building: imported.building,
+      building,
       energy,
       heatLoad: buildingHeatLoad(energy),
       pv,

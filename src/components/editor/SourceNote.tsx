@@ -5,6 +5,7 @@ import { sourceStatus } from "@/geometry/sources";
 import type { SourceKind } from "@/geometry/types";
 import type { MessageKey } from "@/i18n";
 import { useT } from "@/i18n/useT";
+import { sourceNoteText } from "@/lod2/messages";
 import { useEditorStore } from "@/store/building";
 
 const KIND_KEYS: Record<SourceKind, MessageKey> = {
@@ -25,6 +26,7 @@ export function SourceNote({ path }: { path: string }) {
   // Select the building and derive the status outside the selector: sourceStatus builds a new
   // object on every call, which the store would read as a change on every render.
   const building = useEditorStore((s) => s.building);
+  const language = useEditorStore((s) => s.language);
   const status = useMemo(() => sourceStatus(building, path), [building, path]);
   if (!status || status.gone) return null;
   const kind = t(KIND_KEYS[status.source.kind]);
@@ -39,7 +41,7 @@ export function SourceNote({ path }: { path: string }) {
       <Presence value={status.edited ? null : (status.source.photo ?? null)}>
         {(photo) => <div className="text-muted">{t("source.photo", { name: photo })}</div>}
       </Presence>
-      <Presence value={status.edited ? null : (status.source.note ?? null)}>
+      <Presence value={status.edited ? null : sourceNoteText(status.source, language)}>
         {(note) => <div className="text-muted">{note}</div>}
       </Presence>
     </Card>
