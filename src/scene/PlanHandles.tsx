@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ThreeElements, ThreeEvent } from "@react-three/fiber";
 import { Shape, ShapeGeometry, Vector2 } from "three";
 import { dragOpening, openingsOn } from "@/geometry/openings";
@@ -58,6 +58,24 @@ export function PlanHandles({
   const editable = tool === "select" || tool === "opening";
   const [cursor, setCursor] = useState<string | null>(null);
   useCanvasCursor(cursor);
+
+  // A drag whose grips go away before the pointer is released (the opening was deleted, undone
+  // or removed by someone else, or this view unmounted) gets no pointer up: close its undo
+  // step and give the camera back here, or every later edit folds into that step.
+  useEffect(() => {
+    const current = drag.current;
+    if (!current || handles.some((h) => h.opening.id === current.handle.opening.id)) return;
+    drag.current = null;
+    lock(false);
+    useEditorStore.getState().endBatch();
+  }, [handles, lock]);
+  useEffect(
+    () => () => {
+      if (drag.current) useEditorStore.getState().endBatch();
+      drag.current = null;
+    },
+    [],
+  );
 
   if (!editable) return null;
   const radius = GRIP_PX / Math.max(zoom, 1e-6);
