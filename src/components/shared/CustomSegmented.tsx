@@ -94,7 +94,7 @@ export function CustomSegmented<V extends string>({
             className={cx(
               "relative flex items-center justify-center gap-1.5 rounded-control transition-colors",
               // min-w-0 lets the options shrink in a narrow panel instead of pushing the
-              // last one out of the track; dense groups drop to the smaller size.
+              // last one out of the track; dense groups keep the type size and take less padding.
               iconsOnly
                 ? o.hint
                   ? "h-9 px-3 text-sm"
@@ -102,7 +102,7 @@ export function CustomSegmented<V extends string>({
                 : cx(
                     "h-8 min-w-0 whitespace-nowrap",
                     vertical && "flex-1",
-                    options.length > 3 ? "px-2 text-xs" : "px-3 text-sm",
+                    options.length > 3 ? "px-2 text-sm" : "px-3 text-sm",
                   ),
               selected
                 ? "bg-select font-semibold text-white"

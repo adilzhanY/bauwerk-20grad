@@ -152,6 +152,7 @@ export function LayerEditor({ construction }: { construction: Construction }) {
       </div>
       <CustomButton
         variant="quiet"
+        flush
         className="self-start"
         icon={<Plus size={14} />}
         onClick={() => {

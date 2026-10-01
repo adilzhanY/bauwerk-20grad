@@ -29,25 +29,34 @@ beforeEach(() => {
 describe("App", () => {
   it("renders the panels and the WebGL-missing state under jsdom", () => {
     render(<App />);
-    const tree = screen.getByRole("tree", { name: "Layers" });
-    expect(within(tree).getByRole("button", { name: "Bauwerk" })).toBeTruthy();
-    expect(screen.getByRole("tab", { name: "Properties" })).toBeTruthy();
+    const survey = screen.getByRole("complementary", { name: "Building panel" });
+    expect(within(survey).getByRole("list", { name: "Ground floor" })).toBeTruthy();
+    expect(within(survey).getByRole("list", { name: "Facades and roof" })).toBeTruthy();
+    // Properties only: no tabs on the right, nothing picked shows the building.
+    const properties = screen.getByRole("complementary", { name: "Properties panel" });
+    expect(within(properties).queryByRole("tab")).toBeNull();
+    expect(within(properties).getByLabelText("Wall thickness", { selector: "input" })).toBeTruthy();
     expect(screen.getByText("WebGL is not available")).toBeTruthy();
-    expect(screen.getByText("Ground floor")).toBeTruthy();
   });
 
-  it("switches tools from the palette and shows the tool hint", () => {
+  it("switches tools from the tool bar and shows the tool hint in the status line", () => {
     render(<App />);
-    fireEvent.click(screen.getByRole("radio", { name: /Opening/ }));
-    expect(useEditorStore.getState().tool).toBe("opening");
-    expect(screen.getByText(/Click an exterior wall for a window/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("radio", { name: "Door" }));
+    expect(useEditorStore.getState().tool).toBe("door");
+    expect(screen.getByText(/Click a wall to place a door/)).toBeTruthy();
+    // The rarer tools sit under More, each one click from there.
+    fireEvent.click(screen.getByRole("button", { name: "More" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /Heating/ }));
+    expect(useEditorStore.getState().tool).toBe("hvac");
+    expect(screen.getByRole("button", { name: "More: Heating" })).toBeTruthy();
+    expect(screen.queryByRole("menu")).toBeNull();
   });
 
   it("adds a storey with the button and undoes it from the bottom bar", () => {
     render(<App />);
     fireEvent.click(screen.getByRole("button", { name: "Add storey" }));
     expect(useEditorStore.getState().building.storeys).toHaveLength(2);
-    expect(screen.getByText("1st floor")).toBeTruthy();
+    expect(screen.getByRole("list", { name: "1st floor" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Undo" }));
     expect(useEditorStore.getState().building.storeys).toHaveLength(1);
     expect(screen.getByRole("button", { name: "Redo" })).not.toHaveProperty("disabled", true);
@@ -71,6 +80,7 @@ describe("App", () => {
     });
     expect(useEditorStore.getState().building.name).toBe("Garden house");
     expect(document.title).toBe("Garden house · Bauwerk");
+    fireEvent.click(screen.getByRole("button", { name: "Elements" }));
     const tree = screen.getByRole("tree", { name: "Layers" });
     expect(within(tree).getByRole("button", { name: "Garden house" })).toBeTruthy();
     expect(useEditorStore.getState().building.storeys).toHaveLength(3);
@@ -80,19 +90,20 @@ describe("App", () => {
 
   it("switches the whole UI to German", () => {
     render(<App />);
-    fireEvent.click(screen.getByRole("tab", { name: "Settings" }));
-    fireEvent.click(screen.getByRole("combobox", { name: "Language" }));
-    fireEvent.click(screen.getByRole("option", { name: "Deutsch" }));
-    fireEvent.click(screen.getByRole("tab", { name: "Ebenen" }));
-    const tree = screen.getByRole("tree", { name: "Ebenen" });
-    expect(within(tree).getByRole("button", { name: "Bauwerk" })).toBeTruthy();
-    expect(screen.getByRole("tab", { name: "Eigenschaften" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Language" }));
+    expect(screen.getByRole("list", { name: "Erdgeschoss" })).toBeTruthy();
+    expect(screen.getByRole("list", { name: "Fassaden und Dach" })).toBeTruthy();
+    expect(screen.getByRole("radio", { name: "Fenster" })).toBeTruthy();
+    expect(screen.getByRole("complementary", { name: "Eigenschaftenbereich" })).toBeTruthy();
     expect(screen.getByText("WebGL ist nicht verfügbar")).toBeTruthy();
   });
 
-  it("loads the large office tower from the example selector", async () => {
+  it("loads the large office tower from the example selector, offered only with ?dev", async () => {
+    const { unmount } = render(<App />);
+    expect(screen.queryByRole("combobox", { name: "Load example" })).toBeNull();
+    unmount();
+    window.history.replaceState(null, "", "/?dev");
     render(<App />);
-    fireEvent.click(screen.getByRole("tab", { name: "Settings" }));
     fireEvent.click(screen.getByRole("combobox", { name: "Load example" }));
     fireEvent.click(screen.getByRole("option", { name: "Large office tower" }));
     await act(async () => {
@@ -102,6 +113,7 @@ describe("App", () => {
     expect(building.name).toBe("Berlin office tower, 18 storeys");
     expect(building.storeys).toHaveLength(18);
     expect(building.storeys.reduce((sum, storey) => sum + storey.rooms.length, 0)).toBe(162);
+    window.history.replaceState(null, "", "/");
   });
 
   it("shows opening properties with a validation message for an invalid opening", () => {
@@ -127,7 +139,6 @@ describe("App", () => {
 
   it("commits a number typed with a comma live, as one undo step", () => {
     render(<App />);
-    fireEvent.click(screen.getByRole("tab", { name: "Settings" }));
     const input = screen.getByLabelText("Wall thickness", { selector: "input" });
     fireEvent.focus(input);
     fireEvent.change(input, { target: { value: "0,4" } });
@@ -140,7 +151,6 @@ describe("App", () => {
 
   it("the slider updates the model on every tick and undoes as one step", () => {
     render(<App />);
-    fireEvent.click(screen.getByRole("tab", { name: "Settings" }));
     const slider = screen.getByRole("slider", { name: "Wall thickness" });
     fireEvent.keyDown(slider, { key: "ArrowRight", shiftKey: true }); // 0.3 + 10 x 0.05
     expect(useEditorStore.getState().building.wallThickness).toBeCloseTo(0.8);
@@ -160,7 +170,6 @@ describe("App", () => {
       state.setActiveStorey(groundId);
     });
     render(<App />);
-    fireEvent.click(screen.getByRole("tab", { name: "Settings" }));
     const slider = screen.getByRole("slider", { name: "Wall thickness" });
     slider.focus();
     fireEvent.keyDown(slider, { key: "PageUp" });
@@ -169,13 +178,22 @@ describe("App", () => {
 
   it("shows the empty state when the last storey is removed", () => {
     render(<App />);
+    act(() => {
+      useEditorStore
+        .getState()
+        .select({ kind: "storey", id: useEditorStore.getState().activeStoreyId ?? "" });
+    });
     fireEvent.click(screen.getByRole("button", { name: "Remove storey" }));
     expect(screen.getByText("No storeys")).toBeTruthy();
   });
 
-  it("shows the energy panel with a class band and the renovated scenario", () => {
+  it("keeps the calculations out of the editor, on the Variants step", () => {
+    const { unmount } = render(<App />);
+    expect(screen.queryByRole("tab", { name: "Energy" })).toBeNull();
+    expect(screen.queryByRole("tab", { name: "Scenarios" })).toBeNull();
+    unmount();
+    useRouter.setState({ route: { page: "variants" } });
     render(<App />);
-    fireEvent.click(screen.getByRole("tab", { name: "Energy" }));
     expect(screen.getByRole("heading", { name: "Energy" })).toBeTruthy();
     const currentScale = screen.getByLabelText(/Energy efficiency class: H/);
     expect(currentScale.getAttribute("viewBox")).toBe("0 0 400 82");
@@ -184,7 +202,6 @@ describe("App", () => {
     const renovatedScale = screen.getByLabelText(/Energy efficiency class: (A\+|A|B|C|D|E|F|G)$/);
     expect(renovatedScale.getAttribute("viewBox")).toBe("0 0 400 112");
     expect(screen.getByText("Saving")).toBeTruthy();
-    fireEvent.click(screen.getByRole("tab", { name: "Scenarios" }));
     fireEvent.click(screen.getByRole("button", { name: "New scenario" }));
     expect(useEditorStore.getState().building.scenarios).toHaveLength(1);
     expect(screen.getByRole("button", { name: "Remove scenario" })).toBeTruthy();
@@ -247,18 +264,43 @@ describe("App", () => {
     window.history.replaceState(null, "", "/");
   });
 
-  it("has eight tools including measure, heating and move, switchable by key", () => {
+  it("numbers the tools in the tool bar's order, the ones under More after them", () => {
     render(<App />);
     const palette = screen.getByRole("radiogroup", { name: "Tools" });
-    expect(within(palette).getAllByRole("radio")).toHaveLength(8);
-    fireEvent.keyDown(window, { key: "6" });
+    const radios = within(palette).getAllByRole("radio");
+    expect(radios.map((r) => r.getAttribute("aria-label"))).toEqual([
+      "Select",
+      "Wall",
+      "Window",
+      "Door",
+      "Measure",
+    ]);
+    expect(radios.map((r) => r.getAttribute("aria-keyshortcuts"))).toEqual([
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+    ]);
+    fireEvent.keyDown(window, { key: "5" });
     expect(useEditorStore.getState().tool).toBe("measure");
     expect(screen.getByText(/where a distance starts and ends/)).toBeTruthy();
+    for (const [key, tool] of [
+      ["2", "interiorWall"],
+      ["3", "window"],
+      ["4", "door"],
+      ["6", "footprint"],
+      ["7", "zone"],
+      ["8", "hvac"],
+    ] as const) {
+      fireEvent.keyDown(window, { key });
+      expect(useEditorStore.getState().tool).toBe(tool);
+    }
   });
 
   it("uses no native form controls outside the components folder", () => {
+    useRouter.setState({ route: { page: "variants" } });
     const { container } = render(<App />);
-    fireEvent.click(screen.getByRole("tab", { name: "Energy" }));
     expect(container.querySelectorAll("select")).toHaveLength(0);
     expect(container.querySelectorAll("input[type=range]")).toHaveLength(0);
     expect(container.querySelectorAll("input[type=checkbox]")).toHaveLength(0);
@@ -270,14 +312,14 @@ describe("App", () => {
     const upper = [...container.querySelectorAll(".uppercase")];
     expect(upper.length).toBeGreaterThan(0);
     for (const element of upper) expect(element.classList.contains("font-num")).toBe(true);
-    fireEvent.keyDown(window, { key: "6" });
+    fireEvent.keyDown(window, { key: "5" });
     expect(container.querySelector("[data-tool='measure']")).toBeTruthy();
   });
 
   it("offers the map once a location is set, off by default, with the attribution", () => {
     render(<App />);
     expect(screen.queryByText("© OpenStreetMap contributors")).toBeNull();
-    fireEvent.click(screen.getByRole("tab", { name: "Site" }));
+    fireEvent.click(screen.getByRole("button", { name: "Location" }));
     fireEvent.click(screen.getByRole("switch", { name: "Place the building on the map" }));
     // The plain grid stays the ground until the map is switched on.
     const map = screen.getByRole("switch", { name: "Show map (OpenStreetMap)" });
@@ -291,8 +333,7 @@ describe("App", () => {
 
   it("switches the theme and stamps it on the document", () => {
     render(<App />);
-    fireEvent.click(screen.getByRole("tab", { name: "Settings" }));
-    fireEvent.click(screen.getByRole("radio", { name: "Dark" }));
+    fireEvent.click(screen.getByRole("button", { name: "Switch to dark theme" }));
     expect(useEditorStore.getState().theme).toBe("dark");
   });
 

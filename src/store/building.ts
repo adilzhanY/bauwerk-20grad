@@ -13,13 +13,7 @@ import {
 import type { EdgeChange } from "@/geometry/shared";
 import { planToLatLon } from "@/geometry/geo";
 import { resizeRectangle } from "@/geometry/box";
-import {
-  buildingCentre,
-  rotateBuilding,
-  rotatePoint,
-  translateBuilding,
-  translatePoint,
-} from "@/geometry/transform";
+import { buildingCentre, rotateBuilding, translateBuilding } from "@/geometry/transform";
 import { immer } from "zustand/middleware/immer";
 import type {
   Building,
@@ -72,8 +66,9 @@ import type { HistorySlice } from "./history";
 
 export type Theme = "light" | "dark" | "system";
 
+/** The editor's tools. Window and door are two tools, so each is one click. */
 export type Tool =
-  "select" | "footprint" | "opening" | "interiorWall" | "zone" | "measure" | "hvac" | "move";
+  "select" | "interiorWall" | "window" | "door" | "measure" | "footprint" | "zone" | "hvac";
 
 /** The tools that change nothing, all a viewer or commenter gets (TODO Part 21, CB). */
 export const LOOK_TOOLS: readonly Tool[] = ["select", "measure"];
@@ -165,25 +160,15 @@ export interface EditorState {
    * reveal once, from `startedAt` (performance.now()), then clears it. UI state.
    */
   planReveal: { storeyId: Id; startedAt: number } | null;
-  /** Colour band on wall tops keyed to the construction U-value. UI state. */
-  showUValueBands: boolean;
   /** Floor plan image on the ground. Local to this browser, never exported. UI state. */
   underlay: Underlay | null;
   /** Result of the measure tool. UI state. */
   measurement: { a: Vec2; b: Vec2 } | null;
-  /** Footprint proposal from the vision pipeline, shown over the underlay until accepted. UI state. */
-  proposal: FootprintProposal | null;
   theme: Theme;
   /** Red lines for thermal bridges. UI state. */
   showBridges: boolean;
   /** How storeys other than the active one are drawn. UI state. */
   otherStoreys: OtherStoreys;
-  /** Section cut through the model. UI state. */
-  sectionCut: { enabled: boolean; axis: "horizontal" | "x" | "y"; value: number };
-  /** First person walkthrough. UI state. */
-  walkthrough: boolean;
-  /** Sun simulation: a real sun over the model for a day of the year and a local time. UI state. */
-  sun: { enabled: boolean; dayOfYear: number; minutes: number };
   /** OpenStreetMap tiles on the ground when a location is set. UI state. */
   showMap: boolean;
   mapOpacity: number;
@@ -191,11 +176,6 @@ export interface EditorState {
   cameraView: { view: CameraView; nonce: number };
   /** Storeys hidden with the eye in the layers panel. UI state. */
   hiddenStoreys: Id[];
-}
-
-export interface FootprintProposal {
-  footprint: Vec2[];
-  interiorWalls: { segment: Segment; confidence: number; enabled: boolean }[];
 }
 
 export interface Underlay {
@@ -389,22 +369,12 @@ export interface EditorActions {
   duplicateStorey: (storeyId: Id) => void;
   setPlanView: (on: boolean) => void;
   endPlanReveal: () => void;
-  setShowUValueBands: (on: boolean) => void;
   setUnderlay: (underlay: Underlay | null) => void;
   setMeasurement: (measurement: { a: Vec2; b: Vec2 } | null) => void;
-  setProposal: (proposal: FootprintProposal | null) => void;
-  toggleProposalWall: (index: number) => void;
-  /** Replaces the footprint and interior walls with the proposal in one undo step. */
-  acceptProposal: () => void;
   setTheme: (theme: Theme) => void;
   setShowMap: (on: boolean) => void;
   setShowBridges: (on: boolean) => void;
-  setSun: (patch: Partial<{ enabled: boolean; dayOfYear: number; minutes: number }>) => void;
   setOtherStoreys: (patch: Partial<OtherStoreys>) => void;
-  setSectionCut: (
-    patch: Partial<{ enabled: boolean; axis: "horizontal" | "x" | "y"; value: number }>,
-  ) => void;
-  setWalkthrough: (on: boolean) => void;
   setMapOpacity: (opacity: number) => void;
   setCameraView: (view: CameraView) => void;
   toggleStoreyHidden: (storeyId: Id) => void;
@@ -521,13 +491,6 @@ function remapEdgeRefs(state: EditorState, change: EdgeChange): void {
   if (state.selection?.kind === "wall") state.selection.wallIndex = to(state.selection.wallIndex);
 }
 
-function transformProposal(proposal: FootprintProposal, transform: (point: Vec2) => Vec2): void {
-  proposal.footprint = proposal.footprint.map(transform);
-  for (const wall of proposal.interiorWalls) {
-    wall.segment = { a: transform(wall.segment.a), b: transform(wall.segment.b) };
-  }
-}
-
 export function createEditorStore(initial?: Partial<EditorState>) {
   return create<EditorStore>()(
     history(
@@ -562,18 +525,13 @@ export function createEditorStore(initial?: Partial<EditorState>) {
           lastSeenAt: null,
           planView: false,
           planReveal: null,
-          showUValueBands: false,
           underlay: null,
           measurement: null,
-          proposal: null,
           theme: initial?.theme ?? "light",
           // The plain grid is the default ground; the map is an option in the settings.
           showMap: false,
           showBridges: false,
-          sun: { enabled: false, dayOfYear: 172, minutes: 14 * 60 },
-          sectionCut: { enabled: false, axis: "horizontal", value: 1.5 },
           otherStoreys: { above: "outline", below: "ghost", roof: "outline", ghostOpacity: 0.15 },
-          walkthrough: false,
           cameraView: { view: "3d", nonce: 0 },
           hiddenStoreys: [],
           mapOpacity: 0.85,
@@ -982,17 +940,12 @@ export function createEditorStore(initial?: Partial<EditorState>) {
           translateBuilding: (delta) => {
             set((state) => {
               state.building = translateBuilding(state.building, delta);
-              if (state.proposal)
-                transformProposal(state.proposal, (point) => translatePoint(point, delta));
             });
           },
 
           rotateBuilding: (degrees) => {
             set((state) => {
-              const centre = buildingCentre(state.building);
               state.building = rotateBuilding(state.building, degrees);
-              if (state.proposal)
-                transformProposal(state.proposal, (point) => rotatePoint(point, centre, degrees));
             });
           },
 
@@ -1008,10 +961,6 @@ export function createEditorStore(initial?: Partial<EditorState>) {
                 x: -centre.x,
                 y: -centre.y,
               });
-              if (state.proposal) {
-                const delta = { x: -centre.x, y: -centre.y };
-                transformProposal(state.proposal, (point) => translatePoint(point, delta));
-              }
             });
           },
 
@@ -1363,7 +1312,6 @@ export function createEditorStore(initial?: Partial<EditorState>) {
               state.viewScenarioId = null;
               state.underlay = null;
               state.measurement = null;
-              state.proposal = null;
             });
           },
 
@@ -1436,12 +1384,6 @@ export function createEditorStore(initial?: Partial<EditorState>) {
             });
           },
 
-          setShowUValueBands: (on) => {
-            set((state) => {
-              state.showUValueBands = on;
-            });
-          },
-
           setUnderlay: (underlay) => {
             set((state) => {
               state.underlay = underlay;
@@ -1451,25 +1393,6 @@ export function createEditorStore(initial?: Partial<EditorState>) {
           setOtherStoreys: (patch) => {
             set((state) => {
               state.otherStoreys = { ...state.otherStoreys, ...patch };
-            });
-          },
-
-          setSectionCut: (patch) => {
-            set((state) => {
-              state.sectionCut = { ...state.sectionCut, ...patch };
-            });
-          },
-
-          setWalkthrough: (on) => {
-            set((state) => {
-              state.walkthrough = on;
-              if (on) state.planView = false;
-            });
-          },
-
-          setSun: (patch) => {
-            set((state) => {
-              state.sun = { ...state.sun, ...patch };
             });
           },
 
@@ -1489,7 +1412,6 @@ export function createEditorStore(initial?: Partial<EditorState>) {
             set((state) => {
               state.cameraView = { view, nonce: state.cameraView.nonce + 1 };
               state.planView = false;
-              state.walkthrough = false;
             });
           },
 
@@ -1510,43 +1432,6 @@ export function createEditorStore(initial?: Partial<EditorState>) {
           setTheme: (theme) => {
             set((state) => {
               state.theme = theme;
-            });
-          },
-
-          setProposal: (proposal) => {
-            set((state) => {
-              state.proposal = proposal;
-            });
-          },
-
-          toggleProposalWall: (index) => {
-            set((state) => {
-              const w = state.proposal?.interiorWalls[index];
-              if (w) w.enabled = !w.enabled;
-            });
-          },
-
-          acceptProposal: () => {
-            const proposal = get().proposal;
-            if (!proposal) return;
-            const api = get() as unknown as EditorStore;
-            api.beginBatch();
-            try {
-              api.setFootprint(proposal.footprint);
-              const storeyId = get().activeStoreyId;
-              if (storeyId) {
-                const existing =
-                  get().building.storeys.find((st) => st.id === storeyId)?.interiorWalls.length ??
-                  0;
-                for (let i = existing - 1; i >= 0; i--) api.removeInteriorWall(storeyId, i);
-                for (const w of proposal.interiorWalls)
-                  if (w.enabled) api.addInteriorWall(storeyId, w.segment);
-              }
-            } finally {
-              api.endBatch();
-            }
-            set((state) => {
-              state.proposal = null;
             });
           },
 
@@ -1799,7 +1684,11 @@ export function createEditorStore(initial?: Partial<EditorState>) {
 
           setTool: (tool) => {
             set((state) => {
-              if (toolAllowed(tool, state.projectRole)) state.tool = tool;
+              if (!toolAllowed(tool, state.projectRole)) return;
+              state.tool = tool;
+              // The zones to paint with are listed with the building, shown when nothing is
+              // picked; a picked zone stays, it is the one being painted with.
+              if (tool === "zone" && state.selection?.kind !== "zone") state.selection = null;
             });
           },
 

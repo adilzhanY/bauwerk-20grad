@@ -119,7 +119,7 @@ function RadiatorMesh(props: {
       rotation={[0, yawFor(edge.direction), 0]}
       onClick={onClick}
       raycast={active ? meshRaycast : noRaycast}
-      castShadow
+
       {...hover}
     >
       <boxGeometry args={[width, height, RADIATOR_DEPTH]} />
@@ -194,7 +194,7 @@ function HeatPumpMesh({
   const { selected, hovered, onClick, hover } = useSelect(target, true);
   const h = kind === "air" ? 1.3 : 0.9;
   return (
-    <mesh position={[x, h / 2, y]} onClick={onClick} castShadow {...hover}>
+    <mesh position={[x, h / 2, y]} onClick={onClick} {...hover}>
       <boxGeometry args={[1.0, h, 0.4]} />
       <meshStandardMaterial
         color={selected ? colors.accent : hovered ? "#b3bcc6" : PUMP_COLOR}

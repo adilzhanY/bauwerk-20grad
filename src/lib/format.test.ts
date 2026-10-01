@@ -26,7 +26,8 @@ describe("formatNumber", () => {
 
   it("respects the digit limit and units", () => {
     expect(formatNumber(0.3456, "en", 2)).toBe("0.35");
-    expect(formatMetres(2.5, "de")).toBe("2,5 m");
+    expect(formatMetres(2.5, "de")).toBe("2,50 m");
+    expect(formatMetres(4.2, "en")).toBe("4.20 m");
     expect(formatArea(80, "en")).toBe("80 m²");
   });
 });

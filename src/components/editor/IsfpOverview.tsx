@@ -64,11 +64,11 @@ export function IsfpOverview({ building, energy }: { building: Building; energy:
         </div>
       </div>
       <CustomReadOnly label={t("isfp.co2")} value={`${num(supply.co2 / 1000, 1)} t`} />
-      <CustomReadOnly
-        label={t("isfp.eh")}
-        value={`${num(eh.ratio * 100)} % · ${eh.level ? t("isfp.ehLevel", { level: eh.level }) : t("isfp.ehNone")}`}
-      />
-      <CustomReadOnly label={t("isfp.lowTemp")} value={lowTemp} />
+      <CustomReadOnly label={t("isfp.eh")} value={`${num(eh.ratio * 100)} %`} />
+      <p className="-mt-2 text-sm leading-snug text-ink">
+        {eh.level ? t("isfp.ehLevel", { level: eh.level }) : t("isfp.ehNone")}
+      </p>
+      <CustomReadOnly label={t("isfp.lowTemp")} value={lowTemp} prose />
       <Hint>{t("isfp.ehHint")}</Hint>
     </Card>
   );

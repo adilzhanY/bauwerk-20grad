@@ -8,11 +8,12 @@ import { useEditorStore } from "@/store/building";
 import { CustomButton } from "@/components/shared/CustomButton";
 import { CustomSection } from "@/components/shared/CustomField";
 import { CustomNumberInput } from "@/components/shared/CustomNumberInput";
-import { FloorPlanSection } from "@/components/editor/FloorPlanSection";
-import { VisionSection } from "@/components/editor/VisionSection";
 
-/** Floor plan image on the ground for tracing. Local UI state only. */
-export function UnderlaySection() {
+/**
+ * A drawing on the ground under the model, to trace by hand. Local UI state only.
+ * `collapsible` folds it under its title, closed.
+ */
+export function UnderlaySection({ collapsible = false }: { collapsible?: boolean } = {}) {
   const t = useT();
   const language = useEditorStore((s) => s.language);
   const underlay = useEditorStore((s) => s.underlay);
@@ -51,10 +52,11 @@ export function UnderlaySection() {
   };
 
   return (
-    <CustomSection title={t("underlay.title")}>
+    <CustomSection title={t("underlay.title")} collapsible={collapsible}>
       <div className="flex flex-wrap gap-2">
         <CustomButton
           variant="quiet"
+          flush
           icon={<ImagePlus size={14} />}
           onClick={() => {
             fileInput.current?.click();
@@ -156,8 +158,6 @@ export function UnderlaySection() {
         )}
       </Presence>
       <Hint>{t("underlay.local")}</Hint>
-      <FloorPlanSection />
-      <VisionSection />
     </CustomSection>
   );
 }

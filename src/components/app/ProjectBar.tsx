@@ -96,7 +96,7 @@ export function ProjectBar() {
         })}
       </ol>
       <SaveProjectButton />
-      <div className="w-44">
+      <div className="w-52" title={t("project.stageLabel")}>
         <CustomSelect
           label={t("project.stageLabel")}
           hideLabel

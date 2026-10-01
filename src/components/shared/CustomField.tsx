@@ -1,7 +1,9 @@
 import { Hint } from "@/components/shared/Hint";
-import { useId } from "react";
+import { useId, useState } from "react";
 import type { ReactNode } from "react";
+import { ChevronRight } from "lucide-react";
 import { cx } from "@/components/shared/cx";
+import { Presence } from "./Presence";
 import { SectionLabel } from "./PageTitle";
 import { noteId } from "./noteId";
 
@@ -60,29 +62,86 @@ interface SectionProps {
   children: ReactNode;
   /** Draws the section without the top rule, for the first one in a panel. */
   first?: boolean;
+  /** The title opens and closes the section; it starts closed unless `defaultOpen`. */
+  collapsible?: boolean;
+  defaultOpen?: boolean;
 }
 
 /** A titled block in a side panel. The title is an h2 so panels read as an outline. */
-export function CustomSection({ title, action, children, first = false }: SectionProps) {
+export function CustomSection({
+  title,
+  action,
+  children,
+  first = false,
+  collapsible = false,
+  defaultOpen = false,
+}: SectionProps) {
+  const [open, setOpen] = useState(defaultOpen);
   return (
     <section
-      className={cx("flex flex-col gap-3.5 px-4 pt-4 pb-5", !first && "border-t border-line")}
+      className={cx(
+        "flex flex-col px-4 pt-4",
+        collapsible && !open ? "pb-4" : "gap-3.5 pb-5",
+        !first && "border-t border-line",
+      )}
     >
       <header className="flex h-7 items-center justify-between">
-        <SectionLabel>{title}</SectionLabel>
+        {collapsible ? (
+          <button
+            type="button"
+            aria-expanded={open}
+            onClick={() => {
+              setOpen(!open);
+            }}
+            className="-ml-1 flex h-7 flex-1 items-center gap-1 text-faint hover:text-ink"
+          >
+            <ChevronRight
+              size={13}
+              aria-hidden
+              className={cx("transition-transform", open && "rotate-90")}
+            />
+            <SectionLabel>{title}</SectionLabel>
+          </button>
+        ) : (
+          <SectionLabel>{title}</SectionLabel>
+        )}
         {action}
       </header>
-      {children}
+      {collapsible ? (
+        <Presence show={open} className="flex flex-col gap-3.5">
+          {children}
+        </Presence>
+      ) : (
+        children
+      )}
     </section>
   );
 }
 
-/** Label on the left, mono value on the right. */
-export function CustomReadOnly({ label, value }: { label: string; value: string }) {
+/**
+ * Label on the left, mono value on the right. `prose` is for a value that is a sentence: it
+ * goes under the label in the text font, left aligned, so it reads as a sentence.
+ */
+export function CustomReadOnly({
+  label,
+  value,
+  prose = false,
+}: {
+  label: string;
+  value: string;
+  prose?: boolean;
+}) {
   return (
-    <div className="flex items-baseline justify-between gap-3 border-b border-line pb-3.5 last:border-b-0 last:pb-0">
+    <div
+      className={cx(
+        "flex border-b border-line pb-3.5 last:border-b-0 last:pb-0",
+        prose ? "flex-col gap-0.5" : "items-baseline justify-between gap-3",
+      )}
+    >
       <span className="text-sm text-muted">{label}</span>
-      <span className="text-right font-num text-sm text-ink">{value}</span>
+      <span className={cx("text-sm text-ink", prose ? "leading-snug" : "text-right font-num")}>
+        {value}
+      </span>
     </div>
   );
 }

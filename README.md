@@ -29,14 +29,13 @@
 
 <img src="docs/shots/framed/openings.png" alt="Editing the first floor, the ground floor drawn as an outline below" width="100%" />
 
-Footprint, storeys, walls. Click an exterior wall with the Opening tool and you get a window,
-click an interior wall and you get a door, <kbd>Shift</kbd> swaps them. Drag an interior wall
+Footprint, storeys, walls. Window and Door are one click each in the tool bar: click a wall and
+the opening is there, <kbd>Shift</kbd> places the other kind. Drag an interior wall
 across a floor and rooms appear on their own with their areas; delete it and they merge back
 under their old names.
 
-Grab the whole house with <kbd>8</kbd> and slide it along the street: it is standing on its real
-OpenStreetMap plot, so the latitude and longitude update while you drag. Turn it and the south
-windows become west windows, and the solar gains follow. The floors you are not editing draw as
+The house stands on its real OpenStreetMap plot. Turn it in its location and the south windows
+become west windows, and the solar gains follow. The floors you are not editing draw as
 outlines, the way Revit's halftone underlay does it, so nothing hides your work. **Every drag,
 scrub and typed value is exactly one undo step.**
 
@@ -116,7 +115,7 @@ running, the same page comes back as a PDF.
 **It speaks the industry's formats too.** IFC4 export written by hand and validated with
 IfcOpenShell, where every opening is a real void filled by an IfcWindow or IfcDoor. IFC import
 with a report of what could not be read. GeoJSON in and out, UTM coordinates checked against PROJ
-to the millimetre. Or drop a photo of a floor plan and let the vision pipeline propose the outline.
+to the millimetre. Or drop a scanned floor plan and let the AI read its walls and doors onto the known outline.
 
 </td>
 </tr>
@@ -202,11 +201,11 @@ The address bar now carries `?project=…`; the same address in another tab or o
 opens the same building, and every change shows on the other side within a few milliseconds.
 Everyone sees the others' pointers and selections, a window someone drags moves live on every
 screen and cannot be grabbed until they let go, undo takes back only your own edits, and the
-History tab lists every version with a read-only preview and restore. For a second machine on
+history (the clock in the top bar) lists every version with a read-only preview and restore. For a second machine on
 the same network, start with `npm run dev -- --host` and open the printed Network address there.
 How it works, and why it is not a CRDT, is in `DECISIONS.md` (2026-09-25).
 
-In the editor, Settings, Examples, **Kreuzberg apartment house (demo)** loads the house from the
+With `?dev` in the address, the editor's Settings offer Examples; **Kreuzberg apartment house (demo)** loads the house from the
 screenshots. [`DEMO.md`](DEMO.md) is the eight-minute walkthrough. `/?bench=1` opens an
 18-storey tower with 719 openings and a frame time graph. `docker compose up --build` brings up
 Postgres, the collaboration API and the client together.

@@ -47,7 +47,7 @@ export function Roof() {
     select(ROOF_SELECTION);
   };
   return (
-    <mesh geometry={geometry} onClick={onClick} castShadow receiveShadow {...hover}>
+    <mesh geometry={geometry} onClick={onClick} {...hover}>
       <meshStandardMaterial
         color={ghost(selected ? colors.accent : hovered ? "#a1857a" : ROOF_COLOR)}
         emissive={selected ? colors.accent : "#000000"}

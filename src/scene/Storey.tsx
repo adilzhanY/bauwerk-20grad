@@ -55,7 +55,7 @@ export function Storey({ building, storey, elevation, active, display, ghostOpac
       {display === "outline" ? (
         <Outline geometry={slab} />
       ) : (
-        <mesh geometry={slab} receiveShadow raycast={() => null}>
+        <mesh geometry={slab} raycast={() => null}>
           <meshStandardMaterial color={ghost(colors.floor)} roughness={1} />
         </mesh>
       )}

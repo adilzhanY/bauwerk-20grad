@@ -28,7 +28,7 @@ export function OpeningsToolbar({
   const t = useT();
   const { language } = useFormat();
   const field = (label: string, key: "x" | "y" | "width" | "height") => (
-    <div className="w-28">
+    <div className="w-24">
       <CustomNumberInput
         label={label}
         value={selected ? selected[key] : 0}
@@ -71,23 +71,27 @@ export function OpeningsToolbar({
           </CustomButton>
         </div>
         <span aria-hidden className="mx-1 h-8 w-px self-center bg-line" />
-        {field("X", "x")}
-        {field("Y", "y")}
-        {field(t("photo.width"), "width")}
-        {field(t("photo.height"), "height")}
-        <div className="w-44">
-          <CustomSegmented
-            label={t("photo.kind")}
-            value={selected?.kind ?? "window"}
-            disabled={!selected}
-            options={[
-              { value: "window", label: t("photo.window") },
-              { value: "door", label: t("photo.door") },
-            ]}
-            onChange={(kind) => {
-              if (selected) onChange({ ...selected, kind });
-            }}
-          />
+        {/* The four numbers and the kind stay one group: when the bar wraps, it wraps
+            before them, never between X and Height. */}
+        <div className="flex items-end gap-3">
+          {field("X", "x")}
+          {field("Y", "y")}
+          {field(t("photo.width"), "width")}
+          {field(t("photo.height"), "height")}
+          <div className="w-44">
+            <CustomSegmented
+              label={t("photo.kind")}
+              value={selected?.kind ?? "window"}
+              disabled={!selected}
+              options={[
+                { value: "window", label: t("photo.window") },
+                { value: "door", label: t("photo.door") },
+              ]}
+              onChange={(kind) => {
+                if (selected) onChange({ ...selected, kind });
+              }}
+            />
+          </div>
         </div>
       </div>
       <Hint className="mt-1.5">{t("photo.fieldsHint")}</Hint>

@@ -1,4 +1,6 @@
 import { Presence } from "@/components/shared/Presence";
+import { CustomButton } from "@/components/shared/CustomButton";
+import { CustomDialog } from "@/components/shared/CustomDialog";
 import { useCallback, useEffect, useEffectEvent, useRef, useState } from "react";
 import type { Opening } from "lod2-core/openings";
 import {
@@ -356,9 +358,17 @@ export function PhotoEditorView({
     detectOpeningsOn(wallImage);
   };
 
-  const closeEditor = () => {
+  /** Asking whether the openings that are not in the model yet may be thrown away. */
+  const [askClose, setAskClose] = useState(false);
+  const discardAndClose = () => {
+    setAskClose(false);
     job.cancel();
     close();
+  };
+  // Found or drawn openings, or a detection still running: closing would lose that work.
+  const closeEditor = () => {
+    if (openings.list.length > 0 || job.scanning) setAskClose(true);
+    else discardAndClose();
   };
 
   // However the editor was closed, the photo is cleared once it has faded out, so it does
@@ -595,6 +605,31 @@ export function PhotoEditorView({
           />
         </div>
       </div>
+      <Presence show={askClose} kind="float">
+        <CustomDialog
+          title={t("photo.closeAsk.title")}
+          closeLabel={t("photo.close")}
+          onClose={() => {
+            setAskClose(false);
+          }}
+        >
+          <p className="text-sm text-ink">
+            {t("photo.closeAsk.body", { n: openings.list.length })}
+          </p>
+          <div className="mt-5 flex justify-end gap-2">
+            <CustomButton
+              onClick={() => {
+                setAskClose(false);
+              }}
+            >
+              {t("photo.closeAsk.keep")}
+            </CustomButton>
+            <CustomButton variant="danger" onClick={discardAndClose}>
+              {t("photo.closeAsk.discard")}
+            </CustomButton>
+          </div>
+        </CustomDialog>
+      </Presence>
     </div>
   );
 }

@@ -18,10 +18,6 @@ Import existing floor plans to build the storeys of the 3D model. The plans can 
 
 Work on real-time collaboration until it is complete and reliable enough to show and use.
 
-## Move the calculations out of the editor
-
-Hannes (co-founder, civil engineer) said that the calculations (heating cost, scenarios and so on) come afterwards in his work, not while the building is being taken up. Think about how to hide them in the editor, move them to a separate step, or into another app, so the editor stays about the building itself.
-
 ## A "Magic Box" instead of a complex interface
 
 Hannes said the interface is too difficult for the people who would use it. They need something more like a "Magic Box": put everything in (address, photos, plans, what is known about the building), it does its job, and they see the result. The detailed editor can stay for the cases that need it, but the main path should ask for inputs and show results, not expect people to operate the tools.

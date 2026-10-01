@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { ModelSnapshot } from "./ModelSnapshot";
 import { Canvas, useThree } from "@react-three/fiber";
-import { GizmoHelper, GizmoViewport, OrbitControls, OrthographicCamera } from "@react-three/drei";
+import { OrbitControls, OrthographicCamera } from "@react-three/drei";
 import { MOUSE, Object3D } from "three";
 import { bounds } from "@/geometry/polygon";
 import { planCamera } from "./planView";
@@ -13,15 +13,10 @@ import { Underlay } from "./Underlay";
 import { MapUnderlay } from "./MapUnderlay";
 import { ThermalBridges } from "./ThermalBridges";
 import { Roof } from "./Roof";
-import { ProposalOverlay } from "./ProposalOverlay";
 import { HeatPumps } from "./Hvac";
-import { Sun } from "./Sun";
-import { SectionCut } from "./SectionCut";
-import { Walkthrough } from "./Walkthrough";
 import { FrameProbe } from "./FrameProbe";
 import { storeyDisplay } from "./display";
 import type { RenderSample } from "./FrameProbe";
-import { UValueBands } from "./UValueBand";
 import { useEditorStore } from "@/store/building";
 import { Camera } from "./Camera";
 import { FollowCamera } from "./FollowCamera";
@@ -31,12 +26,12 @@ import { Ground } from "./Ground";
 import { RemoteCursors, ShareCursor } from "./RemoteCursors";
 import { FacadePhotos } from "./FacadePhotos";
 import { NotePins } from "./NotePins";
-import { PLAN_MIRROR, SHADOW_BIAS, SHADOW_NORMAL_BIAS } from "./three";
+import { PLAN_MIRROR } from "./three";
 import { Tools } from "./tools/Tools";
 import { Compass } from "./Compass";
+import { useSceneColors } from "./useSceneColors";
 import { FacadeLines } from "./FacadeLines";
 import { storeyElevation } from "@/store/selectors";
-import { colors } from "@/lib/colors";
 
 interface ViewportProps {
   onSample?: (s: RenderSample) => void;
@@ -48,53 +43,43 @@ const PLAN_MARGIN = 0.5;
 const PLAN_MIN_ZOOM = 0.5;
 const PLAN_MAX_PX_PER_METRE = 500;
 /**
- * The tool card, the storeys and the minimap at the left and the view switch at the top cover
- * this much, px, plus 80 px on every side for the dimension lines.
+ * The storeys at the left, the tool bar and the view switch at the top and the status line at
+ * the foot cover this much, px, plus 80 px on every side for the dimension lines.
  */
-const PLAN_INSETS = { left: 272 + 80, right: 24 + 80, top: 72 + 80, bottom: 24 + 80 };
-
-/** The axis gizmo's distance from the bottom right corner, px. */
-const GIZMO_BOTTOM = 76;
-const GIZMO_SIDE = 72;
+const PLAN_INSETS = { left: 80 + 80, right: 24 + 80, top: 120 + 80, bottom: 64 + 80 };
 
 export function Viewport({ onSample }: ViewportProps = {}) {
   const building = useEditorStore((s) => s.building);
   const activeStoreyId = useEditorStore((s) => s.activeStoreyId);
   const isPlanView = useEditorStore((s) => s.planView);
-  const sunEnabled = useEditorStore((s) => s.sun.enabled);
-  const walking = useEditorStore((s) => s.walkthrough);
   const otherStoreys = useEditorStore((s) => s.otherStoreys);
   const activeElevation = activeStoreyId ? storeyElevation(building, activeStoreyId) : 0;
   const footprintBounds = useMemo(() => bounds(building.footprint), [building.footprint]);
+  // Softer in the dark theme, where the light grey model would glare on the black ground.
+  const light = useSceneColors().light;
 
   return (
     <>
       <Canvas
-        shadows
         dpr={[1, 2]}
         camera={{ position: [18, 14, -18], fov: 45, near: 0.1, far: 500 }}
         gl={{ antialias: true, preserveDrawingBuffer: false }}
         style={{ background: "transparent" }}
       >
-        {/* Sky above, light pavement below: faces turned away from the sun still get the light
+        {/* Sky above, light pavement below: faces turned away from the light still get the light
           that bounces off the street, as a facade does, instead of going near black. */}
-        <hemisphereLight args={["#f1f4f9", "#b3b8c0", 1.3]} />
-        {/* World space: the camera, the pointer, the renderer's clipping (three.ts). */}
-        <SectionCut />
-        <Walkthrough />
+        <hemisphereLight args={["#f1f4f9", "#b3b8c0", 1.3 * light]} />
+        {/* World space: the camera and the pointer (three.ts). */}
         {isPlanView && <PlanViewCamera bounds={footprintBounds} elevation={activeElevation} />}
         <ShareCursor />
         <HoverCursor />
         {/* Everything drawn is built in plan space; this group turns it into world space. */}
         <group scale={PLAN_MIRROR}>
-          <Sun />
-          <DefaultDirectionalLight bounds={footprintBounds} intensity={sunEnabled ? 0.25 : 1.6} />
+          <DefaultDirectionalLight bounds={footprintBounds} intensity={1.6 * light} />
           <Ground />
           <Grid />
           <MapUnderlay />
           <Underlay />
-          <ProposalOverlay />
-          <UValueBands />
           <ThermalBridges />
           {!isPlanView && <Roof />}
           <HeatPumps />
@@ -125,7 +110,7 @@ export function Viewport({ onSample }: ViewportProps = {}) {
           <RemoteCursors />
           <Tools />
         </group>
-        {!walking && !isPlanView && (
+        {!isPlanView && (
           <OrbitControls
             makeDefault
             enableDamping
@@ -138,15 +123,6 @@ export function Viewport({ onSample }: ViewportProps = {}) {
         )}
         <Camera />
         <FollowCamera />
-        {!isPlanView && !walking && (
-          <GizmoHelper alignment="bottom-right" margin={[GIZMO_SIDE, GIZMO_BOTTOM]}>
-            <GizmoViewport
-              axisColors={[colors.muted, colors.muted, colors.muted]}
-              labelColor="#ffffff"
-              axisHeadScale={0.9}
-            />
-          </GizmoHelper>
-        )}
         {onSample && <FrameProbe onSample={onSample} />}
       </Canvas>
       {/* The project card's picture, drawn apart from this view. */}
@@ -223,16 +199,8 @@ function DefaultDirectionalLight({
         position={[centre[0] + 20, 30, centre[2] + 10]}
         target={target}
         intensity={intensity}
-        castShadow
-        shadow-mapSize={[2048, 2048]}
-        shadow-bias={SHADOW_BIAS}
-        shadow-normalBias={SHADOW_NORMAL_BIAS}
-        shadow-camera-left={-40}
-        shadow-camera-right={40}
-        shadow-camera-top={40}
-        shadow-camera-bottom={-40}
       />
-      {/* A weak fill from the opposite side, without shadows, so the walls the main light
+      {/* A weak fill from the opposite side, so the walls the main light
           does not reach keep their colour and their openings stay readable. */}
       <directionalLight
         position={[centre[0] - 20, 18, centre[2] - 10]}

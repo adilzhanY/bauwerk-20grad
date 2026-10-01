@@ -4,7 +4,7 @@ import { ThreadsSection } from "@/components/editor/ThreadsSection";
 import { Presence } from "@/components/shared/Presence";
 import { Notice } from "@/components/shared/Notice";
 import { Hint } from "@/components/shared/Hint";
-import { useId, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { currentProjectRef, removePhoto } from "@/projects/projects";
 import { Camera, Trash2 } from "lucide-react";
 import { openingsOn, validateOpening } from "@/geometry/openings";
@@ -25,12 +25,10 @@ import { CustomNumberInput } from "@/components/shared/CustomNumberInput";
 import { CustomSegmented } from "@/components/shared/CustomSegmented";
 import { CustomSelect } from "@/components/shared/CustomSelect";
 import { CustomSwatches } from "@/components/shared/CustomSwatches";
-import { CustomTabPanel, CustomTabs } from "@/components/shared/CustomTabs";
-import { HistoryPanel } from "@/components/editor/HistoryPanel";
-import { FilesPanel } from "@/components/editor/FilesPanel";
 import { CustomTextInput } from "@/components/shared/CustomTextInput";
-import { ConstructionSelect, EnergyPanel } from "@/components/editor/EnergyPanel";
-import { ScenariosPanel } from "@/components/editor/ScenariosPanel";
+import { ConstructionSelect } from "@/components/editor/EnergyPanel";
+import { LocationSection } from "@/components/editor/LocationSection";
+import { ZonesSection } from "@/components/editor/ZonesSection";
 import { SourceNote } from "@/components/editor/SourceNote";
 import { WindowTypePicker } from "@/components/editor/WindowTypePicker";
 import { NotesSection } from "@/components/editor/NotesSection";
@@ -58,81 +56,34 @@ const openingErrorKey: Record<OpeningError, MessageKey> = {
   nonFinite: "opening.error.nonFinite",
 };
 
-type Tab = "properties" | "energy" | "scenarios" | "history" | "files";
-
+/**
+ * The properties panel at the right of the editor: what is picked, or with nothing picked the
+ * building itself. Calculations (energy, variants) live on the Variants step, the history
+ * behind the clock in the top bar, the files in the survey list on the left.
+ */
 export function RightPanel() {
   const t = useT();
-  const tabsId = useId();
   const selection = useEditorStore((s) => s.selection);
-  const [tab, setTab] = useState<Tab>("properties");
-  // Files belong to a project on the server.
-  const serverProject = useEditorStore((s) => s.projectId !== null);
-  const [lastSelection, setLastSelection] = useState(selection);
-  if (selection !== lastSelection) {
-    // A fresh selection brings the properties tab forward.
-    setLastSelection(selection);
-    if (selection) setTab("properties");
-  }
   return (
     <aside
       aria-label={t("a11y.rightPanel")}
       className="pointer-events-auto flex h-full min-h-0 flex-col overflow-hidden border-l border-line bg-paper"
     >
       <PanelHeader />
-      <CustomTabs
-        id={tabsId}
-        label={t("panel.properties")}
-        value={tab}
-        tabs={[
-          { value: "properties", label: t("tabs.properties") },
-          { value: "energy", label: t("tabs.energy") },
-          { value: "scenarios", label: t("tabs.scenarios") },
-          { value: "history", label: t("tabs.history") },
-          ...(serverProject ? [{ value: "files" as const, label: t("tabs.files") }] : []),
-        ]}
-        onChange={setTab}
-      />
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        {tab === "properties" ? (
-          <CustomTabPanel id={tabsId} value="properties">
-            {selection ? (
-              <CustomSection title={t("panel.properties")} first>
-                <Properties selection={selection} />
-                <Notes target={noteTargetOf(selection)} />
-              </CustomSection>
-            ) : (
-              <>
-                <BuildingCard />
-                <CustomSection title={t("notes.building")}>
-                  <Notes target={{ kind: "building" }} />
-                </CustomSection>
-              </>
-            )}
-          </CustomTabPanel>
-        ) : tab === "energy" ? (
-          <CustomTabPanel id={tabsId} value="energy">
-            <CustomSection title={t("energy.title")} first>
-              <EnergyPanel />
-            </CustomSection>
-          </CustomTabPanel>
-        ) : tab === "scenarios" ? (
-          <CustomTabPanel id={tabsId} value="scenarios">
-            <CustomSection title={t("scenarios.title")} first>
-              <ScenariosPanel />
-            </CustomSection>
-          </CustomTabPanel>
-        ) : tab === "files" && serverProject ? (
-          <CustomTabPanel id={tabsId} value="files">
-            <CustomSection title={t("files.title")} first>
-              <FilesPanel />
-            </CustomSection>
-          </CustomTabPanel>
+      {/* The gutter stays when there is nothing to scroll, so the content never jumps sideways. */}
+      <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
+        {selection ? (
+          <CustomSection title={t("panel.properties")} first>
+            <Properties selection={selection} />
+            <Notes target={noteTargetOf(selection)} />
+          </CustomSection>
         ) : (
-          <CustomTabPanel id={tabsId} value="history">
-            <CustomSection title={t("history.title")} first>
-              <HistoryPanel />
+          <>
+            <BuildingCard />
+            <CustomSection title={t("notes.building")}>
+              <Notes target={{ kind: "building" }} />
             </CustomSection>
-          </CustomTabPanel>
+          </>
         )}
       </div>
     </aside>
@@ -167,6 +118,8 @@ function BuildingCard() {
   const language = useEditorStore((s) => s.language);
   const building = useEditorStore((s) => s.building);
   const renameBuilding = useEditorStore((s) => s.renameBuilding);
+  const setWallThickness = useEditorStore((s) => s.setWallThickness);
+  const select = useEditorStore((s) => s.select);
   const resizeFootprint = useEditorStore((s) => s.resizeFootprint);
   const eave = useEditorStore(selectTotalHeight);
   const floorArea = useEditorStore(selectTotalFloorArea);
@@ -175,7 +128,6 @@ function BuildingCard() {
   const m = t("common.metres");
   const roof = roofOf(building);
   const ridge = eave + buildRoof(building, eave).ridgeHeight;
-  const origin = building.origin;
   return (
     <>
       <CustomSection title={t("card.building")} first>
@@ -185,9 +137,37 @@ function BuildingCard() {
           value={building.name}
           onCommit={renameBuilding}
         />
+        <CustomNumberInput
+          label={t("settings.wallThickness")}
+          value={building.wallThickness}
+          min={0.1}
+          max={1}
+          step={0.05}
+          unit={m}
+          language={language}
+          onChange={setWallThickness}
+          {...batch}
+        />
         <CustomReadOnly label={t("status.storeys")} value={String(building.storeys.length)} />
         <CustomReadOnly label={t("card.floorArea")} value={formatArea(floorArea, language)} />
-        <CustomReadOnly label={t("roof.kind")} value={t(`roof.${roof.kind}`)} />
+        <CustomReadOnly
+          label={t("roof.kind")}
+          value={
+            roof.kind === "flat"
+              ? t("roof.flat")
+              : `${t(`roof.${roof.kind}`)}, ${formatNumber(roof.pitch, language, 0)}°`
+          }
+        />
+        <CustomButton
+          variant="quiet"
+          flush
+          className="self-start"
+          onClick={() => {
+            select({ kind: "roof" });
+          }}
+        >
+          {t("card.editRoof")}
+        </CustomButton>
       </CustomSection>
       <CustomSection title={t("card.dimensions")}>
         {box ? (
@@ -229,24 +209,8 @@ function BuildingCard() {
         <CustomReadOnly label={t("card.eaveHeight")} value={formatMetres(eave, language)} />
         <CustomReadOnly label={t("card.ridgeHeight")} value={formatMetres(ridge, language)} />
       </CustomSection>
-      <Presence value={origin}>
-        {(origin) => (
-          <CustomSection title={t("card.location")}>
-            <CustomReadOnly
-              label={t("card.latitude")}
-              value={`${formatNumber(origin.lat, language, 5)}°`}
-            />
-            <CustomReadOnly
-              label={t("card.longitude")}
-              value={`${formatNumber(origin.lon, language, 5)}°`}
-            />
-            <CustomReadOnly
-              label={t("card.bearing")}
-              value={`${formatNumber(origin.rotation, language, 0)}°`}
-            />
-          </CustomSection>
-        )}
-      </Presence>
+      <LocationSection collapsible />
+      <ZonesSection />
     </>
   );
 }
@@ -932,7 +896,7 @@ function OpeningProperties({ storeyId, openingId }: { storeyId: string; openingI
           {...batch}
         />
       </Presence>
-      <Presence show={!opening.interior}>
+      <Presence show={!opening.interior} className="flex flex-col gap-3.5">
         <ConstructionSelect
           category={opening.kind}
           value={opening.constructionId}
@@ -1064,7 +1028,7 @@ function StoreyProperties({ storeyId }: { storeyId: string }) {
         value={storey.height}
         min={2}
         max={6}
-        step={0.1}
+        step={0.01}
         unit={t("common.metres")}
         language={language}
         onChange={(h) => {

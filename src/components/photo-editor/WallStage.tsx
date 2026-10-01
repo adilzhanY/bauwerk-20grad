@@ -296,11 +296,10 @@ function OpeningBox({
         height: bottomRight.y - topLeft.y,
       }}
     >
-      {/* Width over height, small, so the label fits inside a typical window. */}
+      {/* Width by height, under the box, so the window itself stays in view. */}
       {showSize && (
         <span className="opening-label" title={format.size(opening.width, opening.height)}>
-          <span>{format.num(opening.width, 2)} x</span>
-          <span>{format.num(opening.height, 2)} m</span>
+          {format.num(opening.width, 2)} × {format.num(opening.height, 2)} m
         </span>
       )}
     </div>

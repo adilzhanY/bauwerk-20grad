@@ -17,7 +17,7 @@ export function Outline({
   useDisposableGeometry(edges);
   return (
     <lineSegments geometry={edges} position={position} raycast={() => null}>
-      <lineBasicMaterial color={scene.gridStrong} transparent opacity={0.9} depthWrite={false} />
+      <lineBasicMaterial color={scene.outline} transparent opacity={0.9} depthWrite={false} />
     </lineSegments>
   );
 }

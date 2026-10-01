@@ -70,19 +70,19 @@ describe("accessibility", () => {
   it("every control has an accessible name across all sections and tabs", () => {
     const { container } = render(<App />);
     expectAllNamed(container);
-    for (const section of ["Zones", "Site", "Underlay", "Settings"]) {
-      fireEvent.click(screen.getByRole("tab", { name: section }));
-      expectAllNamed(container);
-    }
-    for (const tab of ["Energy", "Scenarios", "Properties"]) {
-      fireEvent.click(screen.getByRole("tab", { name: tab }));
-      expectAllNamed(container);
-    }
+    fireEvent.click(screen.getByRole("button", { name: "Elements" }));
+    fireEvent.click(screen.getByRole("button", { name: "Location" }));
+    expectAllNamed(container);
+    // The menus over the 3D view.
+    fireEvent.click(screen.getByRole("button", { name: "More" }));
+    expectAllNamed(document.body);
+    fireEvent.click(screen.getByRole("button", { name: /View/ }));
+    expectAllNamed(document.body);
   });
 
   it("Escape returns to the select tool and clears the selection", () => {
     render(<App />);
-    useEditorStore.getState().setTool("opening");
+    useEditorStore.getState().setTool("window");
     useEditorStore.getState().select({ kind: "roof" });
     fireEvent.keyDown(window, { key: "Escape" });
     expect(useEditorStore.getState().tool).toBe("select");
@@ -91,6 +91,7 @@ describe("accessibility", () => {
 
   it("selected rooms and storeys expose their state", () => {
     render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Elements" }));
     const tree = screen.getByRole("tree", { name: "Layers" });
     const storey = within(tree).getByRole("button", { name: /^Ground floor/ });
     expect(storey.getAttribute("aria-current")).toBe("true");

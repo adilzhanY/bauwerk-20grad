@@ -55,7 +55,7 @@ export function PlanHandles({
   const scene = useSceneColors();
   const lock = useDragLock();
   const drag = useRef<Drag | null>(null);
-  const editable = tool === "select" || tool === "opening";
+  const editable = tool === "select" || tool === "window" || tool === "door";
   const [cursor, setCursor] = useState<string | null>(null);
   useCanvasCursor(cursor);
 

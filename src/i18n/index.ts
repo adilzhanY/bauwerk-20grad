@@ -35,6 +35,11 @@ export function defaultRoomName(index: number, language: Language): string {
   return language === "de" ? `Raum ${index}` : `Room ${index}`;
 }
 
+/** A room still called by its number ("Room 3", "Raum 3"), in either language: not named yet. */
+export function isDefaultRoomName(name: string): boolean {
+  return /^(Room|Raum) \d+$/.test(name.trim());
+}
+
 export function detectLanguage(): Language {
   const tag = typeof navigator === "undefined" ? "en" : navigator.language;
   return tag.toLowerCase().startsWith("de") ? "de" : "en";

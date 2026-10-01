@@ -51,7 +51,7 @@ export function Toast({
 
 /**
  * Where toasts stand: centred near the top of the area, one under the other. "below-bar"
- * starts them under a 44 px bar that owns the top edge, such as the editor's view switch.
+ * starts them under the editor's two bars at the top (tools, then views, 44 px each).
  */
 export function ToastStack({
   children,
@@ -64,7 +64,7 @@ export function ToastStack({
     <div
       className={cx(
         "pointer-events-none absolute left-1/2 z-10 flex -translate-x-1/2 flex-col items-center gap-2",
-        offset === "top" ? "top-4" : "top-16",
+        offset === "top" ? "top-4" : "top-32",
       )}
     >
       {children}

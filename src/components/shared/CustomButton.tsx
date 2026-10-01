@@ -10,6 +10,11 @@ interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
   loading?: boolean;
   /** "md" in panels and bars; "lg" for the one main action of a page. */
   size?: "md" | "lg";
+  /**
+   * A quiet button alone in a column of fields: its label starts where the labels above it
+   * start, instead of a padding further in.
+   */
+  flush?: boolean;
 }
 
 const variants: Record<ButtonVariant, string> = {
@@ -25,6 +30,7 @@ export function CustomButton({
   icon,
   loading = false,
   size = "md",
+  flush = false,
   className,
   children,
   disabled,
@@ -40,6 +46,7 @@ export function CustomButton({
         size === "md" ? "h-9 px-3" : "h-11 px-5 font-semibold",
         "disabled:cursor-not-allowed disabled:opacity-40",
         variants[variant],
+        flush && (size === "md" ? "-ml-3" : "-ml-5"),
         className,
       )}
       {...rest}

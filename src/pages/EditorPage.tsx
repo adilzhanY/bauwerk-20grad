@@ -11,12 +11,14 @@ import { NoAccess } from "@/components/editor/NoAccess";
 import { FollowFrame } from "@/components/editor/PeopleHere";
 import { LeftPanel } from "@/components/editor/LeftPanel";
 import { RightPanel } from "@/components/editor/RightPanel";
+import { HistoryDrawer } from "@/components/editor/HistoryDrawer";
 import { WebGLMissing } from "@/components/app/States";
 import { EmptyState } from "@/components/editor/EmptyState";
 import { EditorHeader } from "@/components/editor/EditorHeader";
 import { Minimap } from "@/components/editor/Minimap";
+import { StatusLine } from "@/components/editor/StatusLine";
 import { StoreyPill } from "@/components/editor/StoreyPill";
-import { ToolDock } from "@/components/editor/ToolDock";
+import { ToolBar } from "@/components/editor/ToolBar";
 import { ViewPill } from "@/components/editor/ViewPill";
 import { useKeyboardShortcuts } from "@/components/editor/useKeyboardShortcuts";
 import { useT } from "@/i18n/useT";
@@ -26,15 +28,18 @@ import { SinceLastVisit } from "@/components/editor/SinceLastVisit";
 import { OverwriteNotice } from "@/components/editor/OverwriteNotice";
 import { WallPhotoEditor } from "@/components/photo-editor/WallPhotoEditor";
 
-/** Widths of the side panels, px. */
-const LEFT_PANEL = 300;
-const RIGHT_PANEL = 400;
+/**
+ * Widths of the side panels: narrower on a small window, so the 3D view keeps room for its
+ * bars from the editor's minimum width of 1200 px up.
+ */
+const LEFT_PANEL = "clamp(264px, 22vw, 300px)";
+const RIGHT_PANEL = "clamp(320px, 26vw, 400px)";
 
 /**
- * The Bauwerk editor, laid out like the 20° app: the layers panel docked on the left, the
- * properties panel docked on the right, and between them the 3D view on its blue-grey ground
- * with the tool card and the storeys at the top left, the view switch at the top, and the
- * minimap at the bottom left. The building name, undo and Export sit in the top bar.
+ * The Bauwerk editor: the survey panel docked on the left, the properties panel on the right,
+ * and between them the 3D view on its blue-grey ground. Over the view, top left, the tool bar
+ * and under it the view switch, then the storeys; at the foot the minimap and the status line
+ * with the tool's hint. The building name, undo, the history and Export sit in the top bar.
  */
 export function EditorPage({
   sync = LOCAL_SYNC,
@@ -46,22 +51,29 @@ export function EditorPage({
   const webgl = useMemo(() => hasWebGL(), []);
   const hasStoreys = useEditorStore((s) => s.building.storeys.length > 0);
   const tool = useEditorStore((s) => s.tool);
-  const mapVisible = useEditorStore((s) => s.showMap && s.building.origin !== undefined);
   const t = useT();
   const [panelsOpen, setPanelsOpen] = useState(true);
   const [layersOpen, setLayersOpen] = useState(true);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   // Signed in, but not a member and without a share link: ask the owner instead.
   const blocked = sync.status === "noAccess" ? projectIdFromUrl() : null;
   if (blocked) return <NoAccess projectId={blocked} />;
 
   return (
-    <div className="flex h-full" data-tool={tool}>
+    <div className="relative flex h-full" data-tool={tool}>
       <WallPhotoEditor />
-      <EditorHeader syncStatus={sync.status} actor={sync.status === "local" ? null : sync} />
+      <EditorHeader
+        syncStatus={sync.status}
+        actor={sync.status === "local" ? null : sync}
+        historyOpen={historyOpen}
+        onToggleHistory={() => {
+          setHistoryOpen(!historyOpen);
+        }}
+      />
       <Presence show={panelsOpen && layersOpen} kind="float">
         <Floating fade className="shrink-0" style={{ width: LEFT_PANEL }}>
-          <LeftPanel syncStatus={sync.status} />
+          <LeftPanel />
         </Floating>
       </Presence>
       <div className="scene-ground relative min-w-0 flex-1 overflow-hidden">
@@ -71,7 +83,7 @@ export function EditorPage({
           {!hasStoreys ? <EmptyState /> : webgl ? <Viewport /> : <WebGLMissing />}
         </main>
         <FollowFrame />
-        {/* Under the view switch, which owns the top centre. */}
+        {/* Under the two bars, which own the top left. */}
         <ToastStack offset="below-bar">
           <VersionPreviewBanner />
           <SinceLastVisit />
@@ -80,10 +92,10 @@ export function EditorPage({
             {(r) => <SyncRejectNotice rejection={r} onDismiss={sync.dismissRejection} />}
           </Presence>
         </ToastStack>
-        {/* A container, so the cards rearrange by the room the panels leave, not by the window. */}
+        {/* A container, so the bars rearrange by the room the panels leave, not by the window. */}
         <div className="@container pointer-events-none absolute inset-0 p-4">
-          <div className="absolute top-4 left-4 flex items-start gap-2">
-            <ToolDock
+          <div className="absolute top-4 right-4 left-4 flex flex-col items-start gap-2">
+            <ToolBar
               layersOpen={panelsOpen && layersOpen}
               onToggleLayers={() => {
                 if (!panelsOpen) {
@@ -92,38 +104,38 @@ export function EditorPage({
                 } else setLayersOpen(!layersOpen);
               }}
             />
-            {hasStoreys && <StoreyPill />}
-          </div>
-          <div className="absolute top-4 right-4 @min-[44rem]:right-auto @min-[44rem]:left-1/2 @min-[44rem]:-translate-x-1/2">
             <ViewPill
               panelsOpen={panelsOpen}
               onTogglePanels={() => {
                 setPanelsOpen(!panelsOpen);
               }}
             />
+            {hasStoreys && <StoreyPill />}
           </div>
           <Presence show={hasStoreys} kind="float">
             <Floating className="absolute bottom-4 left-4">
               <Minimap />
             </Floating>
           </Presence>
-          <Presence show={mapVisible && hasStoreys} kind="float">
-            <Floating className="absolute right-4 bottom-2">
-              <a
-                href="https://www.openstreetmap.org/copyright"
-                target="_blank"
-                rel="noreferrer"
-                className="pointer-events-auto rounded-soft bg-paper/85 px-2 py-0.5 text-xs text-muted hover:text-ink"
-              >
-                {t("map.attribution")}
-              </a>
-            </Floating>
-          </Presence>
+          {/* Beside the minimap, the width of the view that is left. */}
+          <div className="absolute right-4 bottom-4 left-[16.5rem] flex justify-end">
+            <StatusLine />
+          </div>
         </div>
       </div>
       <Presence show={panelsOpen} kind="float">
         <Floating fade className="shrink-0" style={{ width: RIGHT_PANEL }}>
           <RightPanel />
+        </Floating>
+      </Presence>
+      {/* Over the properties panel, where the old versions are read beside the model. */}
+      <Presence show={historyOpen} kind="float">
+        <Floating className="absolute top-0 right-0 bottom-0 z-30" style={{ width: RIGHT_PANEL }}>
+          <HistoryDrawer
+            onClose={() => {
+              setHistoryOpen(false);
+            }}
+          />
         </Floating>
       </Presence>
     </div>

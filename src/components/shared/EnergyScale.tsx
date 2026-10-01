@@ -9,6 +9,8 @@ import { useT } from "@/i18n/useT";
 import { formatNumber } from "@/lib/format";
 import { useEditorStore } from "@/store/building";
 
+const UNIT = "kWh/(m²a)";
+
 interface Props {
   current: EnergySummary;
   /** Second marker below the band, for a scenario. */
@@ -114,20 +116,11 @@ export function EnergyScale({ current, compare, compareLabel, variant }: Props) 
             fill={ink}
             opacity="0.7"
           >
-            {v}
+            {/* The unit rides on the first tick, where the next one leaves room for it. */}
+            {v === 0 ? `0 ${UNIT}` : v}
           </text>
         </g>
       ))}
-      <text
-        x={w - (panel ? 34 : 26)}
-        y={h - 2}
-        fontSize={tickFont}
-        textAnchor="end"
-        fill={ink}
-        opacity="0.7"
-      >
-        {"kWh/(m²a)"}
-      </text>
       {marker(current.specificEndEnergy, t("energy.scenario.current"), true)}
       {compare &&
         marker(compare.specificEndEnergy, compareLabel ?? t("energy.scenario.renovated"), false)}

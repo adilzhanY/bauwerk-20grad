@@ -1223,3 +1223,15 @@ Goal: the iSFP roadmap as named variants side by side. Answers product thinking.
 - [x] Translate its building, storey, room and zone names when the language changes.
 - [x] Validate both languages and test its dimensions, totals and Load example path.
 - [ ] Manual check: load the large office tower and inspect orbiting, storey selection and frame rate.
+
+## 41. The editor for the survey (2026-10-01)
+
+From the product audit and Hannes's two points (calculations come after the survey; the interface is too hard). Moved here from `IDEAS.md`.
+
+- [x] Remove what a survey does not use: real sun and shadows (solar gains stay, `geometry/solarGains.ts`), walkthrough, section cut, axis gizmo, the move tool, U-value colour bands, the classical plan scan, the duplicate View settings; example buildings only with `?dev`.
+- [x] Calculations leave the editor: Energy and Scenarios only on the Variants step, Heating under "More", thermal bridges in the View menu, history behind a clock in the top bar, files only in the survey list with delete in their row.
+- [x] Right panel is Properties only; nothing picked shows the building with wall thickness, roof, location (folded) and zones.
+- [x] Left panel "Survey": per storey its height, floor plan (Add plan reads it for that storey) and rooms; one row per outside wall with its photo or Add photo; the roof; files; the element tree folded under Elements; on to Variants at the foot.
+- [x] One tool bar over the view (Select, Wall, Window, Door, Measure, More), the view switch under it (3D, Plan, N, E, S, W, View menu), "+" on the storey card, the tool hint as a status line; keys 1 to 8 in that order.
+- [x] Walk-through findings 10 to 34 for the editor, the Variants step and the photo editor.
+- [ ] Manual check: the editor at 1200, 1280 and 1600 px wide, light and dark, English and German.
