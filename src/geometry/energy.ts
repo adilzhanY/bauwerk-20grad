@@ -9,15 +9,7 @@ import { clipSegmentToPolygon, splitSegments } from "./rooms";
 import { GAIN_UTILISATION, GLAZING_G, solarGains } from "./sun";
 import { countedOpenings, openingsOn } from "./openings";
 import { windowType } from "./windows";
-import {
-  area,
-  edges,
-  pointInPolygon,
-  pointOnSegment,
-  spansOnEdge,
-  sub,
-  distance,
-} from "./polygon";
+import { area, edges, pointInPolygon, pointOnSegment, spansOnEdge, sub, distance } from "./polygon";
 import type { Edge } from "./polygon";
 import type {
   Building,

@@ -152,9 +152,7 @@ export function buildRoof(building: Building, topElevation: number): RoofGeometr
   // Without collinear vertices: a "+" on a wall must not turn a rectangle (hip) into a
   // six-cornered outline (gable fallback).
   const fp = cleanRing(
-    isCounterClockwise(building.footprint)
-      ? building.footprint
-      : [...building.footprint].reverse(),
+    isCounterClockwise(building.footprint) ? building.footprint : [...building.footprint].reverse(),
   );
   if (roof.kind === "flat") {
     const f = face(fp, () => topElevation);

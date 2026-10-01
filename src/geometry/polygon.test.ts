@@ -183,7 +183,12 @@ describe("edge cases", () => {
   });
 
   it("intersects nearly parallel lines far away and gives up only when exactly parallel", () => {
-    const p = lineIntersection({ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 0, y: 1 }, { x: 10, y: 1.0001 });
+    const p = lineIntersection(
+      { x: 0, y: 0 },
+      { x: 10, y: 0 },
+      { x: 0, y: 1 },
+      { x: 10, y: 1.0001 },
+    );
     expect(p!.x).toBeCloseTo(-1e5, 3);
     expect(p!.y).toBeCloseTo(0, 9);
     expect(lineIntersection({ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 })).toBe(

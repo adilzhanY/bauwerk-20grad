@@ -52,8 +52,7 @@ export function sharedAfterRemove(
 
 /** A footprint edit that renumbers the edges. */
 export type EdgeChange =
-  | { kind: "split"; edge: number }
-  | { kind: "remove"; vertex: number; count: number };
+  { kind: "split"; edge: number } | { kind: "remove"; vertex: number; count: number };
 
 /**
  * Where something on footprint edge `index` goes after `change`. `same` is false when its wall

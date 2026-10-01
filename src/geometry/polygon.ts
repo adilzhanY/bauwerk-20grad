@@ -246,8 +246,9 @@ export function interiorPoint(polygon: readonly Vec2[]): Vec2 {
   let best: Vec2 = c;
   let widest = 0;
   for (let i = 0; i + 1 < xs.length; i += 2) {
-    const x0 = xs[i]!;
-    const x1 = xs[i + 1]!;
+    const x0 = xs[i];
+    const x1 = xs[i + 1];
+    if (x0 === undefined || x1 === undefined) continue;
     if (x1 - x0 > widest) {
       widest = x1 - x0;
       best = { x: (x0 + x1) / 2, y };
