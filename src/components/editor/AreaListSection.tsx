@@ -9,7 +9,7 @@ import { formatNumber } from "@/lib/format";
 import { useEditorStore } from "@/store/building";
 import { CustomButton } from "@/components/shared/CustomButton";
 import { buildingFileName, downloadFile } from "@/lib/download";
-import { AREA_HEADER_KEYS, DIRECTION_KEYS, ELEMENT_KEYS } from "@/components/editor/areaWords";
+import { AREA_HEADER_KEYS, DIRECTION_KEYS, ELEMENT_KEYS } from "@/lib/areaWords";
 
 /** Makes a spreadsheet read the file as UTF-8, so the umlauts come out right. */
 const BYTE_ORDER_MARK = String.fromCharCode(0xfeff);

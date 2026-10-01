@@ -59,7 +59,13 @@ export function MediaLayers({ onPreview }: { onPreview: (item: PreviewItem) => v
   const total = photoCount + plansShown.length + own.length;
 
   return (
-    <LayerGroup level={1} icon={<Images size={14} />} label={t("tree.media")} count={total} alwaysOpenable>
+    <LayerGroup
+      level={1}
+      icon={<Images size={14} />}
+      label={t("tree.media")}
+      count={total}
+      alwaysOpenable
+    >
       <LayerGroup level={2} label={t("tree.facadePhotos")} count={photoCount} alwaysOpenable>
         {walls.map((wall) => {
           const photo = photos[wall.index];

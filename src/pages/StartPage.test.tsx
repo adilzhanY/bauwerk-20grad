@@ -4,7 +4,7 @@ import { useRouter } from "@/app/router";
 import { StartPage } from "./StartPage";
 
 // The map needs WebGL, which jsdom does not have.
-vi.mock("@/components/map/BuildingMap", () => ({ BuildingMap: () => null }));
+vi.mock("@/components/shared/BuildingMap", () => ({ BuildingMap: () => null }));
 
 describe("StartPage", () => {
   it("offers the example buildings while the search is empty and opens one", () => {

@@ -78,14 +78,18 @@ export function ShareDialog({ onClose }: { onClose: () => void }) {
     };
   }, [projectId, owner, round]);
 
-  const act = async (job: () => Promise<unknown>) => {
+  /** Runs a change and reloads the lists; resolves false when it failed (and says so). */
+  const act = async (job: () => Promise<unknown>): Promise<boolean> => {
     setError(false);
+    let ok = true;
     try {
       await job();
     } catch {
+      ok = false;
       setError(true);
     }
     setRound((n) => n + 1);
+    return ok;
   };
 
   if (!projectId) return null;
@@ -161,7 +165,7 @@ function PersonSearch({
   onInvite,
 }: {
   members: readonly Member[];
-  onInvite: (person: Person, role: Given) => Promise<void>;
+  onInvite: (person: Person, role: Given) => Promise<boolean>;
 }) {
   const t = useT();
   const [query, setQuery] = useState("");
@@ -238,14 +242,14 @@ function PersonSearch({
                           value={roles[person.id] ?? "editor"}
                           options={roleOptions}
                           onChange={(value) => {
-                            setRoles({ ...roles, [person.id]: value });
+                            setRoles((all) => ({ ...all, [person.id]: value }));
                           }}
                         />
                         <CustomButton
                           variant="primary"
                           onClick={() => {
-                            void onInvite(person, roles[person.id] ?? "editor").then(() => {
-                              setInvited(new Set(invited).add(person.id));
+                            void onInvite(person, roles[person.id] ?? "editor").then((ok) => {
+                              if (ok) setInvited((all) => new Set(all).add(person.id));
                             });
                           }}
                         >
@@ -274,8 +278,8 @@ function MemberRow({
   member: Member;
   isMe: boolean;
   owner: boolean;
-  onRole: (role: Role) => Promise<void>;
-  onRemove: () => Promise<void>;
+  onRole: (role: Role) => Promise<unknown>;
+  onRemove: () => Promise<unknown>;
 }) {
   const t = useT();
   const language = useEditorStore((s) => s.language);
@@ -375,7 +379,7 @@ function RequestRow({
   onAnswer,
 }: {
   request: AccessRequest;
-  onAnswer: (role: Given | null) => Promise<void>;
+  onAnswer: (role: Given | null) => Promise<unknown>;
 }) {
   const t = useT();
   const [role, setRole] = useState<Given>("viewer");

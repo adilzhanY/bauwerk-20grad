@@ -165,6 +165,10 @@ const historyImpl: HistoryImpl = (initializer) => (set, get, api) => {
       if (batchDepth === 0) batchRecorded = false;
     },
     clearHistory: () => {
+      // A gesture whose end never came (a handle gone mid drag) must not swallow every
+      // later edit into one undo step.
+      batchDepth = 0;
+      batchRecorded = false;
       set({ past: [], future: [] } as unknown as Partial<S>);
     },
     withoutHistory: (fn) => {

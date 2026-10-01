@@ -14,7 +14,8 @@ import { PROJECT_STAGES } from "@/geometry/project";
 import type { ProjectStage } from "@/geometry/types";
 import { useT } from "@/i18n/useT";
 import { formatNumber, formatRelative } from "@/lib/format";
-import { deleteProjectCard, listProjectCards, openProjectCard } from "@/projects/projects";
+import { deleteProjectCard, listProjectCards } from "@/projects/projects";
+import { openProjectCard } from "@/projects/session";
 import type { ProjectCard } from "@/projects/projects";
 import { useEditorStore } from "@/store/building";
 import { syncEnabled } from "@/sync/useSync";
@@ -48,6 +49,7 @@ export function ProjectsPage() {
   const navigate = useRouter((s) => s.navigate);
   const [cards, setCards] = useState<ProjectCard[] | null>(null);
   const [failed, setFailed] = useState(false);
+  const [openFailed, setOpenFailed] = useState(false);
   const [stage, setStage] = useState<ProjectStage | "all">("all");
   const [query, setQuery] = useState("");
   const [view, setView] = useState<View>(savedView);
@@ -79,8 +81,10 @@ export function ProjectsPage() {
 
   const open = useCallback(
     (card: ProjectCard) => {
-      void openProjectCard(card).then(() => {
-        navigate(landingRoute(card.summary), { query: "" });
+      setOpenFailed(false);
+      void openProjectCard(card).then((result) => {
+        if (result === "opened") navigate(landingRoute(card.summary), { query: "" });
+        else if (result === "failed") setOpenFailed(true);
       });
     },
     [navigate],
@@ -144,6 +148,9 @@ export function ProjectsPage() {
         </Presence>
         <Presence show={failed}>
           <p className="text-sm text-mark">{t("projects.loadFailed")}</p>
+        </Presence>
+        <Presence show={openFailed}>
+          <Hint error>{t("projects.openFailed")}</Hint>
         </Presence>
 
         {cards !== null && cards.length === 0 && !failed ? (
@@ -305,12 +312,11 @@ function ProjectTable({
         </thead>
         <tbody>
           {cards.map((card) => (
+            // The title button covers the whole row, so the row opens on a click and Tab
+            // reaches it once.
             <tr
               key={card.buildingId}
-              onClick={() => {
-                onOpen(card);
-              }}
-              className="cursor-pointer border-b border-line last:border-0 hover:bg-panel"
+              className="relative border-b border-line last:border-0 hover:bg-panel"
             >
               <td className="px-3 py-2">
                 <ProjectPicture card={card} className="h-10 w-14 rounded-soft" />
@@ -318,11 +324,10 @@ function ProjectTable({
               <td className="px-3 py-2">
                 <button
                   type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
+                  onClick={() => {
                     onOpen(card);
                   }}
-                  className="text-left font-semibold text-ink hover:underline"
+                  className="text-left font-semibold text-ink after:absolute after:inset-0 hover:underline"
                 >
                   {card.summary.title}
                 </button>

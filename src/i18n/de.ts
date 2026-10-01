@@ -19,7 +19,6 @@ export const de: Messages = {
   "hint.zone":
     "Unten eine Zone wählen, dann Räume anklicken, um sie hinzuzufügen oder zu entfernen.",
 
-  "panel.storeys": "Geschosse",
   "panel.tools": "Werkzeuge",
   "panel.zones": "Zonen",
   "panel.settings": "Einstellungen",
@@ -34,7 +33,6 @@ export const de: Messages = {
   "storey.height": "Höhe",
   "storey.openings": "Öffnungen",
   "storey.rooms": "Räume",
-  "storey.roomCount": "{n} Räume",
 
   "settings.wallThickness": "Wandstärke",
   "settings.grid": "Raster anzeigen",
@@ -108,7 +106,6 @@ export const de: Messages = {
   "bar.shortcuts": "Tastenkürzel",
   "status.storeys": "Geschosse",
   "status.rooms": "Räume",
-  "status.area": "Grundfläche",
 
   "empty.title": "Keine Geschosse",
   "empty.body": "Fügen Sie ein Geschoss hinzu, um zu beginnen.",
@@ -117,7 +114,8 @@ export const de: Messages = {
   "webgl.body": "Bauwerk braucht einen Browser mit WebGL, um das Modell zu zeichnen.",
 
   "narrow.title": "Desktop-Browser nötig",
-  "narrow.body": "Der Editor braucht ein Fenster mit mindestens 1200 Pixeln Breite. Die anderen Seiten funktionieren in jeder Größe.",
+  "narrow.body":
+    "Der Editor braucht ein Fenster mit mindestens 1200 Pixeln Breite. Die anderen Seiten funktionieren in jeder Größe.",
 
   "shortcuts.title": "Tastenkürzel",
   "shortcuts.close": "Schließen",
@@ -292,7 +290,6 @@ export const de: Messages = {
   "presence.card.here": "{name} ist gerade drin",
   "presence.card.hereMany": "{name} und {count} weitere sind gerade drin",
   "presence.card.lastHere": "Sie waren zuletzt {when} hier",
-  "presence.title": "Bearbeiten ebenfalls",
   "location.title": "Standort",
   "location.enabled": "Gebäude auf der Karte platzieren",
   "location.lat": "Breitengrad",
@@ -312,7 +309,6 @@ export const de: Messages = {
   "view.plan": "2D-Grundriss",
   "view.uValueBands": "Wände nach U-Wert färben",
   "storey.duplicate": "Geschoss duplizieren",
-  "rooms.title": "Räume in diesem Geschoss",
   "underlay.title": "Grundriss als Hintergrundbild",
   "underlay.load": "Bild laden",
   "underlay.remove": "Bild entfernen",
@@ -339,7 +335,6 @@ export const de: Messages = {
   "panel.view": "Ansicht",
   "tabs.properties": "Eigenschaften",
   "tabs.energy": "Energie",
-  "bar.status": "Status",
   "print.issued": "Ausgestellt am",
   "print.generatedBy": "Erstellt mit Bauwerk, vereinfachte Berechnung",
   "print.disclaimer":
@@ -373,6 +368,12 @@ export const de: Messages = {
   "projects.newHint": "Adresse, ein Klick auf die Karte oder ein Foto mit Standort",
   "projects.localOnly": "Kein Server verbunden: Projekte und Fotos liegen nur in diesem Browser.",
   "projects.loadFailed": "Die Projekte ließen sich nicht laden. Läuft der Server?",
+  "crash.title": "Bauwerk wurde mit einem Fehler beendet",
+  "crash.body": "Kopieren Sie den Text unten und schicken Sie ihn mit.",
+  "crash.componentStack": "Komponenten-Stack:",
+  "crash.reload": "Neu laden",
+  "crash.reset": "Lokale Daten zurücksetzen und neu laden",
+  "projects.openFailed": "Das Projekt ließ sich nicht öffnen. Versuchen Sie es gleich noch einmal.",
   "projects.loading": "Projekte werden geladen…",
   "projects.all": "Alle",
   "projects.sorted": "Zuletzt bearbeitet zuerst",
@@ -550,8 +551,6 @@ export const de: Messages = {
   "print.sources.sharedEdges": "Brandwände",
   "print.sources.constructions": "Bauteile",
   "print.sources.opening": "Öffnung {id}",
-  "linkImport.done": "{name} wurde aus dem Aufnahme-Link geladen. Strg+Z macht es rückgängig.",
-  "linkImport.failed": "Der Link enthielt kein Gebäude, das Bauwerk öffnen kann.",
   "linkImport.dismiss": "Schließen",
   "print.methodText":
     "Der Transmissionswärmeverlust ist die Summe aus Temperatur-Korrekturfaktor mal U-Wert mal Fläche über die beheizte Hüllfläche, zuzüglich der linearen Wärmebrücken als ψ mal Länge. Flächen gegen Außenluft zählen voll, die Bodenplatte gegen Erdreich mit 0,6 und Wände zu unbeheizten Räumen mit 0,5. Der Lüftungswärmeverlust rechnet mit 0,34 Wh/(m³·K), einem Luftwechsel von 0,5 1/h und dem beheizten Volumen. Der Heizwärmebedarf folgt dem Heizperiodenbilanzverfahren der DIN V 4108-6: 66 kKh Gradtagzahl des deutschen Referenzklimas mal Verluste, abzüglich 95 % der solaren Gewinne durch Fenster nach Orientierung und der internen Gewinne von 22 kWh je Quadratmeter beheizter Fläche. Die Effizienzklasse legt die Skala des Wohngebäude-Energieausweises auf den Heizwärmebedarf; ein Ausweis bewertet die Endenergie, die höher liegt, die gezeigte Klasse ist deshalb eine optimistische Näherung.",
@@ -789,6 +788,8 @@ export const de: Messages = {
   "history.created": "Projekt angelegt",
   "history.change": "1 Änderung",
   "history.changes": "{count} Änderungen",
+  "history.loadFailed":
+    "Die Versionen ließen sich nicht laden. Versuchen Sie es gleich noch einmal.",
   "history.empty": "Noch keine Versionen.",
   "history.unavailable": "Diese Version lässt sich nicht wiederherstellen.",
   "history.local": "Teilen Sie das Gebäude als Projekt, um einen Versionsverlauf zu führen.",
@@ -886,7 +887,6 @@ export const de: Messages = {
   "threads.sendHint": "Strg+Enter sendet",
   "threads.resolve": "Erledigt",
   "threads.reopen": "Wieder öffnen",
-  "threads.resolved": "Erledigt",
   "threads.showResolved": "{n} erledigte zeigen",
   "threads.hideResolved": "Erledigte ausblenden",
   "threads.edit": "Bearbeiten",
@@ -1027,7 +1027,6 @@ export const de: Messages = {
   "editor.connecting": "Verbinde",
   "editor.offline": "Offline",
   "editor.projection": "Projektion",
-  "editor.perspective": "Perspektive",
   "editor.plan": "Grundriss",
   "editor.walkthrough": "Begehung",
   "editor.hidePanels": "Seitenleisten ausblenden",
@@ -1121,6 +1120,7 @@ export const de: Messages = {
   "photo.window": "Fenster",
   "photo.door": "Tür",
   "photo.fieldsHint": "Meter, gemessen ab der unteren linken Wandecke",
+  "photo.openingN": "Öffnung {n}",
   "photo.openings": "Öffnungen",
   "photo.openingArea": "Öffnungsfläche",
   "photo.totalOpeningArea": "Öffnungsfläche gesamt",
@@ -1173,7 +1173,6 @@ export const de: Messages = {
   "photo.previewNoPhoto": "Wählen Sie ein Foto, um eine Vorschau zu sehen.",
   "photo.alt.photo": "Gewähltes Fassadenfoto",
   "photo.alt.wall": "Entzerrte Wand",
-  "lod2.dragToChange": "Zum Ändern nach links oder rechts ziehen",
   "lod2.loadingBuilding": "Gebäude wird geladen…",
   "lod2.selectBuilding": "Wählen Sie ein Gebäude auf der Karte, um sein 3D-Modell zu sehen.",
   "lod2.noGeometry": "Dieser Datensatz hat keine Geometrie (nur Attribute).",
@@ -1298,8 +1297,6 @@ export const de: Messages = {
   "share.copy": "Link kopieren",
   "share.copied": "Link kopiert",
   "share.close": "Schließen",
-  "share.localhost":
-    "Dieser Link öffnet sich nur auf diesem Computer. Für ein anderes Gerät starten Sie mit npm run dev -- --host und teilen die angezeigte Network-Adresse mit derselben ?project=-Endung.",
   "share.failed":
     "Der Kollaborationsserver antwortet nicht. Läuft npm run dev mit der Zeile collab?",
   "view.3d": "3D",

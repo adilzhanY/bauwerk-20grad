@@ -67,11 +67,7 @@ export function CustomCheckbox({
           checked && <Check size={14} strokeWidth={3} aria-hidden />
         )}
       </span>
-      <label
-        id={`${id}-label`}
-        onClick={toggle}
-        className={cx("text-sm text-ink select-none", !disabled && "cursor-pointer")}
-      >
+      <label id={`${id}-label`} onClick={toggle} className="text-sm text-ink select-none">
         {label}
       </label>
     </div>

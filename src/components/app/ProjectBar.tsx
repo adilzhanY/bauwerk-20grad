@@ -1,4 +1,4 @@
-import { SaveProjectButton } from "./SaveProjectButton";
+import { SaveProjectButton } from "@/components/shared/SaveProjectButton";
 import { useMemo } from "react";
 import { ArrowLeft, Check } from "lucide-react";
 import { cx } from "@/components/shared/cx";

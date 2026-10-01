@@ -16,7 +16,6 @@ export const en = {
     "Start on a wall. The new wall runs to the next wall in the pointer's direction and locks to right angles. Escape cancels.",
   "hint.zone": "Pick a zone below, then click rooms to add or remove them.",
 
-  "panel.storeys": "Storeys",
   "panel.tools": "Tools",
   "panel.zones": "Zones",
   "panel.settings": "Settings",
@@ -31,7 +30,6 @@ export const en = {
   "storey.height": "Height",
   "storey.openings": "Openings",
   "storey.rooms": "Rooms",
-  "storey.roomCount": "{n} rooms",
 
   "settings.wallThickness": "Wall thickness",
   "settings.grid": "Show grid",
@@ -104,7 +102,6 @@ export const en = {
   "bar.shortcuts": "Keyboard shortcuts",
   "status.storeys": "Storeys",
   "status.rooms": "Rooms",
-  "status.area": "Floor area",
 
   "empty.title": "No storeys",
   "empty.body": "Add a storey to start building.",
@@ -113,7 +110,8 @@ export const en = {
   "webgl.body": "Bauwerk needs a browser with WebGL to draw the model.",
 
   "narrow.title": "Desktop browser needed",
-  "narrow.body": "The editor needs a window at least 1200 pixels wide. The other pages work at any size.",
+  "narrow.body":
+    "The editor needs a window at least 1200 pixels wide. The other pages work at any size.",
 
   "shortcuts.title": "Keyboard shortcuts",
   "shortcuts.close": "Close",
@@ -287,7 +285,6 @@ export const en = {
   "presence.card.here": "{name} is in it now",
   "presence.card.hereMany": "{name} and {count} more are in it now",
   "presence.card.lastHere": "You were last here {when}",
-  "presence.title": "Also editing",
   "location.title": "Location",
   "location.enabled": "Place the building on the map",
   "location.lat": "Latitude",
@@ -307,7 +304,6 @@ export const en = {
   "view.plan": "2D plan view",
   "view.uValueBands": "Colour walls by U-value",
   "storey.duplicate": "Duplicate storey",
-  "rooms.title": "Rooms on this storey",
   "underlay.title": "Floor plan underlay",
   "underlay.load": "Load image",
   "underlay.remove": "Remove image",
@@ -334,7 +330,6 @@ export const en = {
   "panel.view": "View",
   "tabs.properties": "Properties",
   "tabs.energy": "Energy",
-  "bar.status": "Status",
   "print.issued": "Issued on",
   "print.generatedBy": "Prepared with Bauwerk, simplified calculation",
   "print.disclaimer":
@@ -369,6 +364,12 @@ export const en = {
   "projects.localOnly":
     "No server is connected: projects and their photos are kept in this browser only.",
   "projects.loadFailed": "The projects could not be loaded. Is the server running?",
+  "crash.title": "Bauwerk stopped with an error",
+  "crash.body": "Copy the text below and send it along.",
+  "crash.componentStack": "Component stack:",
+  "crash.reload": "Reload",
+  "crash.reset": "Reset local data and reload",
+  "projects.openFailed": "The project could not be opened. Try again in a moment.",
   "projects.loading": "Loading projects…",
   "projects.all": "All",
   "projects.sorted": "Last edited first",
@@ -545,8 +546,6 @@ export const en = {
   "print.sources.sharedEdges": "Party walls",
   "print.sources.constructions": "Constructions",
   "print.sources.opening": "Opening {id}",
-  "linkImport.done": "{name} was loaded from the survey link. Ctrl+Z undoes it.",
-  "linkImport.failed": "The link did not contain a building Bauwerk can open.",
   "linkImport.dismiss": "Dismiss",
   "print.methodText":
     "Transmission heat loss is the sum of temperature correction factor times U-value times area over the heated envelope, plus the linear thermal bridges as ψ times length. Surfaces to outside air count in full, the floor slab on the ground with 0.6 and walls to unheated rooms with 0.5. Ventilation heat loss uses 0.34 Wh/(m³·K), an air change of 0.5 1/h and the heated volume. The heating demand follows the heating period method of DIN V 4108-6: 66 kKh of heating degree hours for the German reference climate times the losses, minus 95 % of the solar gains through windows by orientation and of the internal gains of 22 kWh per square metre of heated floor area. The efficiency class applies the residential Energieausweis scale to the heating demand; a certificate rates the final energy, which is higher, so the class shown is an optimistic approximation.",
@@ -782,6 +781,7 @@ export const en = {
   "history.change": "1 change",
   "history.changes": "{count} changes",
   "history.empty": "No versions yet.",
+  "history.loadFailed": "The versions could not be loaded. Try again in a moment.",
   "history.unavailable": "This version cannot be rebuilt.",
   "history.local": "Share the building as a project to keep a version history.",
   "preview.banner": "Viewing version {version} from {time}, by {actor}. Changes here are not kept.",
@@ -876,7 +876,6 @@ export const en = {
   "threads.sendHint": "Ctrl+Enter sends",
   "threads.resolve": "Resolve",
   "threads.reopen": "Reopen",
-  "threads.resolved": "Resolved",
   "threads.showResolved": "Show {n} resolved",
   "threads.hideResolved": "Hide resolved",
   "threads.edit": "Edit",
@@ -1017,7 +1016,6 @@ export const en = {
   "editor.connecting": "Connecting",
   "editor.offline": "Offline",
   "editor.projection": "Projection",
-  "editor.perspective": "Perspective",
   "editor.plan": "Plan",
   "editor.walkthrough": "Walkthrough",
   "editor.hidePanels": "Hide panels",
@@ -1109,6 +1107,7 @@ export const en = {
   "photo.door": "Door",
   "photo.fieldsHint": "Metres, from the bottom left of the wall",
   "photo.openings": "Openings",
+  "photo.openingN": "Opening {n}",
   "photo.openingArea": "Opening area",
   "photo.totalOpeningArea": "Total opening area",
   "photo.wallArea": "Wall area (model)",
@@ -1160,7 +1159,6 @@ export const en = {
   "photo.previewNoPhoto": "Choose a photo to see a preview.",
   "photo.alt.photo": "Chosen facade photo",
   "photo.alt.wall": "Rectified wall",
-  "lod2.dragToChange": "Drag left or right to change",
   "lod2.loadingBuilding": "Loading building…",
   "lod2.selectBuilding": "Select a building on the map to see its 3D model.",
   "lod2.noGeometry": "This record carries no geometry (attributes only).",
@@ -1282,8 +1280,6 @@ export const en = {
   "share.copy": "Copy link",
   "share.copied": "Link copied",
   "share.close": "Close",
-  "share.localhost":
-    "This link only opens on this computer. For another machine, start with npm run dev -- --host and share the Network address it prints, with the same ?project= ending.",
   "share.failed":
     "The collaboration server does not answer. Is npm run dev running with its collab line?",
   "view.3d": "3D",

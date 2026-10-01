@@ -1,5 +1,11 @@
 import { Component } from "react";
 import type { ErrorInfo, ReactNode } from "react";
+import { detectLanguage, translate } from "@/i18n";
+import type { MessageKey } from "@/i18n";
+import { loadLanguage, resetLocalData } from "@/lib/storage";
+
+/** Read without the store, which may be what crashed. */
+const say = (key: MessageKey) => translate(loadLanguage() ?? detectLanguage(), key);
 
 interface State {
   error: Error | null;
@@ -9,7 +15,7 @@ interface State {
 /**
  * Last line of defence: a crash anywhere in the tree is shown on the page with
  * its stack instead of leaving a blank window. Reload clears it; "Reset local
- * data" also drops the autosaved building in case that is what broke.
+ * data" also forgets the open project and unsent edits in case that is what broke.
  */
 export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
   override state: State = { error: null, info: "" };
@@ -36,8 +42,8 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
           minHeight: "100%",
         }}
       >
-        <h1 style={{ fontSize: 20, margin: 0 }}>Bauwerk stopped with an error</h1>
-        <p style={{ color: "#5b6068" }}>Copy the text below and send it along.</p>
+        <h1 style={{ fontSize: 20, margin: 0 }}>{say("crash.title")}</h1>
+        <p style={{ color: "#5b6068" }}>{say("crash.body")}</p>
         <pre
           style={{
             whiteSpace: "pre-wrap",
@@ -51,7 +57,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
           {error.name}: {error.message}
           {"\n\n"}
           {error.stack}
-          {"\n\nComponent stack:"}
+          {`\n\n${say("crash.componentStack")}`}
           {info}
         </pre>
         <div style={{ display: "flex", gap: 8 }}>
@@ -68,16 +74,12 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
               color: "#fff",
             }}
           >
-            Reload
+            {say("crash.reload")}
           </button>
           <button
             type="button"
             onClick={() => {
-              try {
-                localStorage.removeItem("bauwerk.building");
-              } catch {
-                /* ignore */
-              }
+              resetLocalData();
               window.location.reload();
             }}
             style={{
@@ -88,7 +90,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
               color: "#c2431f",
             }}
           >
-            Reset local data and reload
+            {say("crash.reset")}
           </button>
         </div>
       </div>

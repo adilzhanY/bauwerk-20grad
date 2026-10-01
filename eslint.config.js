@@ -5,6 +5,9 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import globals from "globals";
 import tseslint from "typescript-eslint";
 
+/** The area folders under src/components (everything but shared/). */
+const AREAS = ["app", "building", "editor", "photo-editor", "projects", "report"];
+
 export default tseslint.config(
   { ignores: ["dist", "coverage", "node_modules"] },
   js.configs.recommended,
@@ -94,6 +97,39 @@ export default tseslint.config(
       ],
     },
   },
+  // Each area knows only shared components and itself: what a second area needs moves to
+  // shared/ (or lib/), so a change in one area never breaks another.
+  ...AREAS.map((area) => ({
+    files: [`src/components/${area}/**/*.{ts,tsx}`],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@/pages", "@/pages/*"],
+              message: "Pages compose components; nothing imports a page.",
+            },
+            {
+              group: [
+                "@/components/*",
+                "!@/components/shared",
+                "!@/components/shared/*",
+                `!@/components/${area}`,
+                `!@/components/${area}/*`,
+              ],
+              message:
+                "An area imports only shared components and its own files. Move what two areas need into shared/ or lib/.",
+            },
+            {
+              group: ["../*"],
+              message: "Import other folders through @/, so the area rule sees them.",
+            },
+          ],
+        },
+      ],
+    },
+  })),
   {
     // Test fixtures index into known arrays; a non-null assertion reads better than a guard.
     files: ["**/*.test.{ts,tsx}", "src/geometry/fixtures.ts"],

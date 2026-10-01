@@ -7,6 +7,7 @@ import type { RenderSample } from "@/scene/FrameProbe";
 import { benchBuilding, frameStats } from "@/lib/bench";
 import { formatNumber } from "@/lib/format";
 import { useT } from "@/i18n/useT";
+import { startNewProject } from "@/projects/session";
 import { useEditorStore } from "@/store/building";
 
 /**
@@ -23,15 +24,15 @@ export function BenchPage({
 }) {
   const t = useT();
   const language = useEditorStore((s) => s.language);
-  const loadBuilding = useEditorStore((s) => s.loadBuilding);
   const loaded = useRef(false);
   const webgl = useMemo(() => hasWebGL(), []);
 
   useEffect(() => {
     if (loaded.current) return;
     loaded.current = true;
-    loadBuilding(benchBuilding(language));
-  }, [loadBuilding, language]);
+    // Its own unsaved project: an open project is left, never overwritten.
+    void startNewProject(benchBuilding(language));
+  }, [language]);
 
   const stats = frameStats(sample?.frameTimesMs ?? []);
   const num = (v: number, d = 1) => formatNumber(v, language, d);

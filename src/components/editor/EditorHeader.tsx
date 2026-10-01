@@ -1,5 +1,5 @@
-import { SaveProjectButton } from "@/components/app/SaveProjectButton";
-import { HeaderPortal } from "@/components/app/HeaderSlot";
+import { SaveProjectButton } from "@/components/shared/SaveProjectButton";
+import { HeaderPortal } from "@/components/shared/HeaderSlot";
 import { CustomUndoRedo } from "@/components/shared/CustomUndoRedo";
 import { useT } from "@/i18n/useT";
 import { useEditorStore } from "@/store/building";

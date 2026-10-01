@@ -7,7 +7,7 @@ import type { ReactNode } from "react";
 import maplibregl from "maplibre-gl";
 import type { MapGeoJSONFeature } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { fallBackWhenStyleFails, LIGHT_STYLE } from "@/components/map/mapStyle";
+import { fallBackWhenStyleFails, LIGHT_STYLE } from "@/lib/mapStyle";
 import { BarChart3, Box, Layers, Navigation } from "lucide-react";
 import { useT } from "@/i18n/useT";
 import { coverageUrl, tileUrl } from "@/lod2/api/client";

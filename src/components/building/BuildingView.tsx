@@ -5,7 +5,7 @@ import { useRouter } from "@/app/router";
 import { cx } from "@/components/shared/cx";
 import { useT } from "@/i18n/useT";
 import { Scene } from "@/lod2/render3d/Scene";
-import { BuildingMap } from "@/components/map/BuildingMap";
+import { BuildingMap } from "@/components/shared/BuildingMap";
 
 /**
  * The right side of the building page: the LoD2 model in 3D, where a click picks the wall to

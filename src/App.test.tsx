@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { App } from "@/App";
 import { useRouter } from "@/app/router";
 import { exampleAltbau } from "@/lib/examples";
@@ -53,7 +53,7 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: "Redo" })).not.toHaveProperty("disabled", true);
   });
 
-  it("creates a named building from dimensions as one undo step", () => {
+  it("creates a named building from dimensions as a new project", async () => {
     render(<App />);
     fireEvent.click(screen.getByRole("button", { name: "New building" }));
     const dialog = screen.getByRole("dialog", { name: "New building" });
@@ -66,15 +66,16 @@ describe("App", () => {
     fireEvent.blur(storeys);
     fireEvent.click(within(dialog).getByRole("button", { name: "Create building" }));
 
+    await act(async () => {
+      await Promise.resolve();
+    });
     expect(useEditorStore.getState().building.name).toBe("Garden house");
     expect(document.title).toBe("Garden house · Bauwerk");
     const tree = screen.getByRole("tree", { name: "Layers" });
     expect(within(tree).getByRole("button", { name: "Garden house" })).toBeTruthy();
     expect(useEditorStore.getState().building.storeys).toHaveLength(3);
-    expect(useEditorStore.getState().past).toHaveLength(1);
-    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
-    expect(useEditorStore.getState().building.name).toBe("Bauwerk");
-    expect(useEditorStore.getState().building.storeys).toHaveLength(1);
+    // A new project starts from its building, with no undo back into the one before.
+    expect(useEditorStore.getState().past).toHaveLength(0);
   });
 
   it("switches the whole UI to German", () => {
@@ -89,11 +90,14 @@ describe("App", () => {
     expect(screen.getByText("WebGL ist nicht verfügbar")).toBeTruthy();
   });
 
-  it("loads the large office tower from the example selector", () => {
+  it("loads the large office tower from the example selector", async () => {
     render(<App />);
     fireEvent.click(screen.getByRole("tab", { name: "Settings" }));
     fireEvent.click(screen.getByRole("combobox", { name: "Load example" }));
     fireEvent.click(screen.getByRole("option", { name: "Large office tower" }));
+    await act(async () => {
+      await Promise.resolve();
+    });
     const building = useEditorStore.getState().building;
     expect(building.name).toBe("Berlin office tower, 18 storeys");
     expect(building.storeys).toHaveLength(18);
@@ -292,11 +296,13 @@ describe("App", () => {
     expect(useEditorStore.getState().theme).toBe("dark");
   });
 
-  it("renders the benchmark page with the fifty storey building", () => {
+  it("renders the benchmark page with the fifty storey building", async () => {
     window.history.replaceState(null, "", "/?bench=1");
     render(<App />);
     expect(screen.getByRole("heading", { name: "Benchmark" })).toBeTruthy();
-    expect(useEditorStore.getState().building.storeys).toHaveLength(50);
+    await waitFor(() => {
+      expect(useEditorStore.getState().building.storeys).toHaveLength(50);
+    });
     window.history.replaceState(null, "", "/");
   });
 

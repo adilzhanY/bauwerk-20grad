@@ -1,4 +1,5 @@
 import { io } from "socket.io-client";
+import { randomId } from "@/lib/ids";
 import { can } from "@/projects/roles";
 import type { Role } from "@/projects/roles";
 import type { Building } from "@/geometry/types";
@@ -54,6 +55,12 @@ export interface SyncConfig {
   clientId?: string;
   /** The access token to connect with, asked for on every (re)connect; accounts off: none. */
   token?: () => Promise<string | null>;
+  /**
+   * The building this tab created the project with (Save). Whatever the store changed since
+   * goes to the server as this tab's first batch once it has joined, instead of being
+   * replaced by the server's copy.
+   */
+  base?: Building;
   /** Opens the socket. Tests pass a fake. */
   connect?: (apiUrl: string, token?: () => Promise<string | null>) => SocketLike;
 }
@@ -318,8 +325,13 @@ export class SyncClient {
       this.store.getState().setPresence(presence);
     });
 
-    this.unsubscribe = this.store.subscribe((state) => {
-      if (state.building !== this.shown && !this.applying) this.local(state.building);
+    this.unsubscribe = this.store.subscribe((state, prev) => {
+      if (state.building !== this.shown && !this.applying) {
+        // A language switch only translates the names the app made, on this screen: it is
+        // nobody's edit, and the project keeps its names for everyone else.
+        if (state.language !== prev.language) this.shown = state.building;
+        else this.local(state.building);
+      }
       const selection = JSON.stringify(state.selection);
       if (selection !== this.lastSelection) {
         this.lastSelection = selection;
@@ -418,6 +430,11 @@ export class SyncClient {
         // A fresh project starts with an empty history; after a reconnect the history
         // takes in whatever changed while this tab was away.
         const missed = before ? diffBuilding(before, ack.building) : [];
+        // Edits made after Save and before this join (config.base).
+        const sinceSave =
+          first && this.config.base
+            ? diffBuilding(this.config.base, this.store.getState().building)
+            : [];
         this.show(first ? null : missed.length > 0 ? rebaseWith(missed) : undefined);
         if (first) {
           this.store.getState().setProjectId(this.config.projectId);
@@ -426,7 +443,7 @@ export class SyncClient {
         for (const message of early) this.receive(message);
         for (const batch of this.pending) this.send(batch);
         // What a tab closed while offline left unsent: applied now as this person's change.
-        const restored = this.restored.flat();
+        const restored = [...this.restored.flat(), ...sinceSave];
         this.restored = [];
         if (first && restored.length > 0 && can(ack.role, "edit")) {
           this.store.setState({
@@ -589,12 +606,6 @@ function readQueue(key: string): Op[][] {
 /** Applies someone else's operations to an undo or redo snapshot. */
 function rebaseWith(ops: Op[]): (snapshot: Building) => Building {
   return (snapshot) => applyOps(snapshot, ops).value;
-}
-
-function randomId(): string {
-  return typeof crypto !== "undefined" && "randomUUID" in crypto
-    ? crypto.randomUUID()
-    : `tab-${Math.random().toString(36).slice(2)}-${Date.now().toString(36)}`;
 }
 
 /** Sync is on when the client is built with VITE_API_URL. */

@@ -7,6 +7,7 @@ import { useT } from "@/i18n/useT";
 import { BOX_LIMITS, buildingFromBox } from "@/geometry/box";
 import type { Era } from "@/geometry/box";
 import { createId } from "@/lib/ids";
+import { startNewProject } from "@/projects/session";
 import { useEditorStore } from "@/store/building";
 import { CustomButton } from "@/components/shared/CustomButton";
 import { CustomDialog } from "@/components/shared/CustomDialog";
@@ -19,7 +20,6 @@ export function NewBuildingDialog({ onClose }: { onClose: () => void }) {
   const t = useT();
   const language = useEditorStore((s) => s.language);
   const currentBuilding = useEditorStore((s) => s.building);
-  const loadBuilding = useEditorStore((s) => s.loadBuilding);
   const [name, setName] = useState(t("newBuilding.defaultName"));
   const [width, setWidth] = useState(12);
   const [depth, setDepth] = useState(9);
@@ -29,24 +29,24 @@ export function NewBuildingDialog({ onClose }: { onClose: () => void }) {
   const [era, setEra] = useState<Era>("1970s");
 
   const create = () => {
-    loadBuilding(
-      buildingFromBox(
-        {
-          name,
-          width,
-          depth,
-          storeys,
-          storeyHeight,
-          roof,
-          era,
-          centre: centroid(currentBuilding.footprint),
-          origin: currentBuilding.origin,
-        },
-        language,
-        createId,
-      ),
+    const building = buildingFromBox(
+      {
+        name,
+        width,
+        depth,
+        storeys,
+        storeyHeight,
+        roof,
+        era,
+        centre: centroid(currentBuilding.footprint),
+        origin: currentBuilding.origin,
+      },
+      language,
+      createId,
     );
     onClose();
+    // A new project: the one open before is left, never overwritten.
+    void startNewProject(building);
   };
 
   return (

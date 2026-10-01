@@ -185,17 +185,25 @@ export async function listProjects(): Promise<ProjectSummary[]> {
   return res.ok ? ((await res.json()) as ProjectSummary[]) : [];
 }
 
+/**
+ * The project this tab just created, with the building it sent, until its connection has
+ * joined: edits made in between are sent as the first batch (SyncConfig.base).
+ */
+let created: { id: string; building: Building } | null = null;
+
 export async function createProject(): Promise<string | null> {
   const cfg = syncConfigFromEnv();
   if (!cfg) return null;
   const { actor } = actorIdentity();
+  const building = useEditorStore.getState().building;
   const res = await fetch(`${cfg.apiUrl}/projects`, {
     method: "POST",
     headers: { "content-type": "application/json", "x-actor": actor, ...(await authHeaders()) },
-    body: JSON.stringify({ building: useEditorStore.getState().building }),
+    body: JSON.stringify({ building }),
   });
   if (!res.ok) return null;
   const project = (await res.json()) as { id: string };
+  created = { id: project.id, building };
   return project.id;
 }
 
@@ -271,15 +279,18 @@ export function useSync(): Sync {
     }
     // A share link carries its token as ?link=…; once the person is a member it is not needed.
     const link = new URLSearchParams(window.location.search).get("link") ?? undefined;
+    const base = created?.id === urlProject ? created.building : undefined;
     const client = new SyncClient(useEditorStore, {
       ...cfg,
       projectId: urlProject,
+      ...(base ? { base } : {}),
       ...identity,
       ...(link ? { link } : {}),
       ...(authStatus !== "off" ? { token: accessToken } : {}),
     });
     const offStatus = client.onStatus((next) => {
       setStatus(next);
+      if (next === "online" && created?.id === urlProject) created = null;
       if (next === "online" && link) dropLinkFromUrl();
     });
     const offReject = client.onReject(setRejection);
@@ -321,6 +332,7 @@ export function useSync(): Sync {
  * connected client would send the next building as an edit to this project.
  */
 export function leaveProject(): void {
+  created = null;
   active?.stop();
   active = null;
   openProject(null);

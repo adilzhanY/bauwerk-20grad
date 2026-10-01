@@ -248,6 +248,8 @@
   summary,
   select,
   label:has(> input[type="checkbox"], > input[type="radio"], > input[type="file"]),
+  [role="checkbox"]:not([aria-disabled="true"]) + label,
+  [role="switch"]:not([aria-disabled="true"]) + label,
   input[type="checkbox"],
   input[type="radio"],
   input[type="range"],

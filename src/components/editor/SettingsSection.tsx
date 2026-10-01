@@ -6,6 +6,7 @@ import { LANGUAGES } from "@/i18n";
 import { useT } from "@/i18n/useT";
 import { example } from "@/lib/examples";
 import type { ExampleId } from "@/lib/examples";
+import { startNewProject } from "@/projects/session";
 import { useEditorStore } from "@/store/building";
 import type { Theme } from "@/store/building";
 import { CustomButton } from "@/components/shared/CustomButton";
@@ -260,7 +261,6 @@ export function SettingsSection() {
       setWallThickness: state.setWallThickness,
       language: state.language,
       setLanguage: state.setLanguage,
-      loadBuilding: state.loadBuilding,
       beginBatch: state.beginBatch,
       endBatch: state.endBatch,
     })),
@@ -375,7 +375,7 @@ export function SettingsSection() {
             { value: "block", label: t("example.block") },
           ]}
           onChange={(id) => {
-            if (id !== "") s.loadBuilding(example(id, s.language));
+            if (id !== "") void startNewProject(example(id, s.language));
           }}
         />
       </CustomSection>
