@@ -5,13 +5,16 @@ import {
   centroid,
   edges,
   ensureCounterClockwise,
+  interiorPoint,
   isCounterClockwise,
   isSimplePolygon,
   lineIntersection,
+  overlapOnEdge,
   pointInPolygon,
   segmentsIntersect,
   signedArea,
   snapPoint,
+  spansOnEdge,
 } from "./polygon";
 import type { Vec2 } from "./types";
 
@@ -150,5 +153,81 @@ describe("centroid, bounds, snapping", () => {
   it("snaps to the grid", () => {
     expect(snapPoint({ x: 1.24, y: 3.76 }, 0.5)).toEqual({ x: 1, y: 4 });
     expect(snapPoint({ x: 1.26, y: -0.3 }, 0.5)).toEqual({ x: 1.5, y: -0.5 });
+  });
+
+  it("falls back to the average of the points for a polygon without area", () => {
+    const line = [
+      { x: 0, y: 0 },
+      { x: 2, y: 0 },
+      { x: 4, y: 0 },
+    ];
+    expect(centroid(line)).toEqual({ x: 2, y: 0 });
+    expect(centroid([])).toEqual({ x: 0, y: 0 });
+  });
+});
+
+describe("edge cases", () => {
+  it("counts a point exactly on a vertex as inside", () => {
+    for (const p of lShape) expect(pointInPolygon(p, lShape)).toBe(true);
+  });
+
+  it("rejects a polygon whose edge folds back on the one before it", () => {
+    const spike = [
+      { x: 0, y: 0 },
+      { x: 4, y: 0 },
+      { x: 4, y: 4 },
+      { x: 4, y: 2 },
+      { x: 0, y: 4 },
+    ];
+    expect(isSimplePolygon(spike)).toBe(false);
+  });
+
+  it("intersects nearly parallel lines far away and gives up only when exactly parallel", () => {
+    const p = lineIntersection({ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 0, y: 1 }, { x: 10, y: 1.0001 });
+    expect(p!.x).toBeCloseTo(-1e5, 3);
+    expect(p!.y).toBeCloseTo(0, 9);
+    expect(lineIntersection({ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 })).toBe(
+      null,
+    );
+  });
+});
+
+describe("interiorPoint", () => {
+  it("is the centroid of a convex polygon", () => {
+    expect(interiorPoint(rect)).toEqual({ x: 5, y: 4 });
+  });
+
+  it("lies inside an L whose centroid is outside it", () => {
+    const corridor = [
+      { x: 0, y: 0 },
+      { x: 10, y: 0 },
+      { x: 10, y: 2 },
+      { x: 2, y: 2 },
+      { x: 2, y: 10 },
+      { x: 0, y: 10 },
+    ];
+    expect(pointInPolygon(centroid(corridor), corridor)).toBe(false);
+    const p = interiorPoint(corridor);
+    expect(pointInPolygon(p, corridor)).toBe(true);
+    expect(p.x).toBeGreaterThan(0);
+    expect(p.x).toBeLessThan(2);
+  });
+});
+
+describe("overlapOnEdge and spansOnEdge", () => {
+  const bottom = edges(rect)[0]!;
+
+  it("clamps a collinear segment to the edge, whatever its ends", () => {
+    expect(overlapOnEdge({ x: -2, y: 0 }, { x: 4, y: 0 }, bottom)).toEqual([0, 4]);
+    expect(overlapOnEdge({ x: 12, y: 0 }, { x: 6, y: 0 }, bottom)).toEqual([6, 10]);
+    expect(overlapOnEdge({ x: 11, y: 0 }, { x: 12, y: 0 }, bottom)).toBe(null);
+    expect(overlapOnEdge({ x: 0, y: 0.1 }, { x: 10, y: 0.1 }, bottom)).toBe(null);
+    expect(overlapOnEdge({ x: 0, y: 0 }, { x: 10, y: 1 }, bottom)).toBe(null);
+  });
+
+  it("finds a room edge running past a vertex in the middle of a wall", () => {
+    const half = edges([{ x: 0, y: 0 }, { x: 5, y: 0 }, ...rect.slice(1)]);
+    expect(spansOnEdge(rect, half[0]!)).toEqual([[0, 5]]);
+    expect(spansOnEdge(rect, half[1]!)).toEqual([[0, 5]]);
   });
 });

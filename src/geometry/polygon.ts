@@ -220,6 +220,42 @@ export function centroid(polygon: readonly Vec2[]): Vec2 {
   return { x: cx / (6 * a), y: cy / (6 * a) };
 }
 
+/**
+ * A point strictly inside a simple polygon. The centroid when it is inside, else the middle
+ * of the widest run of a horizontal line through the centroid: a concave (L-shaped) polygon's
+ * centroid can lie outside it.
+ */
+export function interiorPoint(polygon: readonly Vec2[]): Vec2 {
+  const c = centroid(polygon);
+  const onBoundary = polygon.some((p, i) =>
+    pointOnSegment(c, p, polygon[(i + 1) % polygon.length] ?? p),
+  );
+  if (!onBoundary && pointInPolygon(c, polygon)) return c;
+  const { min, max } = bounds(polygon);
+  // Move the line off any vertex so every crossing is a clean edge crossing.
+  let y = c.y;
+  if (polygon.some((p) => Math.abs(p.y - y) < 1e-9)) y += (max.y - min.y) * 1e-4;
+  const xs: number[] = [];
+  for (let i = 0; i < polygon.length; i++) {
+    const a = polygon[i];
+    const b = polygon[(i + 1) % polygon.length];
+    if (!a || !b || a.y > y === b.y > y) continue;
+    xs.push(a.x + ((y - a.y) * (b.x - a.x)) / (b.y - a.y));
+  }
+  xs.sort((p, q) => p - q);
+  let best: Vec2 = c;
+  let widest = 0;
+  for (let i = 0; i + 1 < xs.length; i += 2) {
+    const x0 = xs[i]!;
+    const x1 = xs[i + 1]!;
+    if (x1 - x0 > widest) {
+      widest = x1 - x0;
+      best = { x: (x0 + x1) / 2, y };
+    }
+  }
+  return best;
+}
+
 export function bounds(polygon: readonly Vec2[]): { min: Vec2; max: Vec2 } {
   const min = vec(Infinity, Infinity);
   const max = vec(-Infinity, -Infinity);

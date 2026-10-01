@@ -144,3 +144,48 @@ describe("computeRooms", () => {
     for (const r of rooms) for (const p of r.polygon) expect(pointInPolygon(p, rect)).toBe(true);
   });
 });
+
+describe("computeRooms with a concave room", () => {
+  // A 10 x 10 footprint with an L-shaped corridor (36 m²) wrapped around a 64 m² room. The
+  // corridor's centroid (3.22, 3.22) lies inside the big room, not inside the corridor.
+  const square = [
+    { x: 0, y: 0 },
+    { x: 10, y: 0 },
+    { x: 10, y: 10 },
+    { x: 0, y: 10 },
+  ];
+  const walls: Segment[] = [
+    { a: { x: 2, y: 2 }, b: { x: 10, y: 2 } },
+    { a: { x: 2, y: 2 }, b: { x: 2, y: 10 } },
+  ];
+  const named = (): Room[] =>
+    computeRooms(square, walls, [], factory).map((r) =>
+      r.area > 50 ? { ...r, name: "Living" } : { ...r, name: "Corridor", zoneId: "cold" },
+    );
+  const corridorOf = (rooms: Room[]) => rooms.find((r) => Math.abs(r.area - 36) < 1e-6)!;
+
+  it("keeps the corridor's id, name and zone when recomputed with the same walls", () => {
+    const before = named();
+    const after = computeRooms(square, walls, before, factory);
+    const corridor = corridorOf(after);
+    expect(corridor.id).toBe(corridorOf(before).id);
+    expect(corridor.name).toBe("Corridor");
+    expect(corridor.zoneId).toBe("cold");
+    expect(after.find((r) => r.name === "Living")!.zoneId).toBeUndefined();
+  });
+
+  it("keeps them when an unrelated wall splits the other room", () => {
+    const before = named();
+    const after = computeRooms(
+      square,
+      [...walls, { a: { x: 6, y: 2 }, b: { x: 6, y: 10 } }],
+      before,
+      factory,
+    );
+    const corridor = corridorOf(after);
+    expect(corridor.id).toBe(corridorOf(before).id);
+    expect(corridor.name).toBe("Corridor");
+    expect(corridor.zoneId).toBe("cold");
+    expect(after.filter((r) => r.zoneId === "cold")).toHaveLength(1);
+  });
+});
