@@ -21,6 +21,8 @@ interface Props {
   /** Ids of elements that describe the field further, such as a list of rules under it. */
   describedBy?: string;
   maxLength?: number;
+  /** An example of what goes in, shown while the field is empty. */
+  placeholder?: string;
 }
 
 /**
@@ -41,6 +43,7 @@ export function CustomFormInput({
   onBlur,
   describedBy,
   maxLength,
+  placeholder,
 }: Props) {
   const t = useT();
   const id = useId();
@@ -68,6 +71,7 @@ export function CustomFormInput({
             undefined
           }
           maxLength={maxLength}
+          placeholder={placeholder}
           onBlur={onBlur}
           spellCheck={false}
           onChange={(e) => {

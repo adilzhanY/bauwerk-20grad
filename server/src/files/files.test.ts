@@ -231,7 +231,10 @@ describe("parallel uploads to one slot", () => {
         body: new Uint8Array([n, n, n]),
       });
     const answers = await Promise.all([1, 2, 3, 4, 5].map(put));
-    expect(answers.map((r) => r.status < 300)).toEqual([true, true, true, true, true]);
+    const codes = await Promise.all(
+      answers.map(async (r) => `${String(r.status)} ${r.status < 300 ? "" : await r.text()}`),
+    );
+    expect(codes.filter((c) => !c.startsWith("2"))).toEqual([]);
     const rows = await pool.query(
       "SELECT 1 FROM app.project_files WHERE project_id = $1 AND slot = '2'",
       [id],

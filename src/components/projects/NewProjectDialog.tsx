@@ -181,12 +181,21 @@ export function NewProjectDialog({ onClose }: { onClose: () => void }) {
             <CustomFormInput
               label={t("newProject.addressLabel")}
               value={query}
+              placeholder={t("newProject.addressExample")}
+              // Once a suggestion is picked, the full address says which building it is.
+              {...(place
+                ? {
+                    hint: t("newProject.found", {
+                      address: [place.main, place.area].filter(Boolean).join(", "),
+                    }),
+                  }
+                : {})}
               onChange={(v) => {
                 setQuery(v);
                 setPlace(null);
               }}
             />
-            {!place && places.length > 0 && (
+            <Presence show={!place && places.length > 0}>
               <ul className="flex max-h-48 flex-col overflow-y-auto rounded-inner border border-line">
                 {places.map((p) => (
                   <li key={`${p.main}|${p.area}`}>
@@ -206,7 +215,7 @@ export function NewProjectDialog({ onClose }: { onClose: () => void }) {
                   </li>
                 ))}
               </ul>
-            )}
+            </Presence>
           </div>
         </Presence>
         <Presence show={way === "files"}>
