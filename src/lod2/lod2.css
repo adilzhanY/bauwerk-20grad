@@ -62,19 +62,22 @@
 .opening-box.draft {
   border-style: dashed;
 }
+/* Under the box, centred and on one line: the window itself stays visible, and labels of
+   openings side by side do not run into each other. */
 .opening-label {
   position: absolute;
-  left: 0;
-  top: 0;
-  display: flex;
-  flex-direction: column;
-  padding: 1px 3px;
-  border-bottom-right-radius: var(--radius-soft);
+  left: 50%;
+  top: 100%;
+  margin-top: 2px;
+  transform: translateX(-50%);
+  padding: 0 3px;
+  border-radius: var(--radius-soft);
+  pointer-events: none;
   font-family: var(--font-num);
   font-size: 10px;
   line-height: 1.2;
   color: #ffffff;
-  background: rgba(20, 20, 20, 0.8);
+  background: rgba(20, 20, 20, 0.7);
   white-space: nowrap;
 }
 

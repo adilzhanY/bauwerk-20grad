@@ -111,7 +111,7 @@ export function PhotoDetails({
       </CustomSection>
       <CustomSection title={t("photo.lensExposure")}>
         <Rows>
-          <CustomReadOnly label={t("photo.focalLength")} value={focal} />
+          <CustomReadOnly label={t("photo.focalLength")} value={focal} prose />
           <CustomReadOnly
             label={t("photo.aperture")}
             value={exif.fNumber === null ? "-" : `f/${format.num(exif.fNumber, 1)}`}
