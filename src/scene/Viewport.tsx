@@ -29,6 +29,7 @@ import { NotePins } from "./NotePins";
 import { PLAN_MIRROR } from "./three";
 import { Tools } from "./tools/Tools";
 import { Compass } from "./Compass";
+import { useSceneColors } from "./useSceneColors";
 import { FacadeLines } from "./FacadeLines";
 import { storeyElevation } from "@/store/selectors";
 
@@ -54,6 +55,8 @@ export function Viewport({ onSample }: ViewportProps = {}) {
   const otherStoreys = useEditorStore((s) => s.otherStoreys);
   const activeElevation = activeStoreyId ? storeyElevation(building, activeStoreyId) : 0;
   const footprintBounds = useMemo(() => bounds(building.footprint), [building.footprint]);
+  // Softer in the dark theme, where the light grey model would glare on the black ground.
+  const light = useSceneColors().light;
 
   return (
     <>
@@ -65,14 +68,14 @@ export function Viewport({ onSample }: ViewportProps = {}) {
       >
         {/* Sky above, light pavement below: faces turned away from the light still get the light
           that bounces off the street, as a facade does, instead of going near black. */}
-        <hemisphereLight args={["#f1f4f9", "#b3b8c0", 1.3]} />
+        <hemisphereLight args={["#f1f4f9", "#b3b8c0", 1.3 * light]} />
         {/* World space: the camera and the pointer (three.ts). */}
         {isPlanView && <PlanViewCamera bounds={footprintBounds} elevation={activeElevation} />}
         <ShareCursor />
         <HoverCursor />
         {/* Everything drawn is built in plan space; this group turns it into world space. */}
         <group scale={PLAN_MIRROR}>
-          <DefaultDirectionalLight bounds={footprintBounds} intensity={1.6} />
+          <DefaultDirectionalLight bounds={footprintBounds} intensity={1.6 * light} />
           <Ground />
           <Grid />
           <MapUnderlay />

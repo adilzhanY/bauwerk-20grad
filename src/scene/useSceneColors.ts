@@ -14,6 +14,10 @@ export interface SceneColors {
   mark: string;
   ink: string;
   muted: string;
+  /** Outlines of the storeys and the roof drawn as outlines. */
+  outline: string;
+  /** Factor on the scene's lights: 1 in the light theme, less in the dark one. */
+  light: number;
   /** Background and grid of the LoD2 building view. */
   siteBg: string;
   siteGrid: string;
@@ -36,6 +40,8 @@ function read(): SceneColors {
     mark: themeColor("--mark", "#c2431f"),
     ink: themeColor("--ink", "#1b1d20"),
     muted: themeColor("--muted", "#5b6068"),
+    outline: themeColor("--scene-outline", "#97a4b1"),
+    light: Number.parseFloat(themeColor("--scene-light", "1")) || 1,
     siteBg: themeColor("--site-bg", "#e9e9e3"),
     siteGrid: themeColor("--site-grid", "#c4c6bd"),
     siteGridStrong: themeColor("--site-grid-strong", "#a9aba2"),

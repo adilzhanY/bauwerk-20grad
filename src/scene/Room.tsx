@@ -4,6 +4,7 @@ import type { ThreeEvent } from "@react-three/fiber";
 import { centroid } from "@/geometry/polygon";
 import type { Id, Room as RoomData, Zone } from "@/geometry/types";
 import { colors } from "@/lib/colors";
+import { coveredFromAbove } from "./display";
 import type { StoreyDisplay } from "./display";
 import { formatArea } from "@/lib/format";
 import { useEditorStore } from "@/store/building";
@@ -34,6 +35,10 @@ export function Room({ storeyId, room, zone, elevation, active, display, ghostOp
   const tool = useEditorStore((s) => s.tool);
   // The floor plan writes its own room stamp, with the room's size; two would overlap.
   const planView = useEditorStore((s) => s.planView);
+  // A label is HTML over the canvas: it would show through a roof or storey drawn over it.
+  const covered = useEditorStore((s) =>
+    coveredFromAbove(s.otherStoreys, s.selection?.kind === "roof"),
+  );
   const activeZoneId = useEditorStore((s) => s.activeZoneId);
   const assignRoomToZone = useEditorStore((s) => s.assignRoomToZone);
   const hover = useHover(target, active);
@@ -83,7 +88,7 @@ export function Room({ storeyId, room, zone, elevation, active, display, ghostOp
           roughness={1}
         />
       </mesh>
-      {active && !planView && (
+      {active && !planView && !covered && (
         <Html
           position={[centre.x, elevation + 0.05, centre.y]}
           center
