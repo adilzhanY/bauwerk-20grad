@@ -4,6 +4,8 @@
  * how many jobs are ahead of it, which the progress card shows, and which also tells the service
  * that someone still waits: a job nobody asks for any more is dropped when its turn comes.
  */
+import { randomId } from "@/lib/ids";
+
 const ASK_MS = 1000;
 
 /** Posts `form` to `base + path` with a job id, reporting the jobs ahead through `onAhead`. */
@@ -14,7 +16,7 @@ export async function postInLine(
   signal?: AbortSignal,
   onAhead?: (ahead: number) => void,
 ): Promise<Response> {
-  const id = crypto.randomUUID();
+  const id = randomId();
   let answered = false;
   // A function, because TypeScript keeps `answered` narrowed across an await.
   const over = () => answered || signal?.aborted === true;

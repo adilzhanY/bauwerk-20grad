@@ -5,10 +5,12 @@ import type { Building } from "@/geometry/types";
 import { exampleHouse } from "@/lib/examples";
 import { listProjectCopies } from "@/lib/storage";
 import { useEditorStore } from "@/store/building";
+import type { ProjectCard } from "./projects";
 import {
   isUnsaved,
   openBuilding,
   openForWork,
+  openProjectCard,
   saveProject,
   startLeaveGuard,
   useLeave,
@@ -130,6 +132,31 @@ describe("unsaved work", () => {
     useRouter.getState().navigate({ page: "map" });
     expect(useRouter.getState().route.page).toBe("map");
     expect(useLeave.getState().answer).toBeNull();
+  });
+
+  it("opening a project card asks first; Cancel keeps the work", async () => {
+    // A saved browser project, then new unsaved work.
+    await openForWork(boo(), undefined, { fresh: true });
+    await saveProject();
+    const localId = useEditorStore.getState().building.project?.localId ?? "";
+    await openForWork(exampleHouse("en"), undefined, { fresh: true });
+    useEditorStore.getState().setWallThickness(0.4);
+    const card = { ref: { kind: "local", id: localId } } as ProjectCard;
+
+    const opening = openProjectCard(card);
+    await answer("cancel");
+    expect(await opening).toBe("stayed");
+    expect(useEditorStore.getState().building.wallThickness).toBe(0.4);
+
+    const again = openProjectCard(card);
+    await answer("discard");
+    expect(await again).toBe("opened");
+    expect(useEditorStore.getState().building.project?.localId).toBe(localId);
+  });
+
+  it("a project card that cannot be opened says so", async () => {
+    const card = { ref: { kind: "local", id: "gone" } } as ProjectCard;
+    expect(await openProjectCard(card)).toBe("failed");
   });
 
   it("moving between the steps of the project does not ask", async () => {

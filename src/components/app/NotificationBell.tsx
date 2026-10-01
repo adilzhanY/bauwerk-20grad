@@ -8,9 +8,8 @@ import { formatRelative } from "@/lib/format";
 import { answerRequest } from "@/projects/collab";
 import type { Notice } from "@/projects/collab";
 import { readNotices, useInbox } from "@/projects/inbox";
-import { openServerProject } from "@/projects/projects";
 import { isRole } from "@/projects/roles";
-import { confirmLeave } from "@/projects/session";
+import { openServerProject } from "@/projects/session";
 import { useEditorStore } from "@/store/building";
 import { Avatar } from "@/components/shared/Avatar";
 import { CustomButton } from "@/components/shared/CustomButton";
@@ -119,9 +118,8 @@ function Item({ item, onDone }: { item: Notice; onDone: () => void }) {
   const go = async () => {
     void readNotices([item.id]);
     if (!item.projectId || item.kind === "removed") return;
-    if (!(await confirmLeave())) return;
+    if ((await openServerProject(item.projectId)) === "stayed") return;
     onDone();
-    await openServerProject(item.projectId).catch(() => undefined);
     navigate({ page: "editor" });
   };
 

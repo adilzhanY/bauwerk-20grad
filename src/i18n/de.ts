@@ -373,6 +373,7 @@ export const de: Messages = {
   "projects.newHint": "Adresse, ein Klick auf die Karte oder ein Foto mit Standort",
   "projects.localOnly": "Kein Server verbunden: Projekte und Fotos liegen nur in diesem Browser.",
   "projects.loadFailed": "Die Projekte ließen sich nicht laden. Läuft der Server?",
+  "projects.openFailed": "Das Projekt ließ sich nicht öffnen. Versuchen Sie es gleich noch einmal.",
   "projects.loading": "Projekte werden geladen…",
   "projects.all": "Alle",
   "projects.sorted": "Zuletzt bearbeitet zuerst",

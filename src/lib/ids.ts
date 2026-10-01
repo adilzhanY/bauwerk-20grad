@@ -17,3 +17,14 @@ export function createId(prefix = "id"): string {
 export function resetIds(): void {
   counter = 0;
 }
+
+/**
+ * A random id that is unique across tabs and browsers (a tab, a browser project, an AI job).
+ * crypto.randomUUID exists only on https and localhost, so a page on plain http (a rented
+ * graphics card host) falls back to Math.random.
+ */
+export function randomId(): string {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
+}

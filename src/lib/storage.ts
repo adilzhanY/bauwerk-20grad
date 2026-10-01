@@ -4,6 +4,7 @@ import type { ExportFile } from "@/geometry/export";
 import type { Building } from "@/geometry/types";
 import type { Language } from "@/i18n";
 import type { Theme } from "@/store/building";
+import { randomId } from "@/lib/ids";
 
 const LANGUAGE_KEY = "bauwerk.language";
 const THEME_KEY = "bauwerk.theme";
@@ -114,17 +115,11 @@ export function initialBuilding(): Building | null {
     const building = key === LEGACY_KEY ? null : readFile(text);
     store.removeItem(key);
     if (building?.project) {
-      saveProjectCopy({ ...building, project: { ...building.project, localId: newLocalId() } });
+      saveProjectCopy({ ...building, project: { ...building.project, localId: randomId() } });
     }
   }
   const open = store.getItem(OPEN_PROJECT_KEY);
   return open ? loadProjectCopy(open) : null;
-}
-
-export function newLocalId(): string {
-  return typeof crypto !== "undefined" && "randomUUID" in crypto
-    ? crypto.randomUUID()
-    : `p${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 }
 
 export function loadTheme(): Theme | null {

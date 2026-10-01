@@ -12,11 +12,10 @@ import { authHeaders } from "@/auth/api";
 import { projectSummary } from "@/geometry/project";
 import type { ProjectSummary as CardSummary } from "@/geometry/project";
 import type { Building, ProjectInfo } from "@/geometry/types";
-import { listProjectCopies, loadProjectCopy, removeProjectCopy } from "@/lib/storage";
-import { createDefaultBuilding, useEditorStore } from "@/store/building";
-import { openBuilding } from "./session";
+import { listProjectCopies, removeProjectCopy } from "@/lib/storage";
+import { useEditorStore } from "@/store/building";
 import { syncConfigFromEnv } from "@/sync/client";
-import { leaveProject, listProjects, openProject, syncEnabled, whenJoined } from "@/sync/useSync";
+import { listProjects, syncEnabled } from "@/sync/useSync";
 import type { HereNow } from "@/sync/useSync";
 import { localPhotos } from "./localPhotos";
 
@@ -86,28 +85,6 @@ export function projectRefOf(state: {
 /** The project open in the editor, or null when the editor holds a loose building. */
 export function currentProjectRef(): ProjectRef | null {
   return projectRefOf(useEditorStore.getState());
-}
-
-/** Opens a project in the editor: joins it on the server, or loads its kept building. */
-export async function openProjectCard(card: ProjectCard): Promise<void> {
-  if (sameRef(currentProjectRef(), card.ref)) return;
-  if (card.ref.kind === "server") {
-    await openServerProject(card.ref.id);
-    return;
-  }
-  leaveProject();
-  const building = loadProjectCopy(card.ref.id);
-  if (building) openBuilding(building);
-}
-
-/** Opens a server project by its id (a card, a notification) and waits until it has joined. */
-export async function openServerProject(id: string): Promise<void> {
-  if (useEditorStore.getState().projectId === id) return;
-  leaveProject();
-  // Nothing of the project open before may show while this one arrives.
-  openBuilding(createDefaultBuilding(useEditorStore.getState().language));
-  openProject(id);
-  await whenJoined(id);
 }
 
 /** Deletes a project with its pictures. */

@@ -13,7 +13,8 @@ import { create } from "zustand";
 import type { Route } from "@/app/router";
 import { setLeaveGuard } from "@/app/router";
 import type { Building } from "@/geometry/types";
-import { newLocalId, saveProjectCopy } from "@/lib/storage";
+import { randomId } from "@/lib/ids";
+import { loadProjectCopy, saveProjectCopy } from "@/lib/storage";
 import { createDefaultBuilding, useEditorStore } from "@/store/building";
 import {
   createProject,
@@ -21,8 +22,10 @@ import {
   openProject,
   projectIdFromUrl,
   syncEnabled,
+  whenJoined,
 } from "@/sync/useSync";
-import { projectRefOf } from "./projects";
+import { currentProjectRef, projectRefOf, sameRef } from "./projects";
+import type { ProjectCard } from "./projects";
 
 type EditorState = ReturnType<typeof useEditorStore.getState>;
 
@@ -52,6 +55,17 @@ export function openBuilding(building: Building): void {
 /** Starts a new, unsaved project with `building`. */
 export const startProject = openBuilding;
 
+/**
+ * Replaces the work with a new, unsaved project of `building` (an example, a box from New
+ * building), asking first whether to save unsaved work. The project open before is left, so
+ * the new building never reaches it as an edit. Resolves false when the user chose to stay.
+ */
+export async function startNewProject(building: Building): Promise<boolean> {
+  if (!(await confirmLeave())) return false;
+  startProject(building);
+  return true;
+}
+
 /** Throws the unsaved work away: the editor goes back to an empty building. */
 export function discardProject(): void {
   openBuilding(createDefaultBuilding(useEditorStore.getState().language));
@@ -62,7 +76,17 @@ export function discardProject(): void {
  * browser under its own id. The photos and floor plan images go with it (photoSync.ts).
  * Resolves false when the server refused, and the work stays unsaved.
  */
-export async function saveProject(): Promise<boolean> {
+export function saveProject(): Promise<boolean> {
+  // Ctrl+S, Share and the leave dialog can all ask while the server is still creating it.
+  saving ??= save().finally(() => {
+    saving = null;
+  });
+  return saving;
+}
+
+let saving: Promise<boolean> | null = null;
+
+async function save(): Promise<boolean> {
   const store = useEditorStore.getState();
   if (projectRefOf(store) !== null) return true;
   // The project facts mark a building as a project, also one drawn by hand.
@@ -77,7 +101,7 @@ export async function saveProject(): Promise<boolean> {
     useEditorStore.getState().setProjectId(id);
     return true;
   }
-  store.setProjectInfo({ localId: newLocalId() });
+  store.setProjectInfo({ localId: randomId() });
   saveProjectCopy(useEditorStore.getState().building);
   return true;
 }
@@ -105,6 +129,38 @@ export async function openForWork(
   if (!(await confirmLeave())) return false;
   startProject(prepare(building));
   return true;
+}
+
+// Opening a saved project --------------------------------------------------------------
+
+/** How opening a project ended: open, the user chose to stay with the work, or it failed. */
+export type OpenResult = "opened" | "stayed" | "failed";
+
+/** Opens a project from its card, asking first whether to save unsaved work. */
+export async function openProjectCard(card: ProjectCard): Promise<OpenResult> {
+  if (sameRef(currentProjectRef(), card.ref)) return "opened";
+  if (card.ref.kind === "server") return openServerProject(card.ref.id);
+  if (!(await confirmLeave())) return "stayed";
+  const building = loadProjectCopy(card.ref.id);
+  if (!building) return "failed";
+  openBuilding(building);
+  return "opened";
+}
+
+/**
+ * Opens a server project by its id (a card, a notification) and waits until it has joined,
+ * asking first whether to save unsaved work.
+ */
+export async function openServerProject(id: string): Promise<OpenResult> {
+  if (useEditorStore.getState().projectId === id) return "opened";
+  if (!(await confirmLeave())) return "stayed";
+  // Nothing of the project open before may show while this one arrives.
+  openBuilding(createDefaultBuilding(useEditorStore.getState().language));
+  openProject(id);
+  return whenJoined(id).then(
+    () => "opened" as const,
+    () => "failed" as const,
+  );
 }
 
 // Leaving unsaved work ------------------------------------------------------------------

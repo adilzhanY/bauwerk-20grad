@@ -369,6 +369,7 @@ export const en = {
   "projects.localOnly":
     "No server is connected: projects and their photos are kept in this browser only.",
   "projects.loadFailed": "The projects could not be loaded. Is the server running?",
+  "projects.openFailed": "The project could not be opened. Try again in a moment.",
   "projects.loading": "Loading projects…",
   "projects.all": "All",
   "projects.sorted": "Last edited first",
