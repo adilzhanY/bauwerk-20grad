@@ -37,6 +37,7 @@ export const de: Messages = {
   "survey.planTitle": "Grundriss, {storey}",
   "survey.planServiceDown":
     "Der Dienst zum Einlesen von Grundrissen läuft nicht. Eine Zeichnung kann trotzdem unter das Modell gelegt und von Hand nachgezeichnet werden.",
+  "survey.room": "1 Raum",
   "survey.rooms": "{n} Räume",
   "survey.named": "{n} benannt",
   "survey.facade": "Wand {n}, {side}",
@@ -991,7 +992,7 @@ export const de: Messages = {
   "building.width": "Breite",
   "building.depth": "Tiefe",
   "building.notRectangle":
-    "Breite und Tiefe sind editierbar, solange der Grundriss ein Rechteck ist. Andere Formen über das Grundriss-Werkzeug.",
+    "Breite und Tiefe sind editierbar, solange der Umriss ein Rechteck ist. Andere Formen über Umriss, unter Mehr in der Werkzeugleiste.",
   "footprint.area": "Grundfläche",
   "common.cancel": "Abbrechen",
   "common.scrub": "Ziehen zum Ändern",

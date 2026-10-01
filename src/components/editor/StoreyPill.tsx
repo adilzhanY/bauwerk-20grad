@@ -14,6 +14,7 @@ import { storeyShortName } from "@/components/editor/storeyName";
 export function StoreyPill() {
   const t = useT();
   const storeys = useEditorStore((s) => s.building.storeys);
+  const language = useEditorStore((s) => s.language);
   const activeStoreyId = useEditorStore((s) => s.activeStoreyId);
   const setActiveStorey = useEditorStore((s) => s.setActiveStorey);
   const addStorey = useEditorStore((s) => s.addStorey);
@@ -53,7 +54,7 @@ export function StoreyPill() {
               active ? "bg-select text-white" : "text-muted hover:bg-panel hover:text-ink",
             )}
           >
-            {storeyShortName(index, storey.name)}
+            {storeyShortName(index, storey.name, language)}
           </button>
         );
       })}

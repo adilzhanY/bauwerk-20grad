@@ -310,7 +310,9 @@ export function useSync(): Sync {
   }, [urlProject, identity, authStatus]);
 
   return {
-    status,
+    // No server project open (a building not saved yet): nothing connects, so nothing says
+    // "Connecting".
+    status: urlProject ? status : "local",
     ...identity,
     rejection,
     dismissRejection: () => {

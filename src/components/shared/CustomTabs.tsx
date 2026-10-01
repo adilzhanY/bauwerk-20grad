@@ -43,7 +43,8 @@ export function CustomTabs<V extends string>({ id, label, value, tabs, onChange 
     }
   };
   return (
-    <div role="tablist" aria-label={label} className="flex border-b border-line px-2">
+    // The first tab's text lines up with the fields below it, not indented past their edge.
+    <div role="tablist" aria-label={label} className="flex gap-1 border-b border-line">
       {tabs.map((t) => {
         const selected = t.value === value;
         return (
@@ -62,7 +63,7 @@ export function CustomTabs<V extends string>({ id, label, value, tabs, onChange 
             }}
             onKeyDown={onKeyDown}
             className={cx(
-              "-mb-px flex h-11 items-center gap-1.5 border-b-2 px-2.5 text-sm font-medium transition-colors",
+              "-mb-px flex h-11 items-center gap-1.5 border-b-2 px-2.5 text-sm font-medium transition-colors first:pl-0",
               selected ? "border-select text-ink" : "border-transparent text-muted hover:text-ink",
             )}
           >

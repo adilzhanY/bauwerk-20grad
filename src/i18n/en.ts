@@ -34,6 +34,7 @@ export const en = {
   "survey.planTitle": "Floor plan, {storey}",
   "survey.planServiceDown":
     "The floor plan reading service is not running. A drawing can still be laid under the model to trace by hand.",
+  "survey.room": "1 room",
   "survey.rooms": "{n} rooms",
   "survey.named": "{n} named",
   "survey.facade": "Wall {n}, {side}",
@@ -1036,7 +1037,7 @@ export const en = {
   "building.width": "Width",
   "building.depth": "Depth",
   "building.notRectangle":
-    "Width and depth are editable while the footprint is a rectangle. Use the Footprint tool for other shapes.",
+    "Width and depth are editable while the outline is a rectangle. For other shapes use Outline, under More in the tool bar.",
   "footprint.area": "Footprint area",
   "common.cancel": "Cancel",
   "common.scrub": "Drag to change",

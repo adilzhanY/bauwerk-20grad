@@ -200,7 +200,11 @@ function StoreyBlock({
       <SurveyRow
         indent
         icon={<Rows3 size={16} />}
-        label={t("survey.rooms", { n: storey.rooms.length })}
+        label={
+          storey.rooms.length === 1
+            ? t("survey.room")
+            : t("survey.rooms", { n: storey.rooms.length })
+        }
         meta={t("survey.named", { n: named })}
         muted
         onSelect={() => {

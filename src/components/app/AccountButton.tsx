@@ -6,7 +6,7 @@ import { useDismiss } from "@/components/shared/useDismiss";
 import { useT } from "@/i18n/useT";
 import { fullName, signOut, useAuth } from "@/auth/store";
 import { initialsOf } from "@/components/shared/initials";
-import { loginPath } from "@/app/router";
+import { loginPath, useRouter } from "@/app/router";
 
 /** Built without accounts, the bar shows these initials, as it always did. */
 const OWNER_INITIALS = "AY";
@@ -18,6 +18,7 @@ const OWNER_INITIALS = "AY";
  */
 export function AccountButton() {
   const t = useT();
+  const route = useRouter((s) => s.route);
   const status = useAuth((s) => s.status);
   const account = useAuth((s) => s.account);
   const [open, setOpen] = useState(false);
@@ -40,6 +41,8 @@ export function AccountButton() {
     );
   }
 
+  // On the sign in page itself a link to it would only point at the page again.
+  if (!account && route.page === "login") return null;
   if (!account) {
     return (
       <a
