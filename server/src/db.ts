@@ -25,7 +25,14 @@ export function createPool(
   } else {
     config.connectionString = connectionString;
   }
-  return new Pool(config);
+  const pool = new Pool(config);
+  // An idle connection that the database or the network drops raises an error on the pool;
+  // without a listener Node treats it as unhandled and the whole server stops. The pool
+  // replaces the connection by itself, so it is only logged.
+  pool.on("error", (error) => {
+    console.error("database connection lost:", error.message);
+  });
+  return pool;
 }
 
 /** Any number, the same in every process: two servers starting at once migrate one by one. */

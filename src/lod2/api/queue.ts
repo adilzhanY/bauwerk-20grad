@@ -5,6 +5,7 @@
  * that someone still waits: a job nobody asks for any more is dropped when its turn comes.
  */
 const ASK_MS = 1000;
+import { authHeaders } from "@/auth/api";
 
 /** Posts `form` to `base + path` with a job id, reporting the jobs ahead through `onAhead`. */
 export async function postInLine(
@@ -23,7 +24,7 @@ export async function postInLine(
       await new Promise((resolve) => setTimeout(resolve, ASK_MS));
       if (over()) return;
       try {
-        const res = await fetch(`${base}/queue/${id}`, { signal });
+        const res = await fetch(`${base}/queue/${id}`, { signal, headers: await authHeaders() });
         // 404: not in line yet (still uploading) or already done.
         if (!res.ok) continue;
         const { ahead } = (await res.json()) as { ahead?: unknown };
@@ -39,7 +40,8 @@ export async function postInLine(
       method: "POST",
       body: form,
       signal,
-      headers: { "x-job-id": id },
+      // Signed in: the hosted site lets only members of Bauwerk use the graphics card.
+      headers: { "x-job-id": id, ...(await authHeaders()) },
     });
   } finally {
     answered = true;

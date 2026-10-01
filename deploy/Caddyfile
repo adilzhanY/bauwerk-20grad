@@ -1,5 +1,14 @@
 # One site. {$DOMAIN} is the bare domain on the server (HTTPS from Let's Encrypt, on its own
 # once the DNS records point here); ":80" for a plain HTTP test on a laptop.
+# The graphics card is paid by the hour: only a signed in person may use it. Caddy asks the
+# collaboration server about the request's token first (/auth/me answers 200 for a valid one)
+# and passes the request on only then; anyone else gets the 401 back.
+(signed_in) {
+	forward_auth server:8789 {
+		uri /auth/me
+	}
+}
+
 {$DOMAIN::80} {
 	encode zstd gzip
 
@@ -16,7 +25,18 @@
 	# SAM 3 on a rented graphics card, when there is one. Without VISION_URL the default
 	# refuses the connection: the app gets a 502 and hides "Detect openings".
 	handle_path /vision/* {
+		import signed_in
 		reverse_proxy {$VISION_URL:http://127.0.0.1:9} {
+			header_up Host {upstream_hostport}
+			header_up X-Vision-Key {$VISION_KEY:none}
+		}
+	}
+
+	# Floor plan reading, on the same rented card or its own (FLOORPLAN_URL); without it the
+	# app hides the floor plan import, as for the photos.
+	handle_path /floorplan/* {
+		import signed_in
+		reverse_proxy {$FLOORPLAN_URL:http://127.0.0.1:9} {
 			header_up Host {upstream_hostport}
 			header_up X-Vision-Key {$VISION_KEY:none}
 		}

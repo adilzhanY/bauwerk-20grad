@@ -79,6 +79,15 @@ const tom = users.tom_wagner;
 if (!adilzhan || !lena || !tom) throw new Error("the demo accounts are missing");
 const name = (u: AuthUser) => `${u.firstName} ${u.lastName}`;
 
+/** Makes the person an editor of the project, as an accepted invitation would. */
+async function addEditor(projectId: string, user: AuthUser, invitedBy: AuthUser): Promise<void> {
+  await pool.query(
+    `INSERT INTO app.project_members (project_id, user_id, role, invited_by)
+     VALUES ($1, $2, 'editor', $3) ON CONFLICT (project_id, user_id) DO NOTHING`,
+    [projectId, user.id, invitedBy.id],
+  );
+}
+
 /** BOo in Berlin, from the LoD2 fixture, with the ground floor read from its old plan. */
 function boo(): Building {
   const { detail, survey, neighbours } = loadFixture("DEBE02YY40000BOo");
@@ -149,7 +158,7 @@ if ((owned.rows[0]?.n ?? 0) === 0) {
   const booProject = await projects.create(boo(), name(adilzhan), adilzhan.id);
   if (!booProject.ok) throw new Error(`BOo refused: ${booProject.error.code}`);
   const booId = booProject.project.id;
-  await projects.access(booId, lena, true);
+  await addEditor(booId, lena, adilzhan);
   await edit(
     booId,
     lena,
@@ -188,7 +197,7 @@ if ((owned.rows[0]?.n ?? 0) === 0) {
   // The Altbau example, with Tom as a member.
   const altbau = await projects.create(exampleAltbau("de"), name(adilzhan), adilzhan.id);
   if (!altbau.ok) throw new Error("Altbau refused");
-  await projects.access(altbau.project.id, tom, true);
+  await addEditor(altbau.project.id, tom, adilzhan);
 
   // A small house of Adilzhan's own.
   const house = exampleHouse("de");
@@ -201,7 +210,7 @@ if ((owned.rows[0]?.n ?? 0) === 0) {
   // Lena's office block, shared with Adilzhan.
   const block = await projects.create(exampleBlock("de"), name(lena), lena.id);
   if (!block.ok) throw new Error("block refused");
-  await projects.access(block.project.id, adilzhan, true);
+  await addEditor(block.project.id, adilzhan, lena);
 
   // Adilzhan's own data: German, two bookmarked buildings, a note and the facade survey of BOo.
   await me.saveSettings(adilzhan.id, { language: "de", theme: "light", projectsView: "grid" });

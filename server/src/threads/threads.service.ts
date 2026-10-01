@@ -165,9 +165,13 @@ export class ThreadsService implements OnModuleInit {
   ): Promise<Outcome> {
     if (!(await this.inProject(projectId, threadId))) return "notFound";
     if (!(await this.ownFiles(projectId, attachments))) return "invalid";
+    // Earlier writers who are still members: someone removed from the project hears nothing
+    // more of it, not even a reply in a thread they once wrote in.
     const before = await this.pool.query<{ author_id: string }>(
-      "SELECT DISTINCT author_id FROM app.comments WHERE thread_id = $1 AND author_id IS NOT NULL",
-      [threadId],
+      `SELECT DISTINCT c.author_id FROM app.comments c
+       JOIN app.project_members m ON m.user_id = c.author_id AND m.project_id = $2
+       WHERE c.thread_id = $1`,
+      [threadId, projectId],
     );
     await this.addComment(threadId, text, attachments, author);
     await this.tell(
@@ -308,11 +312,25 @@ export class ThreadsService implements OnModuleInit {
    * author and time; then they leave the building in one ordinary change (a version).
    */
   async onModuleInit() {
-    const res = await this.pool.query<{ id: string; building: Building }>(
-      "SELECT id, building FROM app.projects WHERE jsonb_array_length(COALESCE(building->'notes', '[]'::jsonb)) > 0",
+    const res = await this.pool.query<{ id: string; building: Building; version: number }>(
+      "SELECT id, building, version FROM app.projects WHERE jsonb_array_length(COALESCE(building->'notes', '[]'::jsonb)) > 0",
     );
     for (const row of res.rows) {
       const notes: Note[] = row.building.notes ?? [];
+      // The notes leave the building first, as one ordinary change. Only once that worked do
+      // they become threads, so a refused change can never make them twice on the next start.
+      const ops = diffBuilding(row.building, { ...row.building, notes: [] });
+      const moved = await this.projects.applyBatch(
+        row.id,
+        // The project's version as the sequence: new for every attempt, so never taken for a
+        // batch already applied, and it fits the integer column.
+        { clientId: "bauwerk-notes", seq: row.version, ops, valid: true },
+        "Bauwerk",
+      );
+      if (!moved.ok) {
+        this.log.warn(`notes of project ${row.id} not moved: ${moved.reason}`);
+        continue;
+      }
       for (const note of notes) {
         const target = Target.safeParse(note.target);
         if (!target.success || !note.text.trim()) continue;
@@ -335,12 +353,6 @@ export class ThreadsService implements OnModuleInit {
           ],
         );
       }
-      const ops = diffBuilding(row.building, { ...row.building, notes: [] });
-      await this.projects.applyBatch(
-        row.id,
-        { clientId: "bauwerk-notes", seq: 1, ops, valid: true },
-        "Bauwerk",
-      );
       this.log.log(`moved ${String(notes.length)} notes of project ${row.id} into threads`);
     }
   }

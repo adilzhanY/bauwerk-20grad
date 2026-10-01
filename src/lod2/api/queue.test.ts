@@ -30,6 +30,8 @@ describe("postInLine", () => {
     const pending = postInLine("/vision", "/openings", new FormData(), undefined, (n) =>
       heard.push(n),
     );
+    // The upload goes out once the sign-in headers are read.
+    await vi.advanceTimersByTimeAsync(0);
     expect(jobId).toMatch(/^[0-9a-f-]{36}$/);
     await vi.advanceTimersByTimeAsync(4000);
     expect(heard).toEqual([2, 1, 0]);

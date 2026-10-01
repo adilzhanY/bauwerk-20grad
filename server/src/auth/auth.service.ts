@@ -164,6 +164,10 @@ export class AuthService {
     if (!FAILS_PER_NAME.allowed(name) || !FAILS_PER_ADDRESS.allowed(address)) {
       throw new AuthRefused("tooMany");
     }
+    // Counted before the slow password check, so attempts sent all at once cannot all slip
+    // under the limit while the first ones are still being checked; a success takes it back.
+    FAILS_PER_NAME.record(name);
+    FAILS_PER_ADDRESS.record(address);
     const res = await this.pool.query<UserRow>(
       `SELECT id, username, first_name, last_name, password_hash
          FROM app.users WHERE lower(username) = lower($1)`,
@@ -174,12 +178,9 @@ export class AuthService {
       parsed.data.password,
       row?.password_hash ?? (await dummyHash()),
     );
-    if (!row || !ok) {
-      FAILS_PER_NAME.record(name);
-      FAILS_PER_ADDRESS.record(address);
-      throw new AuthRefused("credentials");
-    }
+    if (!row || !ok) throw new AuthRefused("credentials");
     FAILS_PER_NAME.clear(name);
+    FAILS_PER_ADDRESS.forgetOne(address);
     return this.issue(toUser(row));
   }
 

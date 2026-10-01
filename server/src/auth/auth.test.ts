@@ -197,6 +197,21 @@ describe("signing in", () => {
     expect(res.status).toBe(429);
     expect(await res.json()).toMatchObject({ error: "tooMany" });
   });
+
+  it("holds the limit when the wrong passwords all arrive at once", async () => {
+    await signUp(ada);
+    const answers = await Promise.all(
+      Array.from({ length: 25 }, (_, i) =>
+        call("POST", "/auth/sign-in", undefined, {
+          username: "ada_l",
+          password: `Wrong-guess-${String(i)}`,
+        }),
+      ),
+    );
+    const checked = answers.filter((r) => r.status === 401).length;
+    expect(checked).toBeLessThanOrEqual(10);
+    expect(answers.filter((r) => r.status === 429).length).toBe(25 - checked);
+  });
 });
 
 describe("tokens", () => {

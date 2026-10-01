@@ -18,7 +18,8 @@ import { granted } from "../projects/projects.controller";
 import { EXPORT_VERSION, fromJson } from "@/geometry/export";
 import { clientServed } from "../app";
 import { ProjectsService } from "../projects/projects.service";
-import { ReportService } from "./report.service";
+import { ReportService, ReportsBusy } from "./report.service";
+import type { Building } from "@/geometry/types";
 
 const fileName = (name: string) => {
   const slug =
@@ -41,6 +42,16 @@ export class ReportsController {
     @Inject(ProjectsService) private readonly projects: ProjectsService,
     @Inject(ReportService) private readonly reports: ReportService,
   ) {}
+
+  /** The PDF, or 503 while the printer is full (a few at a time, see ReportService). */
+  private async pdf(building: Building, language: "en" | "de", baseUrl: string) {
+    try {
+      return await this.reports.renderPdf(building, language, baseUrl);
+    } catch (error) {
+      if (error instanceof ReportsBusy) throw new ServiceUnavailableException({ error: "busy" });
+      throw error;
+    }
+  }
 
   /** PDF of a stored project. */
   @Post(":projectId")
@@ -66,7 +77,7 @@ export class ReportsController {
       if (!then.ok) throw new NotFoundException();
       building = then.building;
     }
-    const pdf = await this.reports.renderPdf(building, lang(language), baseUrlOf(req));
+    const pdf = await this.pdf(building, lang(language), baseUrlOf(req));
     res.setHeader(
       "Content-Disposition",
       `attachment; filename="${fileName(project.building.name)}"`,
@@ -99,7 +110,7 @@ export class ReportsController {
       return;
     }
     if (!clientServed()) throw new ServiceUnavailableException("client build not served");
-    const pdf = await this.reports.renderPdf(parsed.building, lang(language), baseUrlOf(req));
+    const pdf = await this.pdf(parsed.building, lang(language), baseUrlOf(req));
     res.setHeader(
       "Content-Disposition",
       `attachment; filename="${fileName(parsed.building.name)}"`,

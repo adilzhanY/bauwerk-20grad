@@ -34,6 +34,13 @@ export class Limiter {
       for (const k of this.hits.keys()) if (!this.recent(k).length) this.hits.delete(k);
   }
 
+  /** Takes back the latest attempt: it was counted in advance and turned out fine. */
+  forgetOne(key: string): void {
+    const list = this.recent(key);
+    list.pop();
+    if (list.length === 0) this.hits.delete(key);
+  }
+
   clear(key: string): void {
     this.hits.delete(key);
   }

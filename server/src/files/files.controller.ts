@@ -12,6 +12,7 @@ import {
   Req,
   Res,
 } from "@nestjs/common";
+import { isUuid } from "../projects/projects.service";
 import type { Response } from "express";
 import type { AuthedRequest } from "../auth/auth.guard";
 import { granted } from "../projects/projects.controller";
@@ -19,7 +20,6 @@ import { ProjectsService } from "../projects/projects.service";
 import { FILE_TYPES, FilesService, SLOT } from "./files.service";
 import { MAX_FILE_BYTES } from "./store";
 
-const isUuid = (value: string) => /^[0-9a-f-]{36}$/i.test(value);
 /** Shown in the browser: pictures and PDFs. Everything else downloads. */
 const INLINE = /^(image\/|application\/pdf$)/;
 

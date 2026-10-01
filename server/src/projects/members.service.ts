@@ -1,4 +1,5 @@
 import { EventEmitter } from "node:events";
+import { isUuid } from "./projects.service";
 import { Inject, Injectable } from "@nestjs/common";
 import type { Pool } from "pg";
 import type { Role } from "@/projects/roles";
@@ -209,6 +210,7 @@ export class MembersService {
 
   /** A signed in person without access asks for it; the owner is told (once per person). */
   async request(projectId: string, userId: string, message: string | null): Promise<Outcome> {
+    if (!isUuid(projectId)) return "notFound";
     const owner = await this.pool.query<{ owner_id: string | null }>(
       "SELECT owner_id FROM app.projects WHERE id = $1",
       [projectId],

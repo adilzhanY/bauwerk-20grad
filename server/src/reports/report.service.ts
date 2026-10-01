@@ -13,13 +13,47 @@ import type { Building } from "@/geometry/types";
  * The server must serve the built client (see app.ts); without it the endpoint
  * reports 503.
  */
+/** PDFs printed at the same time; each holds a browser page with the whole 3D app. */
+const PARALLEL = 2;
+/** Requests waiting for a turn; more than that is refused as busy rather than queued forever. */
+const QUEUE = 8;
+
+/** Too many reports are being printed; the controller answers 503, try again shortly. */
+export class ReportsBusy extends Error {}
+
 @Injectable()
 export class ReportService implements OnModuleDestroy {
-  private browser: Browser | null = null;
+  // The launch itself, so two first requests at once share one browser instead of starting two.
+  private browser: Promise<Browser> | null = null;
+  private running = 0;
+  private readonly waiting: (() => void)[] = [];
 
   async renderPdf(building: Building, language: "en" | "de", baseUrl: string): Promise<Buffer> {
-    this.browser ??= await chromium.launch();
-    const context = await this.browser.newContext();
+    await this.turn();
+    try {
+      return await this.print(building, language, baseUrl);
+    } finally {
+      this.running -= 1;
+      this.waiting.shift()?.();
+    }
+  }
+
+  private async turn(): Promise<void> {
+    if (this.running < PARALLEL) {
+      this.running += 1;
+      return;
+    }
+    if (this.waiting.length >= QUEUE) throw new ReportsBusy();
+    // The finishing print hands its place over directly, so `running` stays the same.
+    await new Promise<void>((resolve) => this.waiting.push(resolve));
+  }
+
+  private async print(building: Building, language: "en" | "de", baseUrl: string) {
+    this.browser ??= chromium.launch().catch((error: unknown) => {
+      this.browser = null;
+      throw error;
+    });
+    const context = await (await this.browser).newContext();
     try {
       await context.addInitScript(
         ({ json, lang }: { json: string; lang: string }) => {
@@ -46,8 +80,9 @@ export class ReportService implements OnModuleDestroy {
   }
 
   async close(): Promise<void> {
-    await this.browser?.close();
+    const browser = this.browser;
     this.browser = null;
+    await (await browser?.catch(() => null))?.close();
   }
 
   async onModuleDestroy(): Promise<void> {

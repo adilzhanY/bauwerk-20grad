@@ -158,6 +158,30 @@ describe("threads", () => {
     expect((await threads(id, ada.token))[0]?.resolvedAt).toBeNull();
   });
 
+  it("tells nobody who left the project about a reply in a thread they wrote in", async () => {
+    const ada = await signUp(person("Ada", "ada_l"));
+    const lena = await signUp(person("Lena", "lena_b"));
+    const { id } = (await (
+      await call("POST", "/projects", ada.token, { building: exampleHouse("en") })
+    ).json()) as { id: string };
+    await call("POST", `/projects/${id}/members`, ada.token, {
+      userId: lena.user.id,
+      role: "commenter",
+    });
+    const started = await call("POST", `/projects/${id}/threads`, lena.token, {
+      target: { kind: "building" },
+      text: "First look at the roof",
+    });
+    const { id: threadId } = (await started.json()) as { id: string };
+    expect(
+      (await call("DELETE", `/projects/${id}/members/${lena.user.id}`, ada.token)).status,
+    ).toBe(204);
+    await call("POST", `/projects/${id}/threads/${threadId}/comments`, ada.token, {
+      text: "secret plan after removal",
+    });
+    expect((await inbox(lena.token)).map((n) => n.kind)).not.toContain("replied");
+  });
+
   it("a comment is edited only by its author, deleted by its author or the owner, and an empty thread goes", async () => {
     const ada = await signUp(person("Ada", "ada_l"));
     const lena = await signUp(person("Lena", "lena_b"));

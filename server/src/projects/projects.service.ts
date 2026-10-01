@@ -141,8 +141,8 @@ interface Row {
   updated_at: Date;
 }
 
-/** Project ids are UUIDs; anything else cannot exist and must not reach Postgres as one. */
-const isUuid = (id: string) =>
+/** Ids are UUIDs; anything else cannot exist and must not reach Postgres as one (a 500). */
+export const isUuid = (id: string) =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
 const toRecord = (r: Row): ProjectRecord => ({

@@ -554,3 +554,46 @@ describe("history", () => {
     expect(two.lastSeenAt).not.toBeNull();
   });
 });
+
+describe("a removed editor", () => {
+  it("cannot keep editing after a refused join to another project left the socket outside the room", async () => {
+    const ada = await signUp(person("Ada", "Lovelace", "ada_l"));
+    const lena = await signUp(person("Lena", "Berg", "lena_berg"));
+    const id = await project(ada);
+    const other = await project(ada);
+    await call("POST", `/projects/${id}/members`, ada.token, {
+      userId: lena.user.id,
+      role: "editor",
+    });
+    const tab = io(base, {
+      transports: ["websocket"],
+      forceNew: true,
+      auth: (cb) => {
+        cb({ token: lena.token });
+      },
+    });
+    sockets.push(tab);
+    const join = (projectId: string) =>
+      tab.emitWithAck("join", {
+        projectId,
+        clientId: "lena",
+        actor: "x",
+        color: "#123456",
+      }) as Promise<{
+        ok: boolean;
+      }>;
+    expect((await join(id)).ok).toBe(true);
+    // Lena has no access to the other project: the join is refused.
+    expect((await join(other)).ok).toBe(false);
+    expect(
+      (await call("DELETE", `/projects/${id}/members/${lena.user.id}`, ada.token)).status,
+    ).toBe(204);
+    const rename = { op: "set", path: ["name"], value: "Taken over" };
+    const ack = (await tab.emitWithAck("ops", { seq: 1, ops: [rename] })) as { ok: boolean };
+    expect(ack.ok).toBe(false);
+    const after = (await (await call("GET", `/projects/${id}`, ada.token)).json()) as {
+      building: { name: string };
+    };
+    expect(after.building.name).not.toBe("Taken over");
+  });
+});

@@ -213,6 +213,35 @@ describe("project files", () => {
   });
 });
 
+describe("parallel uploads to one slot", () => {
+  it("all succeed, one after the other, and the slot keeps exactly one file", async () => {
+    const ada = await signUp(person("Ada", "ada_l"));
+    const { id } = (await (
+      await json("POST", "/projects", ada.token, { building: exampleHouse("en") })
+    ).json()) as { id: string };
+    const put = (n: number) =>
+      fetch(`${base}/projects/${id}/photos/2`, {
+        method: "PUT",
+        headers: {
+          "content-type": "image/jpeg",
+          authorization: `Bearer ${ada.token}`,
+          "x-width": "10",
+          "x-height": "10",
+        },
+        body: new Uint8Array([n, n, n]),
+      });
+    const answers = await Promise.all([1, 2, 3, 4, 5].map(put));
+    expect(answers.map((r) => r.status < 300)).toEqual([true, true, true, true, true]);
+    const rows = await pool.query(
+      "SELECT 1 FROM app.project_files WHERE project_id = $1 AND slot = '2'",
+      [id],
+    );
+    expect(rows.rowCount).toBe(1);
+    // The bytes of the replaced uploads are gone too.
+    expect(await blobs()).toBe(1);
+  });
+});
+
 describe("open tabs follow the files", () => {
   it("announces every upload, replacement and removal for the project", async () => {
     const ada = await signUp(person("Ada", "ada_l"));

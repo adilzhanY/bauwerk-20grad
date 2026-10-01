@@ -3,6 +3,7 @@
  * interior walls and doors, fitted into the building's outline. Like lod2-vision it may simply
  * not be running; `floorplanAvailable` is how the panel decides whether to offer the import.
  */
+import { authHeaders } from "@/auth/api";
 import { useEffect, useState } from "react";
 import { z } from "zod";
 import type { Vec2 } from "@/geometry/types";
@@ -46,7 +47,7 @@ export function toPlanImage(reading: FloorPlanReading, p: Vec2): Vec2 {
 
 export async function floorplanAvailable(signal?: AbortSignal): Promise<boolean> {
   try {
-    const res = await fetch(`${BASE}/health`, { signal });
+    const res = await fetch(`${BASE}/health`, { signal, headers: await authHeaders() });
     return res.ok;
   } catch {
     return false;

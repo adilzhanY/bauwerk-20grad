@@ -1,4 +1,4 @@
-import { Inject } from "@nestjs/common";
+import { Inject, Logger } from "@nestjs/common";
 import type { OnModuleDestroy } from "@nestjs/common";
 import {
   ConnectedSocket,
@@ -157,6 +157,8 @@ export class ProjectsGateway
     this.server.to(room(projectId)).emit("threads", { projectId });
   };
 
+  private readonly log = new Logger("collab");
+
   private readonly onOps = (event: ProjectOps) => {
     this.server.to(room(event.projectId)).emit("ops", event);
   };
@@ -187,6 +189,9 @@ export class ProjectsGateway
           }
         }
         if (!role) await this.sendPresence(projectId);
+      })
+      .catch((error: unknown) => {
+        this.log.error(`access change for ${projectId} not delivered: ${String(error)}`);
       });
   };
 
@@ -241,13 +246,16 @@ export class ProjectsGateway
     ) {
       return { ok: false, reason: "invalid" };
     }
+    // Signed in, the name and colour are the account's, not what the client sent.
+    const user = member(socket).user;
     const previous = member(socket).projectId;
     if (previous && previous !== body.projectId) {
       await socket.leave(room(previous));
       await this.left(socket, previous);
+      // Out of the room, it hears no more of that project (not even its removal), so it
+      // keeps nothing of it either: a refused join below must not leave the old role behind.
+      socket.data = user ? { user } : {};
     }
-    // Signed in, the name and colour are the account's, not what the client sent.
-    const user = member(socket).user;
     const link = typeof body.link === "string" ? body.link : undefined;
     const access = await this.projects.roleIn(body.projectId, user, link);
     if (!access.ok) return { ok: false, reason: access.reason };
@@ -291,6 +299,13 @@ export class ProjectsGateway
     if (!can(member(socket).role, "edit")) return { ok: false, reason: "notAllowed" };
     const batch = batchOf(isRecord(body) ? { ...body, clientId } : null);
     if (!batch) return { ok: false, reason: "invalidBatch" };
+    // The role on the socket is what it was at the join; every change asks the database
+    // again, so a removal or a downgrade holds even for a tab that missed its message.
+    const user = member(socket).user;
+    if (user) {
+      const now = await this.projects.roleIn(projectId, user);
+      if (!now.ok || !can(now.role, "edit")) return { ok: false, reason: "notAllowed" };
+    }
     const result = await this.projects.applyBatch(projectId, batch, actor, member(socket).user?.id);
     return result.ok
       ? { ok: true, version: result.version, duplicate: result.duplicate }
@@ -359,7 +374,11 @@ export class ProjectsGateway
 
   async handleDisconnect(socket: Socket) {
     const { projectId } = member(socket);
-    if (projectId) await this.left(socket, projectId);
+    // Nest does not wait for this; a failed write of "last seen" must not go unhandled.
+    if (projectId)
+      await this.left(socket, projectId).catch((error: unknown) => {
+        this.log.error(`leaving ${projectId}: ${String(error)}`);
+      });
   }
 
   /** Keeps the live list of the Projects page in step with this tab. */

@@ -5,6 +5,7 @@
  * every other response. The service may simply not be running; `visionAvailable` is how
  * the UI decides whether to offer the button at all.
  */
+import { authHeaders } from "@/auth/api";
 import {
   VisionCornersSchema,
   VisionOpeningsSchema,
@@ -52,7 +53,7 @@ function readDetail(text: string): string | null {
 /** True when the service answers its health route. Cheap, and safe to call on every open. */
 export async function visionAvailable(signal?: AbortSignal): Promise<boolean> {
   try {
-    const res = await fetch(`${BASE}/health`, { signal });
+    const res = await fetch(`${BASE}/health`, { signal, headers: await authHeaders() });
     return res.ok;
   } catch {
     return false;

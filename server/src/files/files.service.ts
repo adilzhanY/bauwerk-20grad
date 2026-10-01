@@ -136,11 +136,23 @@ export class FilesService implements OnModuleInit {
     const key = `${projectId}/${id}`;
     await this.store.put(key, file.data, file.mime);
     const slot = file.slot ?? null;
-    const old = slot ? await this.row(projectId, "slot", slot) : null;
+    let oldKey: string | null = null;
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
-      if (old) await client.query("DELETE FROM app.project_files WHERE id = $1", [old.id]);
+      if (slot) {
+        // Uploads to one slot take turns: the next waits here until the one before has
+        // committed, then finds and replaces its file instead of colliding on the slot.
+        await client.query("SELECT pg_advisory_xact_lock(hashtext($1 || '/' || $2))", [
+          projectId,
+          slot,
+        ]);
+        const old = await client.query<{ storage_key: string }>(
+          "DELETE FROM app.project_files WHERE project_id = $1 AND slot = $2 RETURNING storage_key",
+          [projectId, slot],
+        );
+        oldKey = old.rows[0]?.storage_key ?? null;
+      }
       await client.query(
         `INSERT INTO app.project_files
            (id, project_id, slot, name, mime, size, width, height, storage_key, uploaded_by)
@@ -166,7 +178,7 @@ export class FilesService implements OnModuleInit {
     } finally {
       client.release();
     }
-    if (old) await this.store.remove([old.storage_key]).catch(() => undefined);
+    if (oldKey) await this.store.remove([oldKey]).catch(() => undefined);
     const row = await this.row(projectId, "id", id);
     if (!row) throw new Error("file record not written");
     this.events.emit("changed", projectId);
@@ -193,13 +205,24 @@ export class FilesService implements OnModuleInit {
     return true;
   }
 
-  /** Every file of a project, before the project itself is deleted. */
-  async removeProject(projectId: string): Promise<void> {
+  /** Where a project's files lie in the store, read before the project is deleted. */
+  async keysOf(projectId: string): Promise<string[]> {
     const res = await this.pool.query<{ storage_key: string }>(
-      "DELETE FROM app.project_files WHERE project_id = $1 RETURNING storage_key",
+      "SELECT storage_key FROM app.project_files WHERE project_id = $1",
       [projectId],
     );
-    await this.store.remove(res.rows.map((r) => r.storage_key));
+    return res.rows.map((r) => r.storage_key);
+  }
+
+  /**
+   * The bytes of a deleted project's files. Its rows went with the project (ON DELETE
+   * CASCADE); a storage failure here leaves unused bytes behind, never half a project.
+   */
+  async removeBytes(keys: readonly string[]): Promise<void> {
+    if (keys.length === 0) return;
+    await this.store.remove([...keys]).catch((error: unknown) => {
+      this.log.warn(`files left in storage after a project was deleted: ${String(error)}`);
+    });
   }
 
   /**

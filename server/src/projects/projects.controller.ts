@@ -216,13 +216,14 @@ export class ProjectsController {
   @Delete(":id")
   @HttpCode(204)
   async remove(@Param("id") id: string, @Req() request: AuthedRequest) {
-    // The owner's files go with the project, from the storage too.
-    if ((await this.projects.access(id, userOf(request), "manage")).ok) {
-      await this.files.removeProject(id);
-    }
+    // The project goes first, its file rows with it; then the bytes leave the storage.
+    const keys = (await this.projects.access(id, userOf(request), "manage")).ok
+      ? await this.files.keysOf(id)
+      : [];
     const result = await this.projects.remove(id, userOf(request));
     if (result === "notFound") throw new NotFoundException();
     if (result === "forbidden") throw new ForbiddenException({ error: "notOwner" });
+    await this.files.removeBytes(keys);
   }
 
   /** A picture as the raw image body, its size in the X-Width and X-Height headers. */
