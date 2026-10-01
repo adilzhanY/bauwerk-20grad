@@ -285,9 +285,15 @@ function MemberRow({
   const language = useEditorStore((s) => s.language);
   const [handOver, setHandOver] = useState(false);
   const fullName = name(member);
-  const seen = member.lastSeenAt
-    ? t("share.lastHere", { when: formatRelative(member.lastSeenAt, language) })
-    : t("share.neverHere");
+  // Whoever has the project open now is here, not "last here": you, and anyone in it.
+  const here = useEditorStore(
+    (s) => isMe || s.presence.some((p) => p.userId === member.userId && p.state !== "away"),
+  );
+  const seen = here
+    ? t("presence.here")
+    : member.lastSeenAt
+      ? t("share.lastHere", { when: formatRelative(member.lastSeenAt, language) })
+      : t("share.neverHere");
   const options = (["owner", ...GIVEN] as Role[]).map((r) => ({
     value: r,
     label: t(roleKey(r)),

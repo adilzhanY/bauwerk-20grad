@@ -260,12 +260,6 @@ export const en = {
   "leave.body":
     "This project is not saved yet. If you leave without saving, its model, photos and floor plans are gone.",
   "leave.discard": "Don't save",
-  "project.status.local": "Local only",
-  "project.status.connecting": "Connecting",
-  "project.status.online": "Live, changes are shared",
-  "project.status.offline": "Offline, changes will be sent when back",
-  "project.status.error": "Server error",
-  "project.status.noAccess": "No access",
   "sync.rejected":
     "Your last change was taken back: {reason}. Someone changed the same part at the same moment.",
   "sync.rejected.overlap": "two openings would overlap",
@@ -988,7 +982,6 @@ export const en = {
   "common.remove": "Remove",
   "editor.storeys": "Storeys",
   "editor.wholeBuilding": "Whole building",
-  "editor.saved": "Saved",
   "editor.connecting": "Connecting",
   "editor.offline": "Offline",
   "editor.projection": "Projection",
