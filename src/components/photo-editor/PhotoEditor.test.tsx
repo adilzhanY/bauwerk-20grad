@@ -17,6 +17,12 @@ vi.mock("@/lod2/api/useVisionAvailable", () => ({
 }));
 import type { WallGeometry } from "@/components/photo-editor/useWallGeometry";
 
+/**
+ * A JPEG answer as fetch gives it. A string body with its type, not the test environment's
+ * Blob: Node 22's Response cannot read that Blob (it has no stream()), Node 24 can.
+ */
+const jpegResponse = () => new Response("jpeg", { headers: { "content-type": "image/jpeg" } });
+
 function wall(): WallGeometry {
   const plane = wallPlaneFor(exampleHouse("en"), 0);
   return { ring: null, plane, groundZ: 0, buriedDepth: 0, area: 50, facing: 180 };
@@ -121,9 +127,7 @@ describe("photo editor without a photo", () => {
   });
 
   it("loads a sample photo, the open building's own first", async () => {
-    const fetchMock = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValue(new Response(new Blob(["jpeg"], { type: "image/jpeg" })));
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(jpegResponse());
     render(<PhotoEditorView open onClose={vi.fn()} wall={wall()} buildingGid="DEBE02YY400000kY" />);
     const samples = within(screen.getByRole("list"));
     const own = first(samples.getAllByRole("button"));
@@ -166,9 +170,7 @@ describe("a new photo starts the detection, however it arrives", () => {
   });
 
   it("picked from the samples", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(new Blob(["jpeg"], { type: "image/jpeg" })),
-    );
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(jpegResponse());
     render(<PhotoEditorView open onClose={vi.fn()} wall={wall()} />);
     fireEvent.click(first(within(screen.getByRole("list")).getAllByRole("button")));
     await waitFor(() => {

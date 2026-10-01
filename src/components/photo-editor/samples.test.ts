@@ -6,6 +6,12 @@ import {
   samplesFor,
 } from "@/components/photo-editor/samples";
 
+/**
+ * A JPEG answer as fetch gives it. A string body with its type, not the test environment's
+ * Blob: Node 22's Response cannot read that Blob (it has no stream()), Node 24 can.
+ */
+const jpegResponse = () => new Response("jpeg", { headers: { "content-type": "image/jpeg" } });
+
 /** A clipboard with the given items, as the browser hands it to a paste event. */
 function clipboard(items: { kind: string; type: string; file?: File }[]): DataTransfer {
   return {
@@ -45,9 +51,7 @@ describe("sample photos", () => {
   it("downloads a sample as a named image file", async () => {
     const sample = SAMPLE_PHOTOS[0];
     if (!sample) throw new Error("no samples");
-    const fetchImpl = vi.fn(() =>
-      Promise.resolve(new Response(new Blob(["jpeg"], { type: "image/jpeg" }))),
-    );
+    const fetchImpl = vi.fn(() => Promise.resolve(jpegResponse()));
     const file = await sampleFile(sample, fetchImpl);
     expect(file.name).toBe(`${sample.id}.jpg`);
     expect(file.type).toBe("image/jpeg");

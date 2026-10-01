@@ -4,6 +4,12 @@ import { createEditorStore } from "@/store/building";
 import type * as Projects from "./projects";
 import type { ProjectRef } from "./projects";
 
+/**
+ * A JPEG answer as fetch gives it. A string body with its type, not the test environment's
+ * Blob: Node 22's Response cannot read that Blob (it has no stream()), Node 24 can.
+ */
+const jpegResponse = () => new Response("jpeg", { headers: { "content-type": "image/jpeg" } });
+
 const saved: { ref: ProjectRef; slot: string }[] = [];
 const removed: string[] = [];
 let stored: { slot: string; width: number; height: number; updatedAt?: string }[] = [];
@@ -36,7 +42,7 @@ beforeEach(() => {
   removed.length = 0;
   stored = [];
   urlTag = "";
-  vi.stubGlobal("fetch", () => Promise.resolve(new Response(new Blob(["jpeg"]))));
+  vi.stubGlobal("fetch", () => Promise.resolve(jpegResponse()));
   URL.revokeObjectURL = () => undefined;
 });
 

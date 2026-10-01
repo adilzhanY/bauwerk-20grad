@@ -14,7 +14,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --legacy-peer-deps
-      - run: npm run check
+      # Everything but the server, which the server job below checks against its own Postgres.
+      - run: npm run typecheck && npm run lint && npm run test && npm run check:lod2
         env:
           # The random multi-user sessions of src/sync/convergence.test.ts.
           CONVERGENCE_SEEDS: "1000"
