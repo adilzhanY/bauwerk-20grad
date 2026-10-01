@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_ASSIGNMENT, PRESET_IDS, defaultConstructions } from "./constructions";
 import { computeEnergy, energyClass, orientationOf } from "./energy";
+import { roomEnvelopeLoss } from "./hvac";
 import { applyScenario, fullEnvelopeScenario } from "./scenarios";
 import { lShape, rect } from "./fixtures";
 import { edges, pointInPolygon } from "./polygon";
@@ -370,6 +371,75 @@ describe("what a plan edit does to the balance", () => {
       building([], [window({ constructionId: PRESET_IDS.glazingTriple })]),
     );
     expect(triple.solarGains / double.solarGains).toBeCloseTo(0.5 / 0.75);
+  });
+});
+
+describe("a heated storey next to an unheated one", () => {
+  const cold = { id: "cold", name: "Cold", color: "#888", heated: false, temperature: 10 };
+  /** Two 10 x 8 x 3 m storeys, each one room over the whole plan, flat roof. */
+  function twoStoreys(coldIndex: number | null): Building {
+    const one = building();
+    const storey = (id: string, cold: boolean) => ({
+      ...one.storeys[0]!,
+      id,
+      name: id,
+      rooms: [
+        {
+          id: `${id}-r`,
+          name: "r",
+          polygon: rect,
+          area: 80,
+          ...(cold ? { zoneId: "cold" } : {}),
+        },
+      ],
+    });
+    return {
+      ...one,
+      zones: [cold],
+      storeys: [storey("s0", coldIndex === 0), storey("s1", coldIndex === 1)],
+    };
+  }
+  const sum = (b: Building, category: string) =>
+    computeEnergy(b)
+      .elements.filter((e) => e.category === category)
+      .reduce((s, e) => s + e.loss, 0);
+
+  it("keeps the all heated result: ground floor and roof only", () => {
+    const b = twoStoreys(null);
+    // Floor 0.6 x U_floor x 80 on the ground storey, flat roof 1.0 x U_roof x 80 on top.
+    expect(sum(b, "floor")).toBeCloseTo(0.6 * FLOOR * 80);
+    expect(sum(b, "roof")).toBeCloseTo(ROOF * 80);
+  });
+
+  it("counts the floor of a heated storey over a cold cellar storey with F_x 0.6", () => {
+    const b = twoStoreys(0);
+    // The cold ground storey has no heated floor; the heated upper storey loses through its
+    // floor to the cellar: 0.6 x U_floor x 80 m². The flat roof stays 1.0 x U_roof x 80.
+    expect(sum(b, "floor")).toBeCloseTo(0.6 * FLOOR * 80);
+    expect(sum(b, "floor")).toBeGreaterThan(0);
+    expect(sum(b, "roof")).toBeCloseTo(ROOF * 80);
+  });
+
+  it("counts the ceiling of a heated storey under a cold top storey with F_x 0.8", () => {
+    const b = twoStoreys(1);
+    // The roof over the cold top storey loses nothing; the heated ground storey loses through
+    // its ceiling as a top floor ceiling: 0.8 x U_roof x 80 m². Its ground floor is unchanged.
+    expect(sum(b, "roof")).toBeCloseTo(0.8 * ROOF * 80);
+    expect(sum(b, "roof")).toBeGreaterThan(0);
+    expect(sum(b, "floor")).toBeCloseTo(0.6 * FLOOR * 80);
+    const ceiling = computeEnergy(b).elements.find((e) => e.category === "roof")!;
+    expect(ceiling.ceiling).toBe(true);
+    expect(ceiling.fx).toBe(0.8);
+  });
+
+  it("gives the same loss to the room heat loads", () => {
+    for (const coldIndex of [0, 1]) {
+      const b = twoStoreys(coldIndex);
+      const e = computeEnergy(b);
+      const heated = b.storeys[1 - coldIndex]!;
+      const room = heated.rooms[0]!;
+      expect(roomEnvelopeLoss(b, heated, room)).toBeCloseTo(e.transmissionLoss - e.bridgeLoss, 6);
+    }
   });
 });
 

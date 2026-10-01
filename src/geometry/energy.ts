@@ -50,8 +50,8 @@ import type {
  * Specific values                      per m² of A_N, as the Energieausweis states them
  *
  * F_x is the temperature correction factor of DIN V 4108-6 table 3: 1.0 to outside air, 0.8
- * for the top floor ceiling under a cold attic, 0.6 for the floor on the ground, 0.5 for walls
- * to unheated rooms. Solar gains come from ./sun.ts with each window's own g-value, detailed
+ * for the top floor ceiling under a cold attic or a cold top storey, 0.6 for the floor on the
+ * ground or over an unheated storey, 0.5 for walls to unheated rooms. Solar gains come from ./sun.ts with each window's own g-value, detailed
  * thermal bridges from ./bridges.ts. Interior walls between a heated and an unheated room count
  * with their own type's U-value. Rooms without a zone count as heated, a storey without rooms
  * as fully heated. Room areas are taken from their outlines, never from a stored number. The
@@ -73,6 +73,23 @@ export const INTERNAL_GAINS_PER_M2 = 22; // kWh/(m²a)
 export const FX_GROUND_FLOOR = 0.6;
 export const FX_TOP_CEILING = 0.8;
 export const FX_UNHEATED_ROOM = 0.5;
+/** Floor of a heated storey over an unheated cellar or storey. */
+export const FX_UNHEATED_BELOW = 0.6;
+
+/**
+ * Unheated share of a storey's plan, 0 for no storey or a storey without rooms (fully heated).
+ * ponytail: area share, not a polygon overlap with the storey next to it; exact when the
+ * storey is all heated or all cold, add polygon clipping if mixed storeys need it.
+ */
+export function unheatedShare(storey: Storey | undefined, zones: readonly Zone[]): number {
+  if (!storey || storey.rooms.length === 0) return 0;
+  const total = storey.rooms.reduce((s, r) => s + roomArea(r), 0);
+  if (total <= 0) return 0;
+  const cold = storey.rooms
+    .filter((r) => !isRoomHeated(r, zones))
+    .reduce((s, r) => s + roomArea(r), 0);
+  return cold / total;
+}
 /** Flat thermal bridge surcharge ΔU_WB, W/(m²K): without and with good detailing. */
 export const BRIDGE_SURCHARGE = 0.1;
 export const BRIDGE_SURCHARGE_GOOD = 0.05;
@@ -377,6 +394,29 @@ export function computeEnergy(building: Building, options: EnergyOptions = {}): 
         addZone(r.zoneId ?? null, roomArea(r), FX_GROUND_FLOOR * floorU * roomArea(r));
     } else {
       for (const r of heatedRooms) addZone(r.zoneId ?? null, roomArea(r), 0);
+    }
+    // Floors and ceilings against an unheated storey: a cold cellar storey below (F_x 0.6) or
+    // a cold top storey above, which then works as a cold attic (F_x 0.8).
+    const neighbours = [
+      { other: building.storeys[storeyIndex - 1], fx: FX_UNHEATED_BELOW, u: floorU },
+      { other: building.storeys[storeyIndex + 1], fx: FX_TOP_CEILING, u: roofU },
+    ] as const;
+    for (const { other, fx, u } of neighbours) {
+      const share = unheatedShare(other, building.zones);
+      const a = env.heatedFloorArea * share;
+      if (a <= 0) continue;
+      const loss = fx * u * a;
+      transmission += loss;
+      elements.push({
+        category: fx === FX_UNHEATED_BELOW ? "floor" : "roof",
+        ...(fx === FX_TOP_CEILING ? { ceiling: true } : {}),
+        fx,
+        label: storey.name,
+        area: a,
+        uValue: u,
+        loss,
+      });
+      for (const r of heatedRooms) addZone(r.zoneId ?? null, 0, fx * u * roomArea(r) * share);
     }
     if (storeyIndex === building.storeys.length - 1) {
       // Under a heated attic or a flat roof the roof itself is the envelope, on its true

@@ -2,6 +2,8 @@ import { sharedEdgeSet } from "./shared";
 import {
   AIR_HEAT_CAPACITY,
   FX_GROUND_FLOOR,
+  FX_TOP_CEILING,
+  FX_UNHEATED_BELOW,
   FX_UNHEATED_ROOM,
   computeEnergy,
   interiorWallPieces,
@@ -9,6 +11,7 @@ import {
   roofEnvelope,
   roomArea,
   roomsAround,
+  unheatedShare,
 } from "./energy";
 import { findConstruction, interiorWallType } from "./constructions";
 import { countedOpenings, openingsOn } from "./openings";
@@ -24,7 +27,8 @@ export const HEAT_LOAD_AIR_CHANGE = 0.5;
  *   Φ_room = (Σ F_x · U·A over the room's exterior surfaces + 0.34 · n · V) · (θ_in − θ_e)
  * with θ_in from the zone (20 °C heated) and θ_e = −14 °C, the design outdoor
  * temperature for Berlin in DIN EN 12831 Beiblatt 1. The floor slab counts with
- * F_x = 0.6 and walls to unheated rooms with 0.5, as in the energy balance.
+ * F_x = 0.6 and walls to unheated rooms with 0.5, a floor over an unheated storey with 0.6 and a
+ * ceiling under one with 0.8, as in the energy balance.
  * V is the room's share of the storey's heated volume by floor area, so a heated
  * attic on the top storey is spread over its rooms and the room loads sum to the
  * building load. Thermal bridges are spread onto the room by floor area share. Radiators are
@@ -78,6 +82,17 @@ export function roomEnvelopeLoss(building: Building, storey: Storey, room: Room)
   const index = building.storeys.findIndex((s) => s.id === storey.id);
   const floor = roomArea(room);
   if (index === 0) loss += FX_GROUND_FLOOR * u(building.floorConstructionId) * floor;
+  // To an unheated storey below (cellar ceiling) or above (top floor ceiling), as in the balance.
+  loss +=
+    FX_UNHEATED_BELOW *
+    u(building.floorConstructionId) *
+    floor *
+    unheatedShare(building.storeys[index - 1], building.zones);
+  loss +=
+    FX_TOP_CEILING *
+    u(building.roofConstructionId) *
+    floor *
+    unheatedShare(building.storeys[index + 1], building.zones);
   if (index === building.storeys.length - 1) {
     // Through the roof, or through the top floor ceiling under a cold attic.
     const top = roofEnvelope(building);
