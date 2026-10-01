@@ -25,6 +25,9 @@ import {
   storeyOf,
   storeysFromOpenings,
   surveyToBauwerk,
+  germanNote,
+  germanText,
+  SURVEY_DE,
   toMesh,
   toPlan,
   unionLength,
@@ -178,6 +181,8 @@ test('roof codes map to the editor kinds, with a note when simplified', () => {
   assert.ok(hipOnL.note)
   assert.equal(editorRoof('5000', 4, rect).kind, 'gable')
   assert.equal(editorRoof('2100', 1, rect).note, 'Pultdach als Flachdach vereinfacht')
+  assert.deepEqual(editorRoof('2100', 1, rect).messages, [{ key: 'survey.roof.flatSimplified', values: { roofType: '2100' } }])
+  assert.deepEqual(editorRoof('5000', 4, rect).messages, [{ key: 'survey.roof.mixedAsGable' }])
   // The ridge runs along the longer side.
   assert.equal(editorRoof('3100', 4, rect).ridgeAxis, 'x')
 })
@@ -321,22 +326,22 @@ test('a typed storey count wins over the photo, with a warning when they disagre
   const result = build('DEBE02YY40000BOo', (input) => ({ ...input, facts: { ...input.facts, storeys: 6 } }))
   assert.equal(result.file.building.storeys.length, 6)
   assert.equal(result.file.building.sources.storeys?.kind, 'typed')
-  assert.ok(result.report.warnings.some((w) => w.includes('Fensterreihen')))
+  assert.ok(result.report.warnings.some((w) => w.key === 'survey.warning.storeyMismatch'))
 })
 
 test('without photos the storeys are estimated and the model has no windows', () => {
   const result = build('DEBE02YY40000BOo', (input) => ({ ...input, walls: [] }))
   assert.equal(result.file.building.sources.storeys?.kind, 'estimate')
   assert.equal(result.report.openingCount, 0)
-  assert.ok(result.report.warnings.some((w) => w.includes('keine Fenster')))
+  assert.ok(result.report.warnings.some((w) => w.key === 'survey.warning.noPhoto'))
 })
 
 test('the age class sets the constructions and says when it was assumed', () => {
   const guessed = build('DEBE02YY40000BOo')
-  assert.ok(guessed.report.warnings.some((w) => w.includes('Baualtersklasse')))
+  assert.ok(guessed.report.warnings.some((w) => w.key === 'survey.warning.ageClassAssumed'))
   const typed = build('DEBE02YY40000BOo', (input) => ({ ...input, facts: { ageClass: '1969-1978', ageClassConfirmed: true } }))
   assert.equal(typed.file.building.constructions.find((c) => c.category === 'wall')?.uValue, 1.0)
-  assert.ok(!typed.report.warnings.some((w) => w.includes('Baualtersklasse')))
+  assert.ok(!typed.report.warnings.some((w) => w.key === 'survey.warning.ageClassAssumed'))
 })
 
 test('every source carries the value it was written with', () => {
@@ -352,6 +357,54 @@ test('every source carries the value it was written with', () => {
 test('a part without geometry is refused with a reason', () => {
   const result = surveyToBauwerk({ ...fixture('DEBE02YY400000kY'), partGid: 'DEBE02YY400000kY' })
   assert.equal(result.ok, false)
+  if (!result.ok) {
+    assert.deepEqual(result.message, { key: 'survey.failed.noGeometry' })
+    assert.equal(result.reason, 'Dieser Gebäudeteil hat keine Geometrie.')
+  }
+})
+
+test('every note and warning carries its message key, and the German note is the same text', () => {
+  const result = build('DEBE02YY40000BOo', (input) => ({ ...input, walls: [], fillMissingWindows: true }))
+  const { sources } = result.file.building
+  const keys = (path: string) => sources[path]?.messages?.map((m) => m.key)
+  assert.deepEqual(keys('constructions'), ['survey.constructions.assumed'])
+  assert.deepEqual(sources.constructions?.messages?.[0]?.values, { ageClass: 'bis1918' })
+  assert.deepEqual(keys('storeys'), ['survey.storeys.estimated'])
+  const storeys = sources.storeys!.messages![0]!.values!
+  assert.equal(storeys.count, result.file.building.storeys.length)
+  assert.equal(storeys.height, Math.round(result.report.eaveAboveStreet * 100) / 100)
+  assert.deepEqual(keys('footprint'), ['survey.footprint'])
+  assert.equal(sources.footprint?.messages?.[0]?.values?.corners, result.file.building.footprint.length)
+  assert.deepEqual(keys('sharedEdges'), ['survey.sharedEdges'])
+  assert.equal(keys('roof')?.[0]?.startsWith('survey.roof.'), true)
+  const catalogue = Object.entries(sources).find(([path]) => path.startsWith('opening:'))?.[1]
+  assert.deepEqual(catalogue?.messages, [{ key: 'survey.opening.catalogue' }])
+  for (const [path, source] of Object.entries(sources)) {
+    assert.ok(source.messages?.length, path)
+    assert.equal(source.note, germanNote(source.messages!), path)
+  }
+  assert.deepEqual(result.report.warnings.map((w) => w.key).sort(), ['survey.warning.ageClassAssumed', 'survey.warning.noPhoto'])
+  assert.equal(germanText(result.report.warnings.find((w) => w.key === 'survey.warning.ageClassAssumed')!), 'Baualtersklasse nicht angegeben: bis 1918 angenommen.')
+})
+
+test('the German notes read as before', () => {
+  assert.equal(
+    germanText({ key: 'survey.storeys.estimated', values: { count: 5, height: 14.63 } }),
+    '5 Geschosse aus 14,63 m Traufhöhe über Straße geschätzt',
+  )
+  assert.equal(germanNote([{ key: 'survey.roof.type', values: { roofType: '5000' } }, { key: 'survey.roof.mixedAsGable' }]), 'Mischform; Mischform als Satteldach vereinfacht')
+  assert.equal(germanText({ key: 'survey.constructions', values: { ageClass: '1969-1978' } }), 'Pauschalwerte 1969 bis 1978, Bekanntmachung Datenaufnahme Wohngebäudebestand vom 8.10.2020')
+  assert.equal(AGE_CLASSES[0]!.names.wall, SURVEY_DE['survey.construction.oldWall'])
+})
+
+test('photographed openings say how they were found, as keys', () => {
+  const b = build('DEBE02YY40000BOo').file.building
+  const photo = Object.entries(b.sources).filter(([path]) => path.startsWith('opening:')).map(([, s]) => s)
+  assert.ok(photo.length > 0)
+  for (const source of photo) {
+    assert.ok(['survey.opening.detected', 'survey.opening.detectedScore'].includes(source.messages![0]!.key))
+    for (const m of source.messages!.slice(1)) assert.ok(m.key.startsWith('survey.opening.'), m.key)
+  }
 })
 
 test('facades without a photo get the default windows when asked, party walls none', () => {

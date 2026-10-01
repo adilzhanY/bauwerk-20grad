@@ -10,6 +10,7 @@
  * ingest of millions of buildings should not depend on a third-party host being up.
  */
 import data from './codelists.json' with { type: 'json' }
+import english from './codelists.en.json' with { type: 'json' }
 
 const roofTypes = data.roofType as Record<string, string>
 const buildingFunctions = data.buildingFunction as Record<string, string>
@@ -26,16 +27,7 @@ export function buildingFunctionLabel(code: string | null | undefined): string |
   return buildingFunctions[code] ?? null
 }
 
-/**
- * English names for the roof forms, for a UI that is not in German.
- *
- * Only the roof forms are translated here, and only because the list is closed, tiny and
- * unambiguous — every entry has a settled English architectural name. The 301 building
- * functions are not: they are ALKIS vocabulary with a long tail of terms whose English
- * equivalent would be invented rather than looked up, and a confidently wrong building type
- * is worse than a German one. So `buildingFunctionLabel` stays as the registry writes it and
- * the UI pairs it with `functionGroup`, which is English and is derived rather than guessed.
- */
+/** English names for the roof forms and building functions, for a UI that is not in German. */
 const ROOF_TYPE_EN: Record<string, string> = {
   '1000': 'Flat roof',
   '2100': 'Shed roof',
@@ -58,6 +50,18 @@ const ROOF_TYPE_EN: Record<string, string> = {
 export function roofTypeLabelEn(code: string | null | undefined): string | null {
   if (!code) return null
   return ROOF_TYPE_EN[code] ?? roofTypes[code] ?? null
+}
+
+/**
+ * Every code of the building function list in English (codelists.en.json, translated by hand,
+ * not part of the registry download). A code the registry adds later falls back to German.
+ */
+const buildingFunctionsEn = english.buildingFunction as Record<string, string>
+
+/** e.g. "31001_1010" -> "House". */
+export function buildingFunctionLabelEn(code: string | null | undefined): string | null {
+  if (!code) return null
+  return buildingFunctionsEn[code] ?? buildingFunctions[code] ?? null
 }
 
 /**

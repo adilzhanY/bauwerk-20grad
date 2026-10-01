@@ -15,6 +15,8 @@
  * They are starting values that the consultant overrides with what they find on site.
  */
 
+import { SURVEY_DE } from './messages.ts'
+
 export type AgeClassId =
   | 'bis1918'
   | '1919-1948'
@@ -33,32 +35,33 @@ export interface AgeClass {
   u: { wall: number; roof: number; floor: number; window: number; door: number }
   /** Floor-to-floor height typical for the class, metres. */
   storeyHeight: number
-  /** Short names of the assumed constructions, in German, for the editor. */
+  /** Short names of the assumed constructions, in German; the keys are in messages.ts. */
   names: { wall: string; roof: string; floor: string; window: string; door: string }
 }
 
 const DOOR_U = 2.9
-const OLD_WALL = 'Vollziegel über 30 cm, ungedämmt'
-const CAVITY_WALL = 'Mauerwerk zweischalig, ungedämmt'
-const ROOF = 'Dach, Holzkonstruktion, Bestand'
-const FLOOR = 'Kellerdecke Ziegel/Hohlstein, Bestand'
-const DOOR = 'Tür Holz/Kunststoff, Bestand'
+const OLD_WALL = SURVEY_DE['survey.construction.oldWall']
+const CAVITY_WALL = SURVEY_DE['survey.construction.cavityWall']
+const DOUBLE = SURVEY_DE['survey.construction.windowDouble']
+const INSULATED = SURVEY_DE['survey.construction.windowInsulated']
+const ROOF = SURVEY_DE['survey.construction.roof']
+const FLOOR = SURVEY_DE['survey.construction.floor']
+const DOOR = SURVEY_DE['survey.construction.door']
 
 export const AGE_CLASSES: readonly AgeClass[] = [
-  ageClass('bis1918', 'bis 1918', 1.5, 2.6, 1.2, 2.7, 3.1, OLD_WALL, 'Holzfenster zwei Scheiben'),
-  ageClass('1919-1948', '1919 bis 1948', 1.5, 1.4, 1.2, 2.7, 3.1, OLD_WALL, 'Holzfenster zwei Scheiben'),
-  ageClass('1949-1957', '1949 bis 1957', 1.5, 1.4, 1.5, 2.7, 2.8, OLD_WALL, 'Holzfenster zwei Scheiben'),
-  ageClass('1958-1968', '1958 bis 1968', 1.4, 1.4, 1.0, 2.7, 2.8, CAVITY_WALL, 'Holzfenster zwei Scheiben'),
-  ageClass('1969-1978', '1969 bis 1978', 1.0, 0.8, 1.0, 2.7, 2.8, CAVITY_WALL, 'Holzfenster zwei Scheiben'),
-  ageClass('1979-1983', '1979 bis 1983', 0.8, 0.7, 0.8, 2.7, 2.8, CAVITY_WALL, 'Holzfenster zwei Scheiben'),
-  ageClass('1984-1994', '1984 bis 1994', 0.6, 0.5, 0.6, 2.7, 2.8, CAVITY_WALL, 'Holzfenster zwei Scheiben'),
-  ageClass('1995-2001', '1995 bis 2001', 0.5, 0.3, 0.6, 1.6, 2.8, CAVITY_WALL, 'Holzfenster Isolierglas'),
-  ageClass('ab2002', 'ab 2002', 0.4, 0.2, 0.5, 1.5, 2.8, CAVITY_WALL, 'Holzfenster Isolierglas'),
+  ageClass('bis1918', 1.5, 2.6, 1.2, 2.7, 3.1, OLD_WALL, DOUBLE),
+  ageClass('1919-1948', 1.5, 1.4, 1.2, 2.7, 3.1, OLD_WALL, DOUBLE),
+  ageClass('1949-1957', 1.5, 1.4, 1.5, 2.7, 2.8, OLD_WALL, DOUBLE),
+  ageClass('1958-1968', 1.4, 1.4, 1.0, 2.7, 2.8, CAVITY_WALL, DOUBLE),
+  ageClass('1969-1978', 1.0, 0.8, 1.0, 2.7, 2.8, CAVITY_WALL, DOUBLE),
+  ageClass('1979-1983', 0.8, 0.7, 0.8, 2.7, 2.8, CAVITY_WALL, DOUBLE),
+  ageClass('1984-1994', 0.6, 0.5, 0.6, 2.7, 2.8, CAVITY_WALL, DOUBLE),
+  ageClass('1995-2001', 0.5, 0.3, 0.6, 1.6, 2.8, CAVITY_WALL, INSULATED),
+  ageClass('ab2002', 0.4, 0.2, 0.5, 1.5, 2.8, CAVITY_WALL, INSULATED),
 ]
 
 function ageClass(
   id: AgeClassId,
-  label: string,
   wall: number,
   roof: number,
   floor: number,
@@ -69,7 +72,7 @@ function ageClass(
 ): AgeClass {
   return {
     id,
-    label,
+    label: SURVEY_DE[`survey.ageClass.${id}`],
     u: { wall, roof, floor, window, door: DOOR_U },
     storeyHeight,
     names: { wall: wallName, roof: ROOF, floor: FLOOR, window: windowName, door: DOOR },
