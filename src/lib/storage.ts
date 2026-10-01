@@ -122,6 +122,23 @@ export function initialBuilding(): Building | null {
   return open ? loadProjectCopy(open) : null;
 }
 
+/**
+ * After a crash: forgets which project was open and the edits waiting to be sent to a server
+ * project, the two things read at start that can bring the crash back. Saved projects stay.
+ */
+export function resetLocalData(): void {
+  const store = storage();
+  if (!store) return;
+  try {
+    const queues = Array.from({ length: store.length }, (_, i) => store.key(i)).filter((key) =>
+      key?.startsWith("bauwerk.queue."),
+    );
+    for (const key of [OPEN_PROJECT_KEY, ...queues]) if (key) store.removeItem(key);
+  } catch {
+    // Blocked storage holds nothing to reset.
+  }
+}
+
 export function loadTheme(): Theme | null {
   const v = storage()?.getItem(THEME_KEY);
   return v === "light" || v === "dark" || v === "system" ? v : null;

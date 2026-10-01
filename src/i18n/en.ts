@@ -369,6 +369,11 @@ export const en = {
   "projects.localOnly":
     "No server is connected: projects and their photos are kept in this browser only.",
   "projects.loadFailed": "The projects could not be loaded. Is the server running?",
+  "crash.title": "Bauwerk stopped with an error",
+  "crash.body": "Copy the text below and send it along.",
+  "crash.componentStack": "Component stack:",
+  "crash.reload": "Reload",
+  "crash.reset": "Reset local data and reload",
   "projects.openFailed": "The project could not be opened. Try again in a moment.",
   "projects.loading": "Loading projects…",
   "projects.all": "All",
