@@ -41,7 +41,9 @@ export function CustomSlider({
   const track = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(false);
   const gesture = useRef(false);
-  const ratio = max > min ? (value - min) / (max - min) : 0;
+  // Clamped: a value outside the range (set elsewhere, or an older project) pins the thumb to
+  // the end of the track instead of drawing it past the end, over the field beside it.
+  const ratio = max > min ? Math.min(1, Math.max(0, (value - min) / (max - min))) : 0;
 
   const begin = () => {
     if (gesture.current) return;

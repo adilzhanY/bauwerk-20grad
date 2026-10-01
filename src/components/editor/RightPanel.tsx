@@ -361,6 +361,9 @@ function HeatPumpProperties({ id }: { id: string }) {
   const pump = building.heatPumps?.find((p) => p.id === id);
   if (!pump) return null;
   const suggested = suggestHeatPumpPower(building);
+  // Room for the building's own suggestion and half again, at least 60 kW: a block of flats
+  // needs far more than a house, and the slider must reach what the pump already has.
+  const maxPower = Math.max(60, Math.ceil((suggested * 1.5) / 10) * 10, Math.ceil(pump.power));
   return (
     <>
       <Title>{t("hvac.heatPump")}</Title>
@@ -381,7 +384,7 @@ function HeatPumpProperties({ id }: { id: string }) {
         label={t("hvac.powerKw")}
         value={pump.power}
         min={2}
-        max={60}
+        max={maxPower}
         step={0.5}
         unit="kW"
         language={language}

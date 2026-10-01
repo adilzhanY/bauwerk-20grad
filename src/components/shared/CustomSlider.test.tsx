@@ -37,6 +37,23 @@ describe("snapToStep", () => {
 });
 
 describe("CustomSlider", () => {
+  it("keeps the thumb and the fill on the track when the value lies outside the range", () => {
+    const { container } = render(
+      <CustomSlider
+        label="Capacity"
+        value={81.5}
+        min={2}
+        max={60}
+        step={0.5}
+        onChange={() => undefined}
+      />,
+    );
+    const lefts = [...container.querySelectorAll<HTMLElement>("[style]")].map(
+      (el) => el.style.left || el.style.width,
+    );
+    expect(lefts).toEqual(["100%", "100%"]);
+  });
+
   it("exposes the slider role with its range and value text", () => {
     render(<Harness />);
     const s = screen.getByRole("slider", { name: "Thickness" });
