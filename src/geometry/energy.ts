@@ -6,7 +6,7 @@ import { findConstruction, interiorWallType } from "./constructions";
 import { buildRoof, roofOf } from "./roof";
 import type { RoofGeometry } from "./roof";
 import { clipSegmentToPolygon, splitSegments } from "./rooms";
-import { GAIN_UTILISATION, GLAZING_G, solarGains } from "./sun";
+import { GAIN_UTILISATION, GLAZING_G, solarGains } from "./solarGains";
 import { countedOpenings, openingsOn } from "./openings";
 import { windowType } from "./windows";
 import { area, edges, pointInPolygon, pointOnSegment, spansOnEdge, sub, distance } from "./polygon";

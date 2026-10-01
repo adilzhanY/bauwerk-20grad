@@ -2,7 +2,6 @@ import {
   DoorOpen,
   Layers,
   MousePointer2,
-  Move,
   PenTool,
   Ruler,
   RulerDimensionLine,
@@ -20,7 +19,6 @@ export const toolIcons: Record<Tool, ReactNode> = {
   zone: <Layers size={18} />,
   measure: <RulerDimensionLine size={18} />,
   hvac: <Thermometer size={18} />,
-  move: <Move size={18} />,
 };
 
 export const toolLabel: Record<Tool, MessageKey> = {
@@ -31,7 +29,6 @@ export const toolLabel: Record<Tool, MessageKey> = {
   zone: "tool.zone",
   measure: "tool.measure",
   hvac: "tool.hvac",
-  move: "tool.move",
 };
 
 export const toolHint: Record<Tool, MessageKey> = {
@@ -42,5 +39,4 @@ export const toolHint: Record<Tool, MessageKey> = {
   zone: "hint.zone",
   measure: "hint.measure",
   hvac: "hint.hvac",
-  move: "hint.move",
 };

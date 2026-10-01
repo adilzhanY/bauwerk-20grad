@@ -9,7 +9,6 @@ import { CustomButton } from "@/components/shared/CustomButton";
 import { CustomSection } from "@/components/shared/CustomField";
 import { CustomNumberInput } from "@/components/shared/CustomNumberInput";
 import { FloorPlanSection } from "@/components/editor/FloorPlanSection";
-import { VisionSection } from "@/components/editor/VisionSection";
 
 /** Floor plan image on the ground for tracing. Local UI state only. */
 export function UnderlaySection() {
@@ -157,7 +156,6 @@ export function UnderlaySection() {
       </Presence>
       <Hint>{t("underlay.local")}</Hint>
       <FloorPlanSection />
-      <VisionSection />
     </CustomSection>
   );
 }

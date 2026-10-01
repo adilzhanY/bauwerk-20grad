@@ -111,7 +111,7 @@ export function InteriorWall({
         down.current = null;
       }}
       raycast={active && tool !== "interiorWall" ? meshRaycast : noRaycast}
-      castShadow
+
       {...hover}
     >
       <meshStandardMaterial

@@ -42,6 +42,7 @@ import { LocationSection } from "@/components/editor/LocationSection";
 import { NewBuildingDialog } from "@/components/editor/NewBuildingDialog";
 import { ProjectSwitcher } from "@/components/editor/ProjectSwitcher";
 import { SettingsSection } from "@/components/editor/SettingsSection";
+import { devMode } from "@/lib/devMode";
 import { toolHint } from "@/components/editor/tools";
 import { UnderlaySection } from "@/components/editor/UnderlaySection";
 
@@ -89,7 +90,7 @@ export function LeftPanel({ syncStatus }: { syncStatus: SyncStatus | "local" }) 
           {section === "zones" && <ZoneList />}
           {section === "location" && <LocationSection />}
           {section === "underlay" && <UnderlaySection />}
-          {section === "settings" && <SettingsSection />}
+          {section === "settings" && <SettingsSection examples={devMode()} />}
         </CustomTabPanel>
       </div>
       <p className="border-t border-line px-4 py-3 text-xs leading-relaxed text-muted">
@@ -507,12 +508,8 @@ function SceneLayers() {
   const showMap = useEditorStore((s) => s.showMap);
   const setShowMap = useEditorStore((s) => s.setShowMap);
   const hasOrigin = useEditorStore((s) => s.building.origin !== undefined);
-  const sun = useEditorStore((s) => s.sun.enabled);
-  const setSun = useEditorStore((s) => s.setSun);
   const bridges = useEditorStore((s) => s.showBridges);
   const setBridges = useEditorStore((s) => s.setShowBridges);
-  const uValues = useEditorStore((s) => s.showUValueBands);
-  const setUValues = useEditorStore((s) => s.setShowUValueBands);
   const photos = useEditorStore((s) => s.showFacadePhotos);
   const setPhotos = useEditorStore((s) => s.setShowFacadePhotos);
   const hasPhotos = useEditorStore((s) => Object.keys(s.facadePhotos).length > 0);
@@ -524,15 +521,7 @@ function SceneLayers() {
       set: setShowMap,
       disabled: hasOrigin ? undefined : t("settings.mapNeedsLocation"),
     },
-    {
-      label: t("tree.sun"),
-      on: sun,
-      set: (on) => {
-        setSun({ enabled: on });
-      },
-    },
     { label: t("tree.bridges"), on: bridges, set: setBridges },
-    { label: t("tree.uValues"), on: uValues, set: setUValues },
     {
       label: t("tree.facadePhotos"),
       on: photos && hasPhotos,

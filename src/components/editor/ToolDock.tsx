@@ -14,7 +14,7 @@ import { TOOL_ORDER } from "@/components/editor/useKeyboardShortcuts";
 
 /** The tools in groups, as the card shows them: pick and move, draw, zone and services, measure. */
 const GROUPS: readonly (readonly Tool[])[] = [
-  ["select", "move"],
+  ["select"],
   ["footprint", "interiorWall", "opening"],
   ["zone", "hvac"],
   ["measure"],

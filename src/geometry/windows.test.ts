@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { PRESET_IDS } from "./constructions";
 import { gOf } from "./energy";
-import { GLAZING_G } from "./sun";
+import { GLAZING_G } from "./solarGains";
 import { WINDOW_TYPES, windowConstruction, windowType } from "./windows";
 
 describe("window types", () => {

@@ -32,8 +32,7 @@ interface ViewTween {
  * storey's mid height over 300 ms whenever the active storey changes.
  */
 export function Camera() {
-  // During a walkthrough the default controls are PointerLockControls, which have no
-  // orbit target, so only orbit controls are used here.
+  // Only orbit controls have a target to glide.
   const controls = useThree((s) => {
     const c = s.controls as OrbitControlsImpl | null;
     return c != null && "target" in c && c.target instanceof Vector3 ? c : null;

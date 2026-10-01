@@ -90,7 +90,12 @@ describe("App", () => {
     expect(screen.getByText("WebGL ist nicht verfügbar")).toBeTruthy();
   });
 
-  it("loads the large office tower from the example selector", async () => {
+  it("loads the large office tower from the example selector, offered only with ?dev", async () => {
+    const { unmount } = render(<App />);
+    fireEvent.click(screen.getByRole("tab", { name: "Settings" }));
+    expect(screen.queryByRole("combobox", { name: "Load example" })).toBeNull();
+    unmount();
+    window.history.replaceState(null, "", "/?dev");
     render(<App />);
     fireEvent.click(screen.getByRole("tab", { name: "Settings" }));
     fireEvent.click(screen.getByRole("combobox", { name: "Load example" }));
@@ -102,6 +107,7 @@ describe("App", () => {
     expect(building.name).toBe("Berlin office tower, 18 storeys");
     expect(building.storeys).toHaveLength(18);
     expect(building.storeys.reduce((sum, storey) => sum + storey.rooms.length, 0)).toBe(162);
+    window.history.replaceState(null, "", "/");
   });
 
   it("shows opening properties with a validation message for an invalid opening", () => {
@@ -247,10 +253,10 @@ describe("App", () => {
     window.history.replaceState(null, "", "/");
   });
 
-  it("has eight tools including measure, heating and move, switchable by key", () => {
+  it("has seven tools including measure and heating, switchable by key", () => {
     render(<App />);
     const palette = screen.getByRole("radiogroup", { name: "Tools" });
-    expect(within(palette).getAllByRole("radio")).toHaveLength(8);
+    expect(within(palette).getAllByRole("radio")).toHaveLength(7);
     fireEvent.keyDown(window, { key: "6" });
     expect(useEditorStore.getState().tool).toBe("measure");
     expect(screen.getByText(/where a distance starts and ends/)).toBeTruthy();
@@ -291,8 +297,7 @@ describe("App", () => {
 
   it("switches the theme and stamps it on the document", () => {
     render(<App />);
-    fireEvent.click(screen.getByRole("tab", { name: "Settings" }));
-    fireEvent.click(screen.getByRole("radio", { name: "Dark" }));
+    fireEvent.click(screen.getByRole("button", { name: "Switch to dark theme" }));
     expect(useEditorStore.getState().theme).toBe("dark");
   });
 

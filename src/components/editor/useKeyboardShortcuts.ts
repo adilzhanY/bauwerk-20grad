@@ -11,7 +11,6 @@ export const TOOL_ORDER: Tool[] = [
   "zone",
   "measure",
   "hvac",
-  "move",
 ];
 
 function ownsEditingShortcut(target: EventTarget | null): boolean {
@@ -53,7 +52,6 @@ export function useKeyboardShortcuts() {
         s.clearSelection();
         s.setMeasurement(null);
         if (s.tool !== "select") s.setTool("select");
-        if (s.walkthrough) s.setWalkthrough(false);
         return;
       }
       const toolIndex = Number(e.key) - 1;

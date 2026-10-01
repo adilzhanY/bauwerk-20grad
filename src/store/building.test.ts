@@ -409,7 +409,6 @@ describe("store behaviour", () => {
       opacity: 0.5,
     });
     store.getState().setMeasurement({ a: { x: 0, y: 0 }, b: { x: 1, y: 1 } });
-    store.getState().setProposal({ footprint: [], interiorWalls: [] });
     store.getState().setRenovatedView(true);
     store.getState().loadBuilding(exampleAltbau("en"));
     const state = store.getState();
@@ -420,7 +419,6 @@ describe("store behaviour", () => {
     expect(state.viewScenarioId).toBeNull();
     expect(state.underlay).toBeNull();
     expect(state.measurement).toBeNull();
-    expect(state.proposal).toBeNull();
   });
   it("derives rooms when interior walls change and keeps names", () => {
     const sid = storeyId();
@@ -888,60 +886,6 @@ describe("roof", () => {
     expect(store.getState().building.roof?.pitch).toBe(40);
     store.getState().undo();
     expect(store.getState().building.roof?.ridgeAxis).toBe("x");
-  });
-});
-
-describe("footprint proposal", () => {
-  it("keeps a pending proposal aligned through rotation and recentering", () => {
-    store.getState().translateBuilding({ x: 10, y: 5 });
-    store.getState().setProposal({
-      footprint: structuredClone(store.getState().building.footprint),
-      interiorWalls: [
-        {
-          segment: { a: { x: 15, y: 5 }, b: { x: 15, y: 13 } },
-          confidence: 1,
-          enabled: true,
-        },
-      ],
-    });
-    store.getState().rotateBuilding(90);
-    expect(store.getState().proposal?.footprint).toEqual(store.getState().building.footprint);
-    store.getState().recentreOrigin();
-    expect(store.getState().proposal?.footprint).toEqual(store.getState().building.footprint);
-    expect(store.getState().proposal?.interiorWalls[0]?.segment).toEqual({
-      a: { x: 4, y: 0 },
-      b: { x: -4, y: 0 },
-    });
-  });
-
-  it("acceptProposal replaces footprint and walls of the active storey in one undo step", () => {
-    const sid = storeyId();
-    store.getState().addInteriorWall(sid, { a: { x: 2, y: 0 }, b: { x: 2, y: 8 } });
-    const entries = store.getState().past.length;
-    store.getState().setProposal({
-      footprint: [
-        { x: 0, y: 0 },
-        { x: 12, y: 0 },
-        { x: 12, y: 6 },
-        { x: 0, y: 6 },
-      ],
-      interiorWalls: [
-        { segment: { a: { x: 6, y: 0 }, b: { x: 6, y: 6 } }, confidence: 0.9, enabled: true },
-        { segment: { a: { x: 0, y: 3 }, b: { x: 6, y: 3 } }, confidence: 0.4, enabled: false },
-      ],
-    });
-    store.getState().toggleProposalWall(1);
-    store.getState().acceptProposal();
-    const b = store.getState().building;
-    expect(b.footprint).toHaveLength(4);
-    // The wall joining the other in a T splits it: three walls from joint to joint.
-    expect(b.storeys[0]?.interiorWalls).toHaveLength(3);
-    expect(b.storeys[0]?.rooms).toHaveLength(3);
-    expect(store.getState().proposal).toBeNull();
-    expect(store.getState().past.length).toBe(entries + 1);
-    store.getState().undo();
-    expect(store.getState().building.footprint[1]).toEqual({ x: 10, y: 0 });
-    expect(store.getState().building.storeys[0]?.interiorWalls).toHaveLength(1);
   });
 });
 

@@ -1,6 +1,6 @@
 import { Card } from "@/components/shared/Card";
 import { CustomIconButton } from "@/components/shared/CustomIconButton";
-import { ChevronsRight, Footprints, Scissors, SquareDashed } from "lucide-react";
+import { ChevronsRight, SquareDashed } from "lucide-react";
 import { cx } from "@/components/shared/cx";
 import type { MessageKey } from "@/i18n";
 import { useT } from "@/i18n/useT";
@@ -18,8 +18,7 @@ const VIEWS: { view: CameraView; letter: MessageKey; label: MessageKey }[] = [
 
 /**
  * The view switch at the top of the editor: the 3D view, the view from the top and the four
- * elevations, then the floor plan and the walkthrough, the section cut, and a button that
- * hides or shows the side panels.
+ * elevations, then the floor plan, and a button that hides or shows the side panels.
  */
 export function ViewPill({
   panelsOpen,
@@ -30,14 +29,10 @@ export function ViewPill({
 }) {
   const t = useT();
   const planView = useEditorStore((s) => s.planView);
-  const walkthrough = useEditorStore((s) => s.walkthrough);
   const cameraView = useEditorStore((s) => s.cameraView.view);
   const setCameraView = useEditorStore((s) => s.setCameraView);
   const setPlanView = useEditorStore((s) => s.setPlanView);
-  const setWalkthrough = useEditorStore((s) => s.setWalkthrough);
-  const sectionCut = useEditorStore((s) => s.sectionCut.enabled);
-  const setSectionCut = useEditorStore((s) => s.setSectionCut);
-  const free = !planView && !walkthrough;
+  const free = !planView;
 
   return (
     <Card elevation="float" className="pointer-events-auto flex h-11 items-center gap-0.5 p-1">
@@ -76,29 +71,10 @@ export function ViewPill({
         label={t("editor.plan")}
         pressed={planView}
         onClick={() => {
-          setWalkthrough(false);
           setPlanView(!planView);
         }}
       >
         <SquareDashed size={16} aria-hidden />
-      </CustomIconButton>
-      <CustomIconButton
-        label={t("editor.walkthrough")}
-        pressed={walkthrough}
-        onClick={() => {
-          setWalkthrough(!walkthrough);
-        }}
-      >
-        <Footprints size={16} aria-hidden />
-      </CustomIconButton>
-      <CustomIconButton
-        label={t("view.sectionCut")}
-        pressed={sectionCut}
-        onClick={() => {
-          setSectionCut({ enabled: !sectionCut });
-        }}
-      >
-        <Scissors size={16} aria-hidden />
       </CustomIconButton>
       <span aria-hidden className="mx-1 h-5 w-px bg-line" />
       <CustomIconButton

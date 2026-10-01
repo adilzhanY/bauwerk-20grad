@@ -116,7 +116,7 @@ running, the same page comes back as a PDF.
 **It speaks the industry's formats too.** IFC4 export written by hand and validated with
 IfcOpenShell, where every opening is a real void filled by an IfcWindow or IfcDoor. IFC import
 with a report of what could not be read. GeoJSON in and out, UTM coordinates checked against PROJ
-to the millimetre. Or drop a photo of a floor plan and let the vision pipeline propose the outline.
+to the millimetre. Or drop a scanned floor plan and let the AI read its walls and doors onto the known outline.
 
 </td>
 </tr>
@@ -206,7 +206,7 @@ History tab lists every version with a read-only preview and restore. For a seco
 the same network, start with `npm run dev -- --host` and open the printed Network address there.
 How it works, and why it is not a CRDT, is in `DECISIONS.md` (2026-09-25).
 
-In the editor, Settings, Examples, **Kreuzberg apartment house (demo)** loads the house from the
+With `?dev` in the address, the editor's Settings offer Examples; **Kreuzberg apartment house (demo)** loads the house from the
 screenshots. [`DEMO.md`](DEMO.md) is the eight-minute walkthrough. `/?bench=1` opens an
 18-storey tower with 719 openings and a frame time graph. `docker compose up --build` brings up
 Postgres, the collaboration API and the client together.
