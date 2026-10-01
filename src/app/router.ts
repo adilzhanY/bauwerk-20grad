@@ -104,14 +104,19 @@ window.addEventListener("popstate", () => {
  * page cannot be used to send people elsewhere.
  */
 export function safeNext(next: string | null): string {
+  // Without a place to go back to, the Projects page: the editor alone would hold an empty
+  // building that belongs to nothing.
   if (!next || !next.startsWith("/") || next.startsWith("//") || next.includes("\\")) {
-    return routePath({ page: "editor" }, BASE);
+    return routePath({ page: "projects" }, BASE);
   }
   return next;
 }
 
 /** The login page, coming back to where the user is now. */
 export function loginPath(): string {
+  // Already on the login page: stay with its own "next", never a login inside a login.
+  const login = routePath({ page: "login" }, BASE);
+  if (window.location.pathname === login) return login + window.location.search;
   const here = window.location.pathname + window.location.search;
   return `${routePath({ page: "login" }, BASE)}?next=${encodeURIComponent(here)}`;
 }

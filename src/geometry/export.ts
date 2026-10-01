@@ -567,7 +567,7 @@ export function checkBuildingShape(v: unknown, path: string): ImportError | null
   if (b.project !== undefined) {
     const pr = b.project;
     if (!isRecord(pr)) return bad(`${path}.project`);
-    for (const k of ["gid", "address", "client", "reportAt", "localId"]) {
+    for (const k of ["gid", "address", "use", "client", "reportAt", "localId"]) {
       if (pr[k] !== undefined && !isString(pr[k])) return bad(`${path}.project.${k}`);
     }
     if (pr.stage !== undefined && !PROJECT_STAGES.includes(pr.stage as ProjectStage))

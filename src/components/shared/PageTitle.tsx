@@ -13,7 +13,7 @@ export function PageTitle({
 }) {
   return (
     <header className={className}>
-      <h1 className="text-2xl leading-tight font-semibold text-ink">{title}</h1>
+      <h1 className="text-title leading-tight font-semibold text-ink">{title}</h1>
       {subtitle !== undefined && (
         <p className="mt-1.5 max-w-[60ch] text-sm leading-relaxed text-muted">{subtitle}</p>
       )}

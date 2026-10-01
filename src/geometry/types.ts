@@ -207,6 +207,8 @@ export interface ProjectInfo {
   gid?: string;
   /** Street and number, as found when the project was created. */
   address?: string;
+  /** What the building is used for, from the cadastre ("Wohnhaus"), for the project card. */
+  use?: string;
   /** Who the consultant works for: the owner, the WEG, the property manager. */
   client?: string;
   /** Set by hand; missing means the stage follows the work done. */

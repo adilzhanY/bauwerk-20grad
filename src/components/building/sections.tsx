@@ -1,4 +1,5 @@
 import { SectionLabel } from "@/components/shared/PageTitle";
+import type { EnergySummary } from "@/geometry/energy";
 import { Hint } from "@/components/shared/Hint";
 import type { ReactNode } from "react";
 import type { BuildingDetail } from "lod2-core/api";
@@ -17,12 +18,23 @@ export function SectionTitle({ children }: { children: ReactNode }) {
   return <SectionLabel className="mt-10 mb-3">{children}</SectionLabel>;
 }
 
-/** "Energiedaten unsanierter Zustand": the class, demand, heat load and the PV potential. */
-export function EnergySection({ analysis }: { analysis: BuildingAnalysis }) {
+/**
+ * "Energiedaten unsanierter Zustand": the class, demand, heat load and the PV potential. With
+ * this building's project open, the class and demand are the project's model as it is now
+ * (`live`), the same numbers as the project bar above, not the first estimate from LoD2.
+ */
+export function EnergySection({
+  analysis,
+  live,
+}: {
+  analysis: BuildingAnalysis;
+  live?: EnergySummary | null;
+}) {
   const t = useT();
   const language = useEditorStore((s) => s.language);
   const n = (v: number, digits = 1) => formatNumber(v, language, digits);
-  const { energy, heatLoad, pv } = analysis;
+  const { heatLoad, pv } = analysis;
+  const energy = live ?? analysis.energy;
   const area = Math.max(1e-9, energy.heatedFloorArea);
   return (
     <section>

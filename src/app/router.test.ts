@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseRoute, routePath } from "./router";
+import { loginPath, parseRoute, routePath, safeNext } from "./router";
 
 describe("routes", () => {
   it("reads the pages from a path, the Projects page first", () => {
@@ -26,5 +26,22 @@ describe("routes", () => {
   it("round-trips a building id with characters that need escaping", () => {
     const route = { page: "building" as const, gid: "DE BE/1" };
     expect(parseRoute(routePath(route))).toEqual(route);
+  });
+});
+
+describe("after sign in", () => {
+  it("goes to the Projects page without a safe place to return to", () => {
+    const projects = routePath({ page: "projects" }, "/");
+    expect(safeNext(null)).toBe(projects);
+    expect(safeNext("https://evil.example")).toBe(projects);
+    expect(safeNext("//evil.example")).toBe(projects);
+    expect(safeNext("/editor?project=1")).toBe("/editor?project=1");
+  });
+
+  it("does not put a login page inside the login page's own next", () => {
+    window.history.replaceState(null, "", "/login?next=%2Fprojekte");
+    expect(loginPath()).toBe("/login?next=%2Fprojekte");
+    window.history.replaceState(null, "", "/editor");
+    expect(loginPath()).toBe("/login?next=%2Feditor");
   });
 });

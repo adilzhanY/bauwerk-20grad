@@ -37,14 +37,21 @@ export function projectSummary(building: Building): ProjectSummary {
   const energy = computeEnergy(building);
   const openings = building.storeys.reduce((n, s) => n + s.openings.length, 0);
   const photographed = Object.values(building.sources ?? {}).some((s) => s.kind === "photo");
+  // Taken up: from the LoD2 survey of the building, or from a facade photo.
+  const surveyed = photographed || info.gid !== undefined;
   const steps: ProjectSummary["steps"] = [
-    photographed,
+    surveyed,
     building.storeys.length > 0 && openings > 0,
     (building.scenarios?.length ?? 0) > 0,
     info.reportAt !== undefined,
   ];
   const derived: ProjectStage = steps[3] ? "report" : steps[2] ? "variants" : "survey";
-  const use = info.gid ? building.name.replace(info.gid, "").trim() : null;
+  // Older projects kept the use only in the name the survey gave ("Wohnhaus <Gebäude-ID>").
+  const use =
+    info.use ??
+    (info.gid && building.name.endsWith(info.gid)
+      ? building.name.replace(info.gid, "").trim()
+      : null);
   return {
     title: info.address ?? building.name,
     use: use === null || use === "" ? null : use,

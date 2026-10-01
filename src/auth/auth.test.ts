@@ -37,7 +37,7 @@ describe("safeNext", () => {
       "/\\evil.example",
       "editor",
     ]) {
-      expect(safeNext(bad)).toBe("/editor");
+      expect(safeNext(bad)).toBe("/");
     }
   });
 });

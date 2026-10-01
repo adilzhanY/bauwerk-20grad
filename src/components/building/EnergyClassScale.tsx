@@ -1,5 +1,9 @@
 import type { EnergyClass } from "@/geometry/energy";
-import { ENERGY_CLASSES } from "@/components/building/energyClasses";
+import { ENERGY_CLASS_COLORS } from "@/geometry/energy";
+import { ENERGY_CLASS_INK, ENERGY_CLASS_ORDER } from "@/lib/energyClassInk";
+
+/** The one palette of the site (geometry/energy.ts), in the certificate's order. */
+const ENERGY_CLASSES = ENERGY_CLASS_ORDER.map((id) => ({ id, color: ENERGY_CLASS_COLORS[id] }));
 
 /**
  * The energy certificate scale: a green to red band with the class letters under it, and
@@ -19,8 +23,12 @@ export function EnergyClassScale({ value, label }: { value: EnergyClass; label: 
           the two heights are. */}
       <div className="relative h-2 rounded-control" style={{ background: gradient }}>
         <span
-          className="absolute top-1/2 flex h-7 min-w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-soft px-1.5 text-sm font-semibold text-white shadow-soft"
-          style={{ left: `${String(center)}%`, background: ENERGY_CLASSES[index]?.color }}
+          className="absolute top-1/2 flex h-7 min-w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-soft px-1.5 text-sm font-semibold shadow-soft"
+          style={{
+            left: `${String(center)}%`,
+            background: ENERGY_CLASS_COLORS[value],
+            color: ENERGY_CLASS_INK[value],
+          }}
         >
           {value}
         </span>

@@ -1,4 +1,5 @@
 import { PageTitle } from "@/components/shared/PageTitle";
+import { computeEnergy } from "@/geometry/energy";
 import { Presence } from "@/components/shared/Presence";
 import { CustomIconButton } from "@/components/shared/CustomIconButton";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -72,6 +73,12 @@ export function BuildingPage({ gid }: { gid: string }) {
   // A new project asked for in the address (the New project dialog, the map, an example).
   const newProject = useRef(readNewProject(window.location.search));
   const projectOpen = useEditorStore((s) => s.building.project?.gid === gid);
+  // The open project's model as it is now: its class is the one the project bar shows.
+  const projectBuilding = useEditorStore((s) => (projectOpen ? s.building : null));
+  const liveEnergy = useMemo(
+    () => (projectBuilding ? computeEnergy(projectBuilding) : null),
+    [projectBuilding],
+  );
   const setProjectInfo = useEditorStore((s) => s.setProjectInfo);
 
   // The page's building drives the LoD2 store, which the 3D view and the photo editor read.
@@ -137,7 +144,14 @@ export function BuildingPage({ gid }: { gid: string }) {
       address && isGeneratedName(building.name, gid)
         ? { ...building, name: address.main }
         : building,
-      { gid, ...(address ? { address: address.main } : {}) },
+      {
+        gid,
+        ...(address ? { address: address.main } : {}),
+        // The use the survey put in front of the Gebäude-ID, kept for the project card.
+        ...(isGeneratedName(building.name, gid) && building.name !== gid
+          ? { use: building.name.replace(gid, "").trim() }
+          : {}),
+      },
     );
 
   // The new project, once the building's data is there: created, and the address cleaned.
@@ -317,7 +331,7 @@ export function BuildingPage({ gid }: { gid: string }) {
                     <div className="sticky -top-8 z-10 -mx-10 bg-gradient-to-b from-paper from-85% to-transparent px-10 pt-4 pb-3 empty:hidden">
                       <SelectedWallCard />
                     </div>
-                    <EnergySection analysis={result.analysis} />
+                    <EnergySection analysis={result.analysis} live={liveEnergy} />
                     <GeneralSection
                       detail={current}
                       partGid={partGid}

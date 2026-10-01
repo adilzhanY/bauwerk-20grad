@@ -42,13 +42,36 @@ describe("projectSummary", () => {
     const photographed: Building = { ...b, sources: { "opening:o1": { kind: "photo" } } };
     expect(projectSummary(photographed).steps[0]).toBe(true);
   });
+
+  it("counts a building taken from LoD2 as surveyed, so the steps never show a gap", () => {
+    const lod2: Building = { ...house(), project: { gid: "DEBE02YY40000BOo" } };
+    expect(projectSummary(lod2).steps[0]).toBe(true);
+  });
+
+  it("keeps the use when the building is named after its address", () => {
+    const b: Building = {
+      ...house(),
+      name: "Methfesselstraße 8",
+      project: { gid: "DEBE02YY40000BOo", address: "Methfesselstraße 8", use: "Wohnhaus" },
+    };
+    expect(projectSummary(b).use).toBe("Wohnhaus");
+    // A name typed by the consultant is not a use.
+    expect(projectSummary({ ...b, project: { gid: "DEBE02YY40000BOo" } }).use).toBeNull();
+  });
 });
 
 describe("project in the file format", () => {
   it("keeps the project facts and refuses a stage that does not exist", () => {
-    const b: Building = { ...house(), project: { client: "WEG 6", stage: "variants" } };
+    const b: Building = {
+      ...house(),
+      project: { client: "WEG 6", stage: "variants", use: "Wohnhaus" },
+    };
     const back = fromJson(toJson(b));
-    expect(back.ok && back.building.project).toEqual({ client: "WEG 6", stage: "variants" });
+    expect(back.ok && back.building.project).toEqual({
+      client: "WEG 6",
+      stage: "variants",
+      use: "Wohnhaus",
+    });
     const wrong = JSON.parse(toJson(b)) as { building: { project: { stage: string } } };
     wrong.building.project.stage = "finished";
     expect(fromJson(JSON.stringify(wrong)).ok).toBe(false);
