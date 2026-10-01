@@ -5,11 +5,21 @@
  * Before a project is saved its pictures live in this tab only. The first Save uploads every
  * one of them into the new project, and from then on each new picture goes up as it is put
  * on; opening a project brings its pictures back. Removing a photo from a wall is done where
- * the user removes it (RightPanel), never here: a new building clears the pictures too, and
- * that must not delete them from the project it came from.
+ * the user removes it (RightPanel), not here: a new building clears the pictures too, and
+ * that must not delete them from the project it came from. The one removal here is a photo
+ * that moved to another wall number (a footprint edit): its old slot goes once it is stored
+ * under the new one.
  */
 import type { createEditorStore, FacadePhoto } from "@/store/building";
-import { photoSlots, projectRefOf, photoUrl, sameRef, savePhoto, shrinkImage } from "./projects";
+import {
+  photoSlots,
+  projectRefOf,
+  photoUrl,
+  removePhoto,
+  sameRef,
+  savePhoto,
+  shrinkImage,
+} from "./projects";
 import type { ProjectRef } from "./projects";
 import { FILES_EVENT } from "./files";
 
@@ -18,8 +28,10 @@ type Store = ReturnType<typeof createEditorStore>;
 const PLAN_SLOT = "plan-";
 
 export function startPhotoSync(store: Store): () => void {
-  // Picture URLs that came from the project or went to it: nothing to upload for those.
-  const known = new Set<string>();
+  // Picture URLs that came from the project or went to it, with the slot they are stored in:
+  // nothing to upload for those, unless the picture moved to another slot (a wall renumbered
+  // by a footprint edit), when it is stored under its new slot and the old one is removed.
+  const slotOf = new Map<string, string>();
   let open: ProjectRef | null = null;
   // When each slot's picture in the project was put there, as last read. A slot that was
   // there and is gone was removed (by anyone); a new time means it was replaced. A picture
@@ -60,7 +72,7 @@ export function startPhotoSync(store: Store): () => void {
         URL.revokeObjectURL(url);
         return;
       }
-      known.add(url);
+      slotOf.set(url, slot);
       if (edge !== null) store.getState().setFacadePhoto(edge, { url, width, height });
       else if (storeyId !== null)
         store.getState().setFloorPlanImage(storeyId, { url, width, height });
@@ -90,12 +102,28 @@ export function startPhotoSync(store: Store): () => void {
   ];
 
   const uploadNew = (ref: ProjectRef, state: ReturnType<Store["getState"]>) => {
+    const wanted = new Set<string>();
+    const moves: Promise<void>[] = [];
+    const left: string[] = [];
     for (const { slot, photo, card } of pictures(state)) {
-      if (known.has(photo.url)) continue;
-      known.add(photo.url);
-      void upload(ref, slot, photo, card).catch(() => {
+      wanted.add(slot);
+      const stored = slotOf.get(photo.url);
+      if (stored === slot) continue;
+      if (stored !== undefined) left.push(stored);
+      slotOf.set(photo.url, slot);
+      const sent = upload(ref, slot, photo, card).catch(() => {
         // Offline or refused: the picture stays in this tab and goes up with the next change.
-        known.delete(photo.url);
+        if (stored === undefined) slotOf.delete(photo.url);
+        else slotOf.set(photo.url, stored);
+      });
+      if (stored !== undefined) moves.push(sent);
+    }
+    // Once every moved picture is stored again, the slots nothing holds any more go. A slot a
+    // moved picture took over is still wanted and stays.
+    const gone = left.filter((slot) => !wanted.has(slot));
+    if (gone.length > 0) {
+      void Promise.all(moves).then(async () => {
+        for (const slot of gone) await removePhoto(ref, slot).catch(() => undefined);
       });
     }
   };

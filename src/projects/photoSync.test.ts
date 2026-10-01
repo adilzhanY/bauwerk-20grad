@@ -5,6 +5,7 @@ import type * as Projects from "./projects";
 import type { ProjectRef } from "./projects";
 
 const saved: { ref: ProjectRef; slot: string }[] = [];
+const removed: string[] = [];
 let stored: { slot: string; width: number; height: number; updatedAt?: string }[] = [];
 /** Changes the URLs handed out, as a replaced picture gets a new one. */
 let urlTag = "";
@@ -18,6 +19,10 @@ vi.mock("./projects", async (original) => {
       return Promise.resolve();
     },
     photoSlots: () => Promise.resolve(stored),
+    removePhoto: (_ref: ProjectRef, slot: string) => {
+      removed.push(slot);
+      return Promise.resolve();
+    },
     photoUrl: (_ref: ProjectRef, slot: string) => Promise.resolve(`blob:stored-${slot}${urlTag}`),
     shrinkImage: () => Promise.resolve({ blob: new Blob(["small"]), width: 48, height: 36 }),
   };
@@ -28,6 +33,7 @@ const { FILES_EVENT } = await import("./files");
 
 beforeEach(() => {
   saved.length = 0;
+  removed.length = 0;
   stored = [];
   urlTag = "";
   vi.stubGlobal("fetch", () => Promise.resolve(new Response(new Blob(["jpeg"]))));
@@ -111,6 +117,24 @@ describe("startPhotoSync", () => {
     });
     expect(store.getState().floorPlanImages).not.toHaveProperty("s0");
     expect(store.getState().facadePhotos[3]?.url).toBe("blob:mine");
+    stop();
+  });
+
+  it("stores a photo under its wall's new number after a footprint edit, and drops the old slot", async () => {
+    stored = [{ slot: "2", width: 640, height: 480, updatedAt: "t1" }];
+    const store = createEditorStore();
+    const stop = startPhotoSync(store);
+    store.getState().loadBuilding(savedProject("p5"));
+    await vi.waitFor(() => {
+      expect(store.getState().facadePhotos[2]?.url).toBe("blob:stored-2");
+    });
+    // A corner on wall 1 splits it: wall 2 becomes wall 3, and its photo goes with it.
+    store.getState().insertFootprintVertex(0);
+    expect(store.getState().facadePhotos[3]?.url).toBe("blob:stored-2");
+    await vi.waitFor(() => {
+      expect(removed).toEqual(["2"]);
+    });
+    expect(saved.map((s) => s.slot)).toContain("3");
     stop();
   });
 });
