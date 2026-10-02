@@ -33,11 +33,7 @@ export function NotesSection({ target }: { target: NoteTarget }) {
   const author = account ? fullName(account) : projectId ? actorIdentity().actor : t("notes.me");
 
   return (
-    <div className="flex flex-col gap-2 border-t border-line pt-3">
-      <span className="text-xs font-semibold text-ink">
-        {t("notes.title")}
-        {notes.length > 0 && <span className="font-normal text-muted"> · {notes.length}</span>}
-      </span>
+    <div className="flex flex-col gap-2">
       {notes.map((note) => (
         <div
           key={note.id}

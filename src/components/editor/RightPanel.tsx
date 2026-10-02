@@ -1,3 +1,4 @@
+import { SectionLabel } from "@/components/shared/PageTitle";
 import { CustomFieldGroup } from "@/components/shared/CustomField";
 import type { NoteTarget } from "@/geometry/types";
 import { ThreadsSection } from "@/components/editor/ThreadsSection";
@@ -32,7 +33,7 @@ import { ZonesSection } from "@/components/editor/ZonesSection";
 import { SourceNote } from "@/components/editor/SourceNote";
 import { WindowTypePicker } from "@/components/editor/WindowTypePicker";
 import { NotesSection } from "@/components/editor/NotesSection";
-import { noteTargetOf } from "@/components/editor/noteTarget";
+import { noteTargetOf, targetLabel } from "@/components/editor/noteTarget";
 import { effectiveWallThickness } from "@/geometry/layers";
 import { interiorWallThickness, interiorWallType } from "@/geometry/constructions";
 import { buildRoof, roofOf } from "@/geometry/roof";
@@ -75,18 +76,37 @@ export function RightPanel() {
         {selection ? (
           <CustomSection title={t("panel.properties")} first>
             <Properties selection={selection} />
-            <Notes target={noteTargetOf(selection)} />
           </CustomSection>
         ) : (
-          <>
-            <BuildingCard />
-            <CustomSection title={t("notes.building")}>
-              <Notes target={{ kind: "building" }} />
-            </CustomSection>
-          </>
+          <BuildingCard />
         )}
       </div>
+      <NotesDock target={noteTargetOf(selection)} />
     </aside>
+  );
+}
+
+/**
+ * The notes, always on screen at the foot of the panel, about whatever is picked (the
+ * building when nothing is): the properties above scroll on their own, so a note can be read
+ * and written beside them. At most a bit under half the panel, so the properties keep room.
+ */
+function NotesDock({ target }: { target: NoteTarget }) {
+  const t = useT();
+  const building = useEditorStore((s) => s.building);
+  const what = targetLabel(building, target, t);
+  return (
+    <section
+      aria-label={t("notes.title")}
+      className="flex max-h-[45%] min-h-0 shrink-0 flex-col border-t border-line bg-paper"
+    >
+      <header className="flex h-11 shrink-0 items-center px-4">
+        <SectionLabel>{what ? t("notes.on", { what }) : t("notes.building")}</SectionLabel>
+      </header>
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pb-4">
+        <Notes target={target} />
+      </div>
+    </section>
   );
 }
 
