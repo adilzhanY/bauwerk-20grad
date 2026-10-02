@@ -5,13 +5,14 @@ The LoD2 model already gives the footprint in metres. A floor plan adds what is 
 where the interior walls stand and where their doors are. Four steps:
 
 1. Place the plan. The footprint is slid, scaled and turned over the drawing until its edges
-   lie on ink (chamfer matching on a distance transform). That fixes pixels per metre and
-   position without the user marking anything, and everything later is in plan metres.
+   lie on ink (chamfer matching on a distance transform), guided by the room model's rooms
+   when it ran. That fixes pixels per metre and position without the user marking anything,
+   and everything later is in plan metres.
 2. Find walls the way they are drawn: two parallel lines 6 to 32 cm apart, or one solid
    stroke that thick. Dimension lines, text underlines and furniture are single thin lines
    and drop out; a third line at the same spacing makes a ladder (stairs), not a wall.
 3. Keep only walls inside the outline, off the outer walls, merged along their line,
-   extended to meet the walls they end at, and connected to the outline at both ends.
+   extended to meet the walls they end at, and connected to the outline or another wall.
    When a room model ran (Raster2Seq), a wall must also follow one of its room boundaries.
 4. Doors: a gap in a wall, and where the room model sees a door on a wall, the gap in the
    wall's ink around it, so a door gets the width drawn, not the model's coarse guess.
@@ -36,6 +37,12 @@ MIN_WALL_LENGTH = 0.6
 OUTLINE_BAND = 0.5
 SAME_LINE = 0.25
 DOOR_MIN, DOOR_MAX = 0.5, 1.4
+# Pieces on one line with up to this much between them are one wall with an opening: a door,
+# or a wide passage between two rooms.
+MERGE_GAP = 2.0
+# A wall held at one end only must be at least this long: shorter ones are stoves, cupboards
+# and stair parts more often than walls.
+ONE_END_MIN = 2.0
 SNAP = 0.5
 # An interior wall ends at the inner face of an outer wall, up to about this far from the
 # outline (the outline is the outer face).
@@ -46,6 +53,9 @@ MIN_SUPPORT = 0.6
 OPEN_BELOW = 0.7
 # Pixels: distance cap for the chamfer cost, so far-off points do not dominate.
 CHAMFER_CAP = 25.0
+# Metres: how far from the room model's rooms the drawn outer walls may lie (a thick outer
+# wall, plus the model's own blur at its 256 pixels).
+ROOM_REACH = 0.55
 
 
 @dataclass
@@ -140,17 +150,32 @@ def wall_mask(ink: np.ndarray) -> np.ndarray:
     return mask
 
 
-def register(ink: np.ndarray, footprint: np.ndarray) -> tuple[Transform, float]:
+def register(ink: np.ndarray, footprint: np.ndarray, rooms_px=None) -> tuple[Transform, float]:
     """The transform that lays the footprint on the drawn outer walls, and its mean error in px.
 
-    Only wall-like ink counts, so dimension lines and text cannot pull the outline. Smaller
-    shapes also fit on interior walls; the outer walls are the outermost ones, so among fits
-    about as good as the best, the largest wins.
+    Only wall-like ink counts, so dimension lines and text cannot pull the outline, and with the
+    room model's rooms only the ink near them: a drawing is rarely in exact proportion with the
+    measured building, and a title line or a frame just outside the plan would otherwise win.
+    Smaller shapes also fit on interior walls, and
+    larger ones on a frame or a title line round the plan, so among fits about as good as the
+    best: with the room model's rooms, the one that wraps them most tightly (the outer walls
+    are one wall thickness round the rooms), else the largest (the outer walls are outermost).
     """
     h, w = ink.shape
-    dist = np.minimum(cv2.distanceTransform(255 - wall_mask(ink), cv2.DIST_L2, 5), CHAMFER_CAP)
-    samples = _outline_samples(footprint)
+    walls_px = wall_mask(ink)
     size = footprint.max(axis=0) - footprint.min(axis=0)
+    rooms = _room_union(rooms_px)
+    if rooms is not None:
+        # The outer walls touch the rooms: wall-like ink further out (a frame, a title line,
+        # a legend) is left out. The rooms cover about the footprint, which sets the scale.
+        near = np.zeros_like(walls_px)
+        for poly in getattr(rooms, "geoms", [rooms]):
+            cv2.fillPoly(near, [np.asarray(poly.exterior.coords, dtype=np.int32)], 255)
+        reach = int(ROOM_REACH * math.sqrt(rooms.area / Polygon(footprint).area))
+        near = cv2.dilate(near, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * reach + 1, 2 * reach + 1)))
+        walls_px = cv2.bitwise_and(walls_px, near)
+    dist = np.minimum(cv2.distanceTransform(255 - walls_px, cv2.DIST_L2, 5), CHAMFER_CAP)
+    samples = _outline_samples(footprint)
 
     def cost(p: np.ndarray) -> float:
         px = Transform(*p).to_px(samples)
@@ -184,9 +209,25 @@ def register(ink: np.ndarray, footprint: np.ndarray) -> tuple[Transform, float]:
         res = minimize(cost, p, method="Powell", options={"xtol": 1e-3, "ftol": 1e-4, "maxiter": 4000})
         fits.append((float(res.fun), res.x))
     best = min(v for v, _ in fits)
-    good = [(v, p) for v, p in fits if v <= best * 1.25 + 0.5]
-    value, params = max(good, key=lambda t: t[1][0])
-    return Transform(*(float(v) for v in params)), value
+    good = [(v, Transform(*(float(x) for x in p))) for v, p in fits if v <= best * 1.25 + 0.5]
+    if rooms is not None:
+        def slack(t: Transform) -> float:
+            outline = Polygon(t.to_px(footprint)).buffer(0)
+            # Rooms sticking out of the outline rule a fit out; then the least empty margin.
+            return 10 * rooms.difference(outline).area + outline.difference(rooms).area
+        value, transform = min(good, key=lambda f: slack(f[1]))
+    else:
+        value, transform = max(good, key=lambda f: f[1].scale)
+    return transform, value
+
+
+def _room_union(rooms_px):
+    """The room model's rooms in pixels as one shape, or None when it found too little."""
+    polys = [Polygon(r).buffer(0) for r in rooms_px or () if len(r) >= 3]
+    polys = [p for p in polys if not p.is_empty and p.area > 0]
+    if len(polys) < 2:
+        return None
+    return unary_union(polys)
 
 
 def strokes_of(ink: np.ndarray, min_length_px: int, max_thickness_px: float):
@@ -276,7 +317,7 @@ def interior_walls(
         groups: list[dict] = []
         for pos, lo, hi, t in sorted(((*_axis(p), p.thickness) for p in pieces if p.orientation == o), key=lambda k: k[1]):
             for g in groups:
-                if abs(g["pos"] - pos) < SAME_LINE and lo <= g["hi"] + DOOR_MAX:
+                if abs(g["pos"] - pos) < SAME_LINE and lo <= g["hi"] + MERGE_GAP:
                     g["parts"].append((lo, hi))
                     g["hi"] = max(g["hi"], hi)
                     g["len"] += hi - lo
@@ -290,6 +331,16 @@ def interior_walls(
             walls.append(Wall(o, a, b, g["t"], parts=g["parts"]))
 
     _extend_to_neighbours(walls, ring)
+    # Both ends on the outline and running along it: a corner cut off by a stain or a window
+    # frame, not a wall between rooms.
+    walls = [
+        w for w in walls
+        if not (
+            ring.distance(Point(w.a)) < 0.05
+            and ring.distance(Point(w.b)) < 0.05
+            and ring.distance(w.line.interpolate(0.5, normalized=True)) < OUTLINE_BAND
+        )
+    ]
     if room_boundaries is not None:
         band = room_boundaries.difference(ring.buffer(0.3)).buffer(0.4)
         for w in walls:
@@ -329,7 +380,10 @@ def _extend_to_neighbours(walls: list[Wall], ring) -> None:
 
 
 def _anchored(walls: list[Wall], ring) -> list[Wall]:
-    """Walls held at both ends, by the outline or another kept wall. Loose stubs are noise."""
+    """Walls held by the outline or another kept wall. A wall may end free at a doorway or a
+    passage, so one held end is enough; a stub held at neither end is noise. Walls the room
+    model checked (support) are kept on one end; without the model both ends must be held,
+    as the drawing alone also has furniture and fittings that look like short walls."""
     kept = list(walls)
     while True:
         def held(p, w):
@@ -337,7 +391,11 @@ def _anchored(walls: list[Wall], ring) -> list[Wall]:
                 return True
             return any(o is not w and o.line.distance(Point(p)) < 0.05 for o in kept)
 
-        next_kept = [w for w in kept if held(w.a, w) and held(w.b, w)]
+        def stays(w):
+            ends = held(w.a, w) + held(w.b, w)
+            return ends == 2 or (ends == 1 and w.support is not None and w.line.length >= ONE_END_MIN)
+
+        next_kept = [w for w in kept if stays(w)]
         if len(next_kept) == len(kept):
             return kept
         kept = next_kept
@@ -445,7 +503,7 @@ def doors_of(walls: list[Wall], ink: np.ndarray, transform: Transform, model_doo
 def analyse(gray: np.ndarray, footprint_m: np.ndarray, rooms_px=None, doors_px=()) -> Result:
     """The whole pipeline. `rooms_px` and `doors_px` come from a room model, if one ran."""
     ink = ink_of(gray)
-    transform, error_px = register(ink, footprint_m)
+    transform, error_px = register(ink, footprint_m, rooms_px)
     footprint = Polygon(footprint_m)
     to_m = lambda pts: [transform.to_m(x, y) for x, y in pts]
     min_len = max(8, int(0.5 * transform.scale))
