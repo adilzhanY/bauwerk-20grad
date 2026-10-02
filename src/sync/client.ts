@@ -274,14 +274,21 @@ export class SyncClient {
       this.receive(message);
     });
     socket.on("presence", (message: PresenceMessage) => {
-      // The list comes on every join and leave; keep what is known of the others' pointers.
+      // The list comes on every join, leave and change of place; keep what is known of the
+      // others' pointers, and their selections: a selection message is newer than the list,
+      // which can have been read on the server just before that selection arrived there.
       const known = new Map(this.store.getState().presence.map((p) => [p.clientId, p]));
       this.store.getState().setPresence(
         message.actors
           .filter((a) => a.clientId !== this.clientId)
           .map((a) => {
             const before = known.get(a.clientId);
-            return { ...a, cursor: before?.cursor ?? null, dragging: before?.dragging ?? null };
+            return {
+              ...a,
+              selection: before ? before.selection : a.selection,
+              cursor: before?.cursor ?? null,
+              dragging: before?.dragging ?? null,
+            };
           }),
       );
     });

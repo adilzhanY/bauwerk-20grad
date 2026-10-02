@@ -4,13 +4,13 @@ import { Html } from "@react-three/drei";
 import { Plane, Vector2, Vector3 } from "three";
 import { useEditorStore } from "@/store/building";
 import { shareCursor } from "@/sync/presence";
+import { cursorHeight } from "./follow";
 import { worldToPlan } from "./three";
 
-const GROUND = new Plane(new Vector3(0, 1, 0), 0);
-
 /**
- * Reports where this tab's pointer meets the ground, as a plan point, to the others
- * in a shared project. Without a shared project the report goes nowhere.
+ * Reports where this tab's pointer meets the floor of the active storey, as a plan point, to
+ * the others in a shared project; they draw it on that storey (the storey goes with the
+ * person's place, sync/useSync.ts). Without a shared project the report goes nowhere.
  */
 export function ShareCursor() {
   const gl = useThree((s) => s.gl);
@@ -21,14 +21,17 @@ export function ShareCursor() {
     const element = gl.domElement;
     const ndc = new Vector2();
     const hit = new Vector3();
+    const floor = new Plane(new Vector3(0, 1, 0), 0);
     const onMove = (event: PointerEvent) => {
       const rect = element.getBoundingClientRect();
       ndc.set(
         ((event.clientX - rect.left) / rect.width) * 2 - 1,
         -((event.clientY - rect.top) / rect.height) * 2 + 1,
       );
+      const { building, activeStoreyId } = useEditorStore.getState();
+      floor.constant = -cursorHeight(building, activeStoreyId);
       raycaster.setFromCamera(ndc, camera);
-      if (raycaster.ray.intersectPlane(GROUND, hit)) shareCursor(worldToPlan(hit));
+      if (raycaster.ray.intersectPlane(floor, hit)) shareCursor(worldToPlan(hit));
     };
     const onLeave = () => {
       shareCursor(null);
@@ -44,14 +47,23 @@ export function ShareCursor() {
   return null;
 }
 
-/** The other people's pointers on the ground: a ring in their colour with their name. */
+/**
+ * The other people's pointers on the floor of the storey they are on: a ring in their colour
+ * with their name. In the plan, which shows one storey, only those on that storey.
+ */
 export function RemoteCursors() {
   const cursors = useEditorStore((s) => s.presence);
+  const building = useEditorStore((s) => s.building);
+  const planView = useEditorStore((s) => s.planView);
+  const activeStoreyId = useEditorStore((s) => s.activeStoreyId);
   return (
     <>
       {cursors.map((p) =>
-        p.cursor ? (
-          <group key={p.clientId} position={[p.cursor.x, 0.02, p.cursor.y]}>
+        p.cursor && (!planView || !p.storeyId || p.storeyId === activeStoreyId) ? (
+          <group
+            key={p.clientId}
+            position={[p.cursor.x, cursorHeight(building, p.storeyId) + 0.02, p.cursor.y]}
+          >
             <mesh rotation={[-Math.PI / 2, 0, 0]} renderOrder={10}>
               <ringGeometry args={[0.16, 0.26, 32]} />
               <meshBasicMaterial color={p.color} depthTest={false} transparent />

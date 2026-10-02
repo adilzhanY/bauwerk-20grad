@@ -8,10 +8,10 @@ import type { Id, Opening } from "@/geometry/types";
 import { colors } from "@/lib/colors";
 import { Outline } from "./Outline";
 import type { StoreyDisplay } from "./display";
-import { sameSelection, useEditorStore } from "@/store/building";
+import { useEditorStore } from "@/store/building";
 import type { Selection } from "@/store/building";
 import { useGhost } from "./ghost";
-import { PictureMode, useHover, useMarked } from "./hover";
+import { PictureMode, useHover, useMarked, useRemoteColor } from "./hover";
 import { mergeAll, meshRaycast, noRaycast, prismGeometry, worldToPlan } from "./three";
 import { placeRadiatorFromWallClick } from "./tools/placeRadiator";
 import { useDisposableGeometry } from "./useDisposableGeometry";
@@ -46,9 +46,7 @@ export function Wall({
   const lit = useEditorStore((s) => !picture && s.highlightedWall === wall.index);
   const { hovered } = marked;
   const facadeColor = useEditorStore((s) => s.building.facadeColor);
-  const remoteColor = useEditorStore(
-    (s) => s.presence.find((p) => sameSelection(p.selection, target))?.color ?? null,
-  );
+  const remoteColor = useRemoteColor(target);
   const select = useEditorStore((s) => s.select);
   const tool = useEditorStore((s) => s.tool);
   const addOpening = useEditorStore((s) => s.addOpening);

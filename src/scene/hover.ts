@@ -1,7 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useRef } from "react";
 import type { ThreeEvent } from "@react-three/fiber";
+import { useAuth } from "@/auth/store";
 import { sameSelection, useEditorStore } from "@/store/building";
-import type { Selection } from "@/store/building";
+import type { Presence, Selection } from "@/store/building";
 
 /**
  * Pointer hover handlers that write to the store at most once per animation
@@ -64,6 +65,27 @@ export function useHover(target: Selection | null, enabled = true) {
  * selected or hovered, whatever the editor has.
  */
 export const PictureMode = createContext(false);
+
+/**
+ * The colour of someone else who has this target selected, or null. Only other people: a
+ * second tab of one's own (same account) shares one's colour, and one's own selection is
+ * drawn as the selection, never in one's presence colour.
+ */
+export function remoteSelectionColor(
+  presence: readonly Presence[],
+  target: Selection,
+  me: string | null,
+): string | null {
+  return (
+    presence.find((p) => (me === null || p.userId !== me) && sameSelection(p.selection, target))
+      ?.color ?? null
+  );
+}
+
+export function useRemoteColor(target: Selection): string | null {
+  const me = useAuth((s) => s.account?.id ?? null);
+  return useEditorStore((s) => remoteSelectionColor(s.presence, target, me));
+}
 
 /** Whether this target is selected and hovered, as the parts of the building draw it. */
 export function useMarked(target: Selection | null): { selected: boolean; hovered: boolean } {
