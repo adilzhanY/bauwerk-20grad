@@ -297,7 +297,7 @@ function Roadmap({ building }: { building: Building }) {
               <td>{s.index + 1}</td>
               <td>{num(s.year, 0)}</td>
               <td>{s.scenario.id === "full-envelope" ? t("scenarios.full") : s.scenario.name}</td>
-              <td className="r">{s.energy.energyClass}</td>
+              <td className="r">{s.energy.energyClass ?? t("energy.noClass")}</td>
               <td className="r">{num(s.energy.specificEndEnergy, 0)}</td>
               <td className="r">{num(s.demandSaved, 0)}</td>
               <td className="r">{num(s.investment, 0)}</td>
@@ -523,7 +523,7 @@ function EnergyTable({ current, renovated }: { current: EnergySummary; renovated
     ["energy.heatingDemand", (e) => `${num(e.heatingDemand, 0)} kWh/a`],
     ["energy.specificHeatingDemand", (e) => `${num(e.specificHeatingDemand, 0)} kWh/(m²a)`],
     ["energy.specificEndEnergy", (e) => `${num(e.specificEndEnergy, 0)} kWh/(m²a)`],
-    ["energy.energyClass", (e) => e.energyClass],
+    ["energy.energyClass", (e) => e.energyClass ?? t("energy.noClass")],
   ];
   return (
     <table style={{ marginTop: "6pt" }}>

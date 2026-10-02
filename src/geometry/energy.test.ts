@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_ASSIGNMENT, PRESET_IDS, defaultConstructions } from "./constructions";
 import { computeEnergy, energyClass, orientationOf } from "./energy";
 import { roomEnvelopeLoss } from "./hvac";
+import { supplyOf } from "./supply";
 import { applyScenario, fullEnvelopeScenario } from "./scenarios";
 import { lShape, rect } from "./fixtures";
 import { edges, pointInPolygon } from "./polygon";
@@ -156,6 +157,12 @@ describe("computeEnergy on the default 10 by 8 single storey", () => {
     expect(allCold.solarGains).toBe(0);
     expect(allCold.internalGains).toBe(0);
     expect(allCold.heatingDemand).toBe(0);
+    // Nothing heated is not "A+": a building nobody heats has no class at all.
+    expect(allCold.energyClass).toBeNull();
+    expect(
+      supplyOf(building(split, [], zones, { 0: "cold", 1: "cold" }), allCold).energyClass,
+    ).toBeNull();
+    expect(e.energyClass).not.toBeNull();
   });
 
   it("a window in an unheated room does not count, a window in a heated room does", () => {

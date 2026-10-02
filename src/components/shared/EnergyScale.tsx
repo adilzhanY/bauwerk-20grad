@@ -77,7 +77,7 @@ export function EnergyScale({ current, compare, compareLabel, variant }: Props) 
       viewBox={`0 0 ${w} ${h}`}
       style={{ width: "100%", display: "block" }}
       role="img"
-      aria-label={`${t("energy.energyClass")}: ${(compare ?? current).energyClass}`}
+      aria-label={`${t("energy.energyClass")}: ${(compare ?? current).energyClass ?? t("energy.noClass")}`}
       className={variant === "panel" ? "text-ink" : undefined}
     >
       {segments.map((s) => (

@@ -81,7 +81,7 @@ export const de: Messages = {
 
   "properties.empty": "Nichts ausgewählt. Klicken Sie ein Element im Modell an.",
 
-  "wall.title": "Außenwand {n}",
+  "wall.title": "Außenwand {n}, {storey}",
   "wall.length": "Länge",
   "wall.thickness": "Stärke",
   "wall.openings": "Öffnungen",
@@ -171,6 +171,9 @@ export const de: Messages = {
   "energy.heatingDemand": "Heizwärmebedarf",
   "energy.specificHeatingDemand": "Spezifischer Heizwärmebedarf",
   "energy.energyClass": "Energieeffizienzklasse",
+  "energy.noClass": "Keine Klasse",
+  "energy.noClassHint":
+    "Keine Zone ist beheizt, also gibt es keine beheizte Fläche und keine Effizienzklasse. Beheizen Sie eine Zone, um sie zu sehen.",
   "energy.specificEndEnergy": "Endenergie",
   "energy.saving": "Einsparung",
   "energy.byZone": "Nach Zone",

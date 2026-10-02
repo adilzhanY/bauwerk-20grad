@@ -1,6 +1,13 @@
 import type { EnergyClass } from "@/geometry/energy";
 import { ENERGY_CLASS_COLORS } from "@/geometry/energy";
 import { ENERGY_CLASS_INK, ENERGY_CLASS_ORDER } from "@/lib/energyClassInk";
+import { Hint } from "@/components/shared/Hint";
+import { useT } from "@/i18n/useT";
+
+function NoClass() {
+  const t = useT();
+  return <Hint>{t("energy.noClassHint")}</Hint>;
+}
 
 /** The one palette of the site (geometry/energy.ts), in the certificate's order. */
 const ENERGY_CLASSES = ENERGY_CLASS_ORDER.map((id) => ({ id, color: ENERGY_CLASS_COLORS[id] }));
@@ -9,7 +16,8 @@ const ENERGY_CLASSES = ENERGY_CLASS_ORDER.map((id) => ({ id, color: ENERGY_CLASS
  * The energy certificate scale: a green to red band with the class letters under it, and
  * the building's class as a coloured tag sitting on the band.
  */
-export function EnergyClassScale({ value, label }: { value: EnergyClass; label: string }) {
+export function EnergyClassScale({ value, label }: { value: EnergyClass | null; label: string }) {
+  if (value === null) return <NoClass />;
   const index = Math.max(
     0,
     ENERGY_CLASSES.findIndex((c) => c.id === value),

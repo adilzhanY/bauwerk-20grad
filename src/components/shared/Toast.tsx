@@ -38,8 +38,11 @@ export function Toast({
       )}
     >
       {icon !== undefined && <span className="shrink-0 text-select">{icon}</span>}
-      <span className="min-w-0">{children}</span>
-      {actions}
+      <span className="min-w-0 flex-1">{children}</span>
+      {/* The buttons keep their words on one line; the message wraps instead. */}
+      {actions !== undefined && (
+        <span className="flex shrink-0 items-center gap-1.5 whitespace-nowrap">{actions}</span>
+      )}
       {onDismiss && dismissLabel !== undefined && (
         <CustomIconButton label={dismissLabel} size="sm" onClick={onDismiss}>
           <X size={14} aria-hidden />

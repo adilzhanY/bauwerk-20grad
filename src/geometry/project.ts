@@ -21,7 +21,7 @@ export interface ProjectSummary {
   storeys: number;
   client: string | null;
   gid: string | null;
-  energyClass: EnergyClass;
+  energyClass: EnergyClass | null;
   /** kWh per m² and year. */
   endEnergy: number;
   stage: ProjectStage;

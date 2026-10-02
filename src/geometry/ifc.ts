@@ -578,7 +578,7 @@ export function toIfc(building: Building, options: IfcOptions = {}): string {
       w.add("IFCPROPERTYSINGLEVALUE", [
         str(`${r.scenario.name}: class`),
         NULL,
-        typed("IFCLABEL", str(r.energy.energyClass)),
+        typed("IFCLABEL", str(r.energy.energyClass ?? "")),
         NULL,
       ]),
       w.add("IFCPROPERTYSINGLEVALUE", [

@@ -706,7 +706,7 @@ function WallProperties({ storeyId, wallIndex }: { storeyId: string; wallIndex: 
     edge.length * storey.height - validOpenings.reduce((a, o) => a + o.width * o.height, 0);
   return (
     <>
-      <Title>{t("wall.title", { n: wallIndex + 1 })}</Title>
+      <Title>{t("wall.title", { n: wallIndex + 1, storey: storey.name })}</Title>
       <CustomReadOnly label={t("wall.length")} value={formatMetres(edge.length, language)} />
       <CustomReadOnly label={t("wall.thickness")} value={formatMetres(thickness, language)} />
       <CustomReadOnly label={t("wall.openings")} value={String(onWall.length)} />

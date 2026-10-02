@@ -83,7 +83,8 @@ export interface SupplySummary {
   primaryPerM2: number;
   co2PerM2: number;
   /** Energieausweis class from end energy, as for residential buildings. */
-  energyClass: EnergyClass;
+  /** None without a heated floor area. */
+  energyClass: EnergyClass | null;
   /** Euro per year for the end energy, CO2 included, as calculated (not calibrated). */
   cost: number;
   /** Euro per year of it that is the BEHG CO2 price, VAT included. */
@@ -126,7 +127,7 @@ export function supplyOf(
     endPerM2: perM2(parts.total),
     primaryPerM2: perM2(primaryEnergy),
     co2PerM2: perM2(co2),
-    energyClass: energyClass(perM2(parts.total)),
+    energyClass: energy.referenceArea > 0 ? energyClass(perM2(parts.total)) : null,
     cost:
       inCarrier * priceOf(building, heating.carrier) +
       parts.auxiliary * priceOf(building, "electric"),

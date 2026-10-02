@@ -18,7 +18,9 @@ describe("messages", () => {
   });
 
   it("fills placeholders", () => {
-    expect(translate("en", "wall.title", { n: 3 })).toBe("Exterior wall 3");
+    expect(translate("en", "wall.title", { n: 3, storey: "Ground floor" })).toBe(
+      "Exterior wall 3, Ground floor",
+    );
     expect(translate("de", "zone.defaultName", { n: 1 })).toBe("Zone 1");
   });
 

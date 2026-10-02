@@ -117,7 +117,11 @@ export function ScenariosPanel() {
                   >
                     <span
                       className="inline-block h-2.5 w-2.5 rounded-full"
-                      style={{ background: ENERGY_CLASS_COLORS[r.energy.energyClass] }}
+                      style={{
+                        background: r.energy.energyClass
+                          ? ENERGY_CLASS_COLORS[r.energy.energyClass]
+                          : "var(--line)",
+                      }}
                     />
                     {r.scenario.id === "full-envelope" ? t("scenarios.full") : r.scenario.name}
                   </button>
@@ -348,7 +352,10 @@ function ScenarioEditor({
         />
       </CustomFieldGroup>
       <div className="flex flex-col gap-1 border-t border-line pt-2">
-        <CustomReadOnly label={t("energy.energyClass")} value={r.energy.energyClass} />
+        <CustomReadOnly
+          label={t("energy.energyClass")}
+          value={r.energy.energyClass ?? t("energy.noClass")}
+        />
         <CustomReadOnly
           label={t("energy.specificEndEnergy")}
           value={`${num(r.energy.specificEndEnergy)} kWh/(m²a)`}

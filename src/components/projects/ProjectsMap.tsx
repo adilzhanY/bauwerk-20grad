@@ -59,11 +59,13 @@ export function ProjectsMap({
       const origin = card.summary.origin as { lon: number; lat: number };
       const pin = document.createElement("button");
       pin.type = "button";
-      pin.textContent = card.summary.energyClass;
+      pin.textContent = card.summary.energyClass ?? "";
       pin.title = card.summary.title;
       pin.setAttribute("aria-label", card.summary.title);
       pin.className = "project-pin";
-      pin.style.background = ENERGY_CLASS_COLORS[card.summary.energyClass];
+      pin.style.background = card.summary.energyClass
+        ? ENERGY_CLASS_COLORS[card.summary.energyClass]
+        : "var(--muted)";
       pin.addEventListener("click", () => {
         select.current(card);
       });

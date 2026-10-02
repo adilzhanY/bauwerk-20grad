@@ -1,4 +1,5 @@
 import { ENERGY_CLASS_COLORS } from "@/geometry/energy";
+import { useT } from "@/i18n/useT";
 import { ENERGY_CLASS_INK } from "@/lib/energyClassInk";
 import type { EnergyClass } from "@/geometry/energy";
 import type { ReactNode } from "react";
@@ -14,11 +15,23 @@ export function EnergyClassBadge({
   detail,
   className,
 }: {
-  value: EnergyClass;
+  /** None: the building has no heated floor area, so no class. */
+  value: EnergyClass | null;
   /** After the letter, such as the specific end energy. */
   detail?: ReactNode;
   className?: string;
 }) {
+  const t = useT();
+  if (value === null) {
+    return (
+      <span
+        className={cx("rounded-soft border border-line px-2 py-0.5 text-xs text-muted", className)}
+        title={t("energy.noClassHint")}
+      >
+        {t("energy.noClass")}
+      </span>
+    );
+  }
   return (
     <span
       className={cx("rounded-soft px-2 py-0.5 font-num text-xs font-bold", className)}

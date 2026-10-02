@@ -175,7 +175,8 @@ export interface EnergySummary {
   /** False when no room is heated; the demand is then zero and the class is not meaningful. */
   heated: boolean;
   /** Energieausweis class, from the end energy. */
-  energyClass: EnergyClass;
+  /** None without a heated floor area: a building nobody heats has no class. */
+  energyClass: EnergyClass | null;
   elements: ElementLoss[];
   /** Per zone: heated floor area (gross) and transmission loss through its envelope. */
   zones: { zoneId: string | null; floorArea: number; transmissionLoss: number }[];
@@ -540,7 +541,7 @@ export function computeEnergy(building: Building, options: EnergyOptions = {}): 
     specificHeatingDemand: specific,
     specificEndEnergy: specificEnd,
     heated,
-    energyClass: energyClass(specificEnd),
+    energyClass: referenceArea > 0 ? energyClass(specificEnd) : null,
     elements,
     zones: [...zoneLoss.entries()].map(([zoneId, v]) => ({ zoneId, ...v })),
   };

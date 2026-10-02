@@ -132,14 +132,18 @@ export function EnergyResults() {
       />
       <EnergyChangeNote building={building} current={current} />
       <CustomFieldGroup label={t("energy.energyClass")}>
-        <EnergyScale
-          variant="panel"
-          current={current}
-          compare={renovated ? after : undefined}
-          compareLabel={
-            chosen?.scenario.id === "full-envelope" || !chosen ? undefined : chosen.scenario.name
-          }
-        />
+        {current.energyClass === null ? (
+          <Hint>{t("energy.noClassHint")}</Hint>
+        ) : (
+          <EnergyScale
+            variant="panel"
+            current={current}
+            compare={renovated ? after : undefined}
+            compareLabel={
+              chosen?.scenario.id === "full-envelope" || !chosen ? undefined : chosen.scenario.name
+            }
+          />
+        )}
       </CustomFieldGroup>
       <IsfpOverview building={shownBuilding} energy={shown} />
       <div className="grid grid-cols-2 gap-2">

@@ -76,7 +76,7 @@ export const en = {
 
   "properties.empty": "Nothing selected. Click an element in the model.",
 
-  "wall.title": "Exterior wall {n}",
+  "wall.title": "Exterior wall {n}, {storey}",
   "wall.length": "Length",
   "wall.thickness": "Thickness",
   "wall.openings": "Openings",
@@ -165,6 +165,9 @@ export const en = {
   "energy.heatingDemand": "Heating demand",
   "energy.specificHeatingDemand": "Specific heating demand",
   "energy.energyClass": "Energy efficiency class",
+  "energy.noClass": "No class",
+  "energy.noClassHint":
+    "No zone is heated, so there is no heated floor area and no energy class. Heat a zone to see it.",
   "energy.specificEndEnergy": "End energy",
   "energy.saving": "Saving",
   "energy.byZone": "By zone",
