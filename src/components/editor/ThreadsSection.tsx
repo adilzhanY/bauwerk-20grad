@@ -28,24 +28,39 @@ import { CustomTextArea } from "@/components/shared/CustomTextArea";
 import { cx } from "@/components/shared/cx";
 import { Hint } from "@/components/shared/Hint";
 import { Presence } from "@/components/shared/Presence";
+import { mentionParts } from "./mentions";
 
 /** The @word being typed at the end of the text, if any. */
 const typingMention = (text: string) => /(?:^|\s)@([A-Za-z0-9_-]{0,24})$/.exec(text)?.[1];
 
+/**
+ * Text with each @mention of a member in that person's colour, on a light tint of it. Colour
+ * only: the same parts are drawn behind the note box while typing, and must not move a letter.
+ */
+function Mentions({ text, members }: { text: string; members: readonly Member[] }) {
+  return mentionParts(text, members).map((part, i) =>
+    part.color ? (
+      <span
+        key={i}
+        className="rounded-soft"
+        style={{
+          color: part.color,
+          backgroundColor: `color-mix(in srgb, ${part.color} 16%, transparent)`,
+        }}
+      >
+        {part.text}
+      </span>
+    ) : (
+      <Fragment key={i}>{part.text}</Fragment>
+    ),
+  );
+}
+
 /** A comment's text with its @mentions marked. */
-function Text({ text }: { text: string }) {
-  const parts = text.split(/((?:^|(?<=\s))@[A-Za-z0-9_-]{3,24})/g);
+function Text({ text, members }: { text: string; members: readonly Member[] }) {
   return (
-    <p className="text-sm whitespace-pre-wrap text-ink">
-      {parts.map((part, i) =>
-        part.startsWith("@") ? (
-          <span key={i} className="rounded-soft bg-select-soft px-0.5 font-medium text-select">
-            {part}
-          </span>
-        ) : (
-          <Fragment key={i}>{part}</Fragment>
-        ),
-      )}
+    <p className="text-sm break-words whitespace-pre-wrap text-ink">
+      <Mentions text={text} members={members} />
     </p>
   );
 }
@@ -87,35 +102,9 @@ export function ThreadsSection({ target }: { target: NoteTarget }) {
   const resolved = here.filter((thread) => thread.resolvedAt);
 
   return (
-    <div className="flex flex-col gap-2 border-t border-line pt-3">
-      <span className="text-xs font-semibold text-ink">
-        {t("threads.title")}
-        {open.length > 0 && <span className="font-normal text-muted"> · {open.length}</span>}
-      </span>
-      {open.map((thread) => (
-        <ThreadCard
-          key={thread.id}
-          thread={thread}
-          members={members}
-          files={files}
-          writer={writer}
-        />
-      ))}
-      {resolved.length > 0 && (
-        <button
-          type="button"
-          className="self-start text-xs text-muted underline"
-          onClick={() => {
-            setShowResolved(!showResolved);
-          }}
-        >
-          {showResolved
-            ? t("threads.hideResolved")
-            : t("threads.showResolved", { n: resolved.length })}
-        </button>
-      )}
-      <Presence show={showResolved} className="flex flex-col gap-2">
-        {resolved.map((thread) => (
+    <div className="flex min-h-0 flex-1 flex-col gap-2">
+      <div className="-mr-2 flex min-h-0 flex-col gap-2 overflow-y-auto pr-2">
+        {open.map((thread) => (
           <ThreadCard
             key={thread.id}
             thread={thread}
@@ -124,7 +113,31 @@ export function ThreadsSection({ target }: { target: NoteTarget }) {
             writer={writer}
           />
         ))}
-      </Presence>
+        {resolved.length > 0 && (
+          <button
+            type="button"
+            className="self-start text-xs text-muted underline"
+            onClick={() => {
+              setShowResolved(!showResolved);
+            }}
+          >
+            {showResolved
+              ? t("threads.hideResolved")
+              : t("threads.showResolved", { n: resolved.length })}
+          </button>
+        )}
+        <Presence show={showResolved} className="flex flex-col gap-2">
+          {resolved.map((thread) => (
+            <ThreadCard
+              key={thread.id}
+              thread={thread}
+              members={members}
+              files={files}
+              writer={writer}
+            />
+          ))}
+        </Presence>
+      </div>
       {writer ? (
         <Composer
           label={t("threads.new")}
@@ -165,7 +178,13 @@ function ThreadCard({
       )}
     >
       {thread.comments.map((comment) => (
-        <CommentRow key={comment.id} comment={comment} files={files} writer={writer} />
+        <CommentRow
+          key={comment.id}
+          comment={comment}
+          files={files}
+          members={members}
+          writer={writer}
+        />
       ))}
       {writer && (
         <div className="flex flex-wrap gap-1.5">
@@ -213,10 +232,12 @@ function ThreadCard({
 function CommentRow({
   comment,
   files,
+  members,
   writer,
 }: {
   comment: ThreadComment;
   files: readonly ProjectFile[];
+  members: readonly Member[];
   writer: boolean;
 }) {
   const t = useT();
@@ -315,7 +336,7 @@ function CommentRow({
             </div>
           </div>
         ) : (
-          <Text text={comment.text} />
+          <Text text={comment.text} members={members} />
         )}
         {comment.attachments.map((fileId) => {
           const file = files.find((f) => f.id === fileId);
@@ -422,6 +443,7 @@ function Composer({
         autoFocus={autoFocus}
         onKeyDown={onKeyDown}
         textareaRef={area}
+        highlight={(value) => <Mentions text={value} members={members} />}
       />
       <Presence show={suggestions.length > 0}>
         <ul

@@ -9,11 +9,12 @@ import { ThreadsSection } from "@/components/editor/ThreadsSection";
 const fake = vi.hoisted(() => ({
   uploads: [] as ((file: unknown) => void)[],
   started: [] as string[][],
+  members: [] as unknown[],
 }));
 
 vi.mock(import("@/projects/collab"), async (original) => ({
   ...(await original()),
-  listMembers: () => Promise.resolve([]),
+  listMembers: () => Promise.resolve(fake.members as never),
   listFiles: () => Promise.resolve([]),
   uploadFile: () =>
     new Promise<ProjectFile>((resolve) => {
@@ -44,6 +45,7 @@ const stored = (id: string): ProjectFile => ({
 beforeEach(() => {
   fake.uploads = [];
   fake.started = [];
+  fake.members = [];
   useEditorStore.setState({ language: "en", projectId: "p1", projectRole: "editor" });
   useAuth.setState({ status: "off", account: null });
 });
@@ -73,5 +75,35 @@ describe("a note with attachments", () => {
       await Promise.resolve();
     });
     expect(fake.started).toEqual([["a", "b"]]);
+  });
+});
+
+describe("mentions while typing", () => {
+  it("colours a member's whole @username in the box at once, and nothing else", async () => {
+    fake.members = [
+      {
+        userId: "u-lena",
+        username: "lena_b",
+        firstName: "Lena",
+        lastName: "Berg",
+        role: "editor",
+        joinedAt: "2026-10-01T00:00:00Z",
+        lastSeenAt: null,
+        invitedBy: null,
+      },
+    ];
+    const { container } = render(<ThreadsSection target={{ kind: "building" }} />);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    const box = screen.getByRole("textbox", { name: "Start a note" });
+    const marked = () =>
+      [...container.querySelectorAll("[aria-hidden] span[style]")].map((e) => e.textContent);
+    fireEvent.change(box, { target: { value: "@len" } });
+    expect(marked()).toEqual([]);
+    fireEvent.change(box, { target: { value: "@Lena_B add walls here, @nobody too" } });
+    expect(marked()).toEqual(["@Lena_B"]);
+    // The browser's spell check would underline the name: off while names are coloured.
+    expect(box.getAttribute("spellcheck")).toBe("false");
   });
 });
