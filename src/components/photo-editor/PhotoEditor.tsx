@@ -2,6 +2,7 @@ import { Presence } from "@/components/shared/Presence";
 import { useModal } from "@/components/shared/useModal";
 import { CustomButton } from "@/components/shared/CustomButton";
 import { CustomDialog } from "@/components/shared/CustomDialog";
+import { UploadDialog } from "@/components/shared/UploadDialog";
 import { useCallback, useEffect, useEffectEvent, useRef, useState } from "react";
 import type { Opening } from "lod2-core/openings";
 import {
@@ -248,6 +249,8 @@ export function PhotoEditorView({
   const chooseFromDisk = () => {
     fileInput.current?.click();
   };
+  /** Another photo, once one is open: dragged in, chosen or pasted, in the upload dialog. */
+  const [choosing, setChoosing] = useState(false);
 
   /**
    * A new photo, from the disk, a sample or the clipboard: everything before it is forgotten,
@@ -485,7 +488,9 @@ export function PhotoEditorView({
             mode={mode}
             wallText={describeWall(t, format.num, wall.plane, wall.groundZ, wall.buriedDepth)}
             fileInput={fileInput}
-            onChoosePhoto={chooseFromDisk}
+            onChoosePhoto={() => {
+              setChoosing(true);
+            }}
             showChoose={photoUrl !== null}
             onFileChosen={onFileChosen}
             showLoupe={mode === "photo" && photoSize !== null}
@@ -588,6 +593,7 @@ export function PhotoEditorView({
                 error={photoError}
                 buildingGid={buildingGid}
                 onChoose={chooseFromDisk}
+                onFile={loadPhoto}
                 onSample={async (sample) => {
                   const mine = session.current;
                   const file = await sampleFile(sample);
@@ -640,6 +646,20 @@ export function PhotoEditorView({
             </CustomButton>
           </div>
         </CustomDialog>
+      </Presence>
+      <Presence show={choosing} kind="float">
+        <UploadDialog
+          title={t("photo.choosePhoto")}
+          accept="image/*"
+          onClose={() => {
+            setChoosing(false);
+          }}
+          onFiles={(files) => {
+            setChoosing(false);
+            const file = files[0];
+            if (file) loadPhoto(file);
+          }}
+        />
       </Presence>
     </div>
   );

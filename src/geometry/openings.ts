@@ -217,3 +217,47 @@ export function dragOpening(
   }
   return { offset: start, width: round(clamp(cm, start + MIN_OPENING_SIZE, hi) - start) };
 }
+
+/** Openings of one kind this close along a wall are one opening in parts (a mullion, a frame). */
+const TOUCH = 0.05;
+
+/**
+ * Openings are rectangles. Two of the same kind on one wall that overlap or touch along it are
+ * one opening stored in parts (an entrance as door and sidelight, from a survey before the
+ * survey joined them), shown as a stepped shape: here they become the one rectangle round
+ * both, keeping the first one's id and construction.
+ */
+export function joinTouchingOpenings(openings: readonly Opening[]): Opening[] {
+  const out: Opening[] = [];
+  for (const o of openings) {
+    let current = { ...o };
+    let joined = true;
+    while (joined) {
+      joined = false;
+      const i = out.findIndex(
+        (k) =>
+          k.wallIndex === current.wallIndex &&
+          Boolean(k.interior) === Boolean(current.interior) &&
+          k.kind === current.kind &&
+          k.offset <= current.offset + current.width + TOUCH &&
+          current.offset <= k.offset + k.width + TOUCH,
+      );
+      const k = out[i];
+      if (k) {
+        const offset = Math.min(k.offset, current.offset);
+        const sill = Math.min(k.sill, current.sill);
+        current = {
+          ...k,
+          offset,
+          width: Math.max(k.offset + k.width, current.offset + current.width) - offset,
+          sill,
+          height: Math.max(k.sill + k.height, current.sill + current.height) - sill,
+        };
+        out.splice(i, 1);
+        joined = true;
+      }
+    }
+    out.push(current);
+  }
+  return out;
+}

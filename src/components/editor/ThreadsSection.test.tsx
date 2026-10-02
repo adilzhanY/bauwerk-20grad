@@ -56,9 +56,12 @@ describe("a note with attachments", () => {
     fireEvent.change(screen.getByRole("textbox", { name: "Start a note" }), {
       target: { value: "See the plans" },
     });
-    const input = screen.getByLabelText("Attach a file", { selector: "input" });
-    fireEvent.change(input, { target: { files: [new File(["a"], "a.pdf")] } });
-    fireEvent.change(input, { target: { files: [new File(["b"], "b.pdf")] } });
+    // The paperclip opens the upload dialog: two files chosen at once go up side by side.
+    fireEvent.click(screen.getByRole("button", { name: "Attach a file" }));
+    const input = await screen.findByLabelText("Choose from your computer", { selector: "input" });
+    fireEvent.change(input, {
+      target: { files: [new File(["a"], "a.pdf"), new File(["b"], "b.pdf")] },
+    });
     const send = screen.getByRole("button", { name: "Send" });
     expect(send).toHaveProperty("disabled", true);
 

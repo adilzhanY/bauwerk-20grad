@@ -1,7 +1,5 @@
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { FileText, LayoutGrid, X } from "lucide-react";
-import { pastedImage } from "@/lib/clipboard";
-import { inTextField } from "@/lib/inTextField";
 import { isPdf } from "@/lib/pdfPages";
 import { useT } from "@/i18n/useT";
 import { formatNumber } from "@/lib/format";
@@ -9,9 +7,9 @@ import { errorText } from "@/lod2/api/errors";
 import { readFloorPlan, useFloorplanAvailable } from "@/lod2/api/floorplan";
 import type { FloorPlanReading } from "@/lod2/api/floorplan";
 import { AiScan } from "@/components/shared/ai/AiScan";
-import { AiButton } from "@/components/shared/ai/AiButton";
 import { AiCard } from "@/components/shared/ai/AiCard";
 import { Card } from "@/components/shared/Card";
+import { DropZone } from "@/components/shared/DropZone";
 import { Hint } from "@/components/shared/Hint";
 import { Presence } from "@/components/shared/Presence";
 import { useElapsed } from "@/components/shared/useElapsed";
@@ -49,7 +47,6 @@ export function FloorPlanSection({
     s.activeStoreyId ? s.floorPlanImages[s.activeStoreyId] : undefined,
   );
   const available = useFloorplanAvailable();
-  const fileInput = useRef<HTMLInputElement>(null);
   /** The plan the AI is reading right now, shown under the scan while it works. */
   const [job, setJob] = useState<{ url: string; startedAt: number; ahead: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -73,24 +70,6 @@ export function FloorPlanSection({
       clearTimeout(timer);
     };
   }, [applied]);
-
-  // An image copied anywhere (a screenshot, a scan open in another app) pasted here is read.
-  const onPaste = useEffectEvent((event: ClipboardEvent) => {
-    if (!available || busy || inTextField(event.target)) return;
-    const file = pastedImage(event.clipboardData);
-    if (!file) return;
-    event.preventDefault();
-    void read(file);
-  });
-  useEffect(() => {
-    const listener = (event: ClipboardEvent) => {
-      onPaste(event);
-    };
-    document.addEventListener("paste", listener);
-    return () => {
-      document.removeEventListener("paste", listener);
-    };
-  }, []);
 
   const storeyIndex = building.storeys.findIndex((s) => s.id === activeStoreyId);
   const storey = building.storeys[storeyIndex];
@@ -171,15 +150,20 @@ export function FloorPlanSection({
           </Card>
         )}
       </Presence>
-      <div className="flex flex-wrap gap-2">
-        <AiButton
+      {/* Dragged in, chosen or pasted (a screenshot, a scan open in another app): the AI reads it. */}
+      <Presence show={!job && !result}>
+        <DropZone
+          accept={onPdf ? "image/*,application/pdf,.pdf" : "image/*"}
+          label={t(onPdf ? "floorPlan.dropOrPdf" : "floorPlan.drop")}
           disabled={busy}
-          onClick={() => {
-            fileInput.current?.click();
+          onFiles={(files) => {
+            const file = files[0];
+            if (file && onPdf && isPdf(file)) onPdf(file);
+            else if (file) void read(file);
           }}
-        >
-          {t("floorPlan.choose")}
-        </AiButton>
+        />
+      </Presence>
+      <div className="flex flex-wrap gap-2">
         {sample && (
           <CustomButton
             variant="quiet"
@@ -205,20 +189,6 @@ export function FloorPlanSection({
           </CustomButton>
         )}
       </div>
-      <Hint>{t(onPdf ? "floorPlan.pasteOrPdf" : "floorPlan.paste")}</Hint>
-      <input
-        ref={fileInput}
-        type="file"
-        accept={onPdf ? "image/*,application/pdf" : "image/*"}
-        className="hidden"
-        aria-label={t("floorPlan.choose")}
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file && onPdf && isPdf(file)) onPdf(file);
-          else if (file) void read(file);
-          e.target.value = "";
-        }}
-      />
       <Presence value={job}>
         {(j) => <Reading url={j.url} startedAt={j.startedAt} ahead={j.ahead} />}
       </Presence>

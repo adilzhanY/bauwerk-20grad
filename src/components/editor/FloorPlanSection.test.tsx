@@ -59,7 +59,7 @@ describe("reading a floor plan", () => {
       }),
     );
     render(<FloorPlanSection />);
-    const input = await screen.findByLabelText("Read floor plan");
+    const input = await screen.findByLabelText("Choose from your computer");
     fireEvent.change(input, {
       target: { files: [new File(["png"], "plan.png", { type: "image/png" })] },
     });
@@ -91,12 +91,10 @@ describe("reading a floor plan", () => {
   it("reads an image pasted with Ctrl+V", async () => {
     service(true);
     render(<FloorPlanSection />);
-    await screen.findByLabelText("Read floor plan");
+    await screen.findByLabelText("Choose from your computer");
     const plan = new File(["png"], "image.png", { type: "image/png" });
     const paste = Object.assign(new Event("paste", { bubbles: true, cancelable: true }), {
-      clipboardData: {
-        items: [{ kind: "file", type: "image/png", getAsFile: () => plan }],
-      },
+      clipboardData: { files: [plan] },
     });
     document.body.dispatchEvent(paste);
     expect(await screen.findByText("6 interior walls and 8 doors found")).toBeTruthy();
@@ -107,7 +105,7 @@ describe("reading a floor plan", () => {
     service(true);
     const onPdf = vi.fn();
     render(<FloorPlanSection onPdf={onPdf} />);
-    const input = await screen.findByLabelText("Read floor plan");
+    const input = await screen.findByLabelText("Choose from your computer");
     const pdf = new File(["%PDF"], "plans.pdf", { type: "application/pdf" });
     fireEvent.change(input, { target: { files: [pdf] } });
     expect(onPdf).toHaveBeenCalledWith(pdf);

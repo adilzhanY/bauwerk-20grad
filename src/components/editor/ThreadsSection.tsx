@@ -28,6 +28,7 @@ import { CustomTextArea } from "@/components/shared/CustomTextArea";
 import { cx } from "@/components/shared/cx";
 import { Hint } from "@/components/shared/Hint";
 import { Presence } from "@/components/shared/Presence";
+import { UploadDialog } from "@/components/shared/UploadDialog";
 import { mentionParts } from "./mentions";
 
 /** The @word being typed at the end of the text, if any. */
@@ -384,7 +385,7 @@ function Composer({
   /** Files on their way up: Send waits for them, or the note would go out without them. */
   const [uploading, setUploading] = useState(0);
   const [failed, setFailed] = useState(false);
-  const fileInput = useRef<HTMLInputElement>(null);
+  const [attaching, setAttaching] = useState(false);
   const area = useRef<HTMLTextAreaElement>(null);
 
   const typed = typingMention(text);
@@ -503,7 +504,9 @@ function Composer({
         <CustomIconButton
           label={t("threads.attach")}
           size="sm"
-          onClick={() => fileInput.current?.click()}
+          onClick={() => {
+            setAttaching(true);
+          }}
         >
           <Paperclip size={14} aria-hidden />
         </CustomIconButton>
@@ -515,28 +518,31 @@ function Composer({
         <span className="flex-1" />
         <span className="text-xs text-faint">{t("threads.sendHint")}</span>
       </div>
-      <input
-        ref={fileInput}
-        type="file"
-        className="hidden"
-        aria-label={t("threads.attach")}
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          e.target.value = "";
-          if (!file) return;
-          setUploading((n) => n + 1);
-          void uploadFile(projectId, file)
-            .then((stored) => {
-              setAttached((all) => [...all, stored]);
-            })
-            .catch(() => {
-              setFailed(true);
-            })
-            .finally(() => {
-              setUploading((n) => n - 1);
-            });
-        }}
-      />
+      <Presence show={attaching} kind="float">
+        <UploadDialog
+          title={t("threads.attach")}
+          multiple
+          onClose={() => {
+            setAttaching(false);
+          }}
+          onFiles={(files) => {
+            setAttaching(false);
+            for (const file of files) {
+              setUploading((n) => n + 1);
+              void uploadFile(projectId, file)
+                .then((stored) => {
+                  setAttached((all) => [...all, stored]);
+                })
+                .catch(() => {
+                  setFailed(true);
+                })
+                .finally(() => {
+                  setUploading((n) => n - 1);
+                });
+            }
+          }}
+        />
+      </Presence>
       <Presence show={failed}>
         <Hint error>{t("threads.failed")}</Hint>
       </Presence>

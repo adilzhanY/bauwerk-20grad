@@ -424,3 +424,21 @@ test('facades without a photo get the default windows when asked, party walls no
   const photographedEdge = plain.storeys.flatMap((s) => s.openings)[0]!.wallIndex
   assert.ok(!catalogue.some((o) => o.wallIndex === photographedEdge))
 })
+
+test('an entrance found in parts becomes one door, never a door with a strip beside it', () => {
+  const result = build('DEBE02YY40000BOo')
+  for (const storey of result.file.building.storeys) {
+    for (const o of storey.openings) {
+      for (const other of storey.openings) {
+        if (other === o || other.wallIndex !== o.wallIndex || other.kind !== o.kind) continue
+        const apart = Math.max(other.offset - (o.offset + o.width), o.offset - (other.offset + other.width))
+        assert.ok(apart > 0.05, `${o.id} and ${other.id} touch: one opening in two pieces`)
+      }
+    }
+  }
+  // BOo's east entrance: the door, its sidelight and the transom over them, as one door.
+  const ground = result.file.building.storeys[0]!
+  const entrance = ground.openings.filter((o) => o.kind === 'door' && o.offset > 11)
+  assert.equal(entrance.length, 1)
+  assert.ok(entrance[0]!.width > 1.2, String(entrance[0]!.width))
+})

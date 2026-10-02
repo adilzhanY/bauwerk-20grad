@@ -1,6 +1,7 @@
 import { Presence } from "@/components/shared/Presence";
 import { Hint } from "@/components/shared/Hint";
-import { useRef, useState } from "react";
+import { UploadDialog } from "@/components/shared/UploadDialog";
+import { useState } from "react";
 import { Download, Upload } from "lucide-react";
 import { epsgForZone, planToLatLon, toUtm } from "@/geometry/geo";
 import { centroid } from "@/geometry/polygon";
@@ -32,7 +33,7 @@ export function LocationSection({ collapsible = false }: { collapsible?: boolean
   const setMapOpacity = useEditorStore((s) => s.setMapOpacity);
   const beginBatch = useEditorStore((s) => s.beginBatch);
   const endBatch = useEditorStore((s) => s.endBatch);
-  const fileInput = useRef<HTMLInputElement>(null);
+  const [choosing, setChoosing] = useState(false);
   const [error, setError] = useState<MessageKey | null>(null);
   const origin = building.origin;
   const centrePlan = centroid(footprint);
@@ -176,23 +177,26 @@ export function LocationSection({ collapsible = false }: { collapsible?: boolean
         className="self-start"
         icon={<Upload size={14} />}
         onClick={() => {
-          fileInput.current?.click();
+          setChoosing(true);
         }}
       >
         {t("location.importGeoJson")}
       </CustomButton>
-      <input
-        ref={fileInput}
-        type="file"
-        accept=".geojson,.json,application/geo+json"
-        className="hidden"
-        aria-label={t("location.importGeoJson")}
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) void onImport(file);
-          e.target.value = "";
-        }}
-      />
+      <Presence show={choosing} kind="float">
+        <UploadDialog
+          title={t("location.importGeoJson")}
+          hint={t("location.importHint")}
+          accept=".geojson,.json,application/geo+json,application/json"
+          onClose={() => {
+            setChoosing(false);
+          }}
+          onFiles={(files) => {
+            setChoosing(false);
+            const file = files[0];
+            if (file) void onImport(file);
+          }}
+        />
+      </Presence>
       <Hint>{t("location.importHint")}</Hint>
       <Presence value={error}>{(error) => <Hint error>{t(error)}</Hint>}</Presence>
     </CustomSection>

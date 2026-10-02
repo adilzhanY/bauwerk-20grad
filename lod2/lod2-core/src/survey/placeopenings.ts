@@ -62,6 +62,8 @@ const DOOR_FLOOR_M = 0.3
 const DOOR_STEPS_M = 1.0
 /** Openings smaller than this on either side are dropped. */
 const MIN_OPENING_M = 0.2
+/** What is left of an opening shortened beside another must be this wide to stay one. */
+const MIN_TRIMMED_M = 0.5
 /** Bauwerk's own lower limit for an opening side. */
 const EDITOR_MIN_M = 0.1
 
@@ -229,9 +231,12 @@ function roundDown(v: number): number {
 }
 
 /**
- * Two openings on the same edge and storey may not overlap along the wall. The one with
- * the higher score stays; the other is shortened to the free part beside it, or dropped.
- * A glazed door found twice, as frame and as glass, ends as one door.
+ * Two openings on the same edge and storey may not overlap along the wall. Two of the same kind
+ * that overlap or touch are one opening found twice or in parts (a glazed door as frame and as
+ * glass, an old entrance as door, sidelight and transom), so they become one rectangle round
+ * both: never a stepped shape of a door and a strip beside it. Of two kinds, the one with the
+ * higher score stays; the other is shortened to the free part beside it when that is still a
+ * real opening, else dropped.
  */
 function resolveOverlaps(
   placed: PlacedOpening[],
@@ -239,9 +244,22 @@ function resolveOverlaps(
   measured: readonly MeasuredOpening[],
 ): PlacedOpening[] {
   const order = [...placed].sort((a, b) => (b.score ?? 1) - (a.score ?? 1))
-  const kept: PlacedOpening[] = []
+  let kept: PlacedOpening[] = []
   for (const candidate of order) {
     let current: PlacedOpening | null = candidate
+    // Merging can reach a third opening, so until nothing joins any more.
+    let joined = true
+    while (current && joined) {
+      joined = false
+      for (const other of kept) {
+        if (other.edge !== current.edge || other.storey !== current.storey || other.kind !== current.kind) continue
+        if (!touching(current, other)) continue
+        current = union(current, other)
+        kept = kept.filter((k) => k !== other)
+        joined = true
+        break
+      }
+    }
     for (const other of kept) {
       if (!current) break
       if (other.edge !== current.edge || other.storey !== current.storey) continue
@@ -256,6 +274,33 @@ function resolveOverlaps(
   return kept.sort((a, b) => a.storey - b.storey || a.offset - b.offset)
 }
 
+/** Openings this close along the wall are one (a mullion or a frame between two parts). */
+const TOUCH_M = 0.05
+
+function touching(a: PlacedOpening, b: PlacedOpening): boolean {
+  return a.offset <= b.offset + b.width + TOUCH_M && b.offset <= a.offset + a.width + TOUCH_M
+}
+
+/** The rectangle round both, with the better score and the notes of both. */
+function union(a: PlacedOpening, b: PlacedOpening): PlacedOpening {
+  const offset = Math.min(a.offset, b.offset)
+  const end = Math.max(a.offset + a.width, b.offset + b.width)
+  const sill = Math.min(a.sill, b.sill)
+  const top = Math.max(a.sill + a.height, b.sill + b.height)
+  const merged = message('survey.opening.merged')
+  const messages = [...a.messages, ...b.messages.filter((m) => !a.messages.some((n) => n.key === m.key)), merged]
+  return {
+    ...a,
+    offset: round(offset),
+    width: roundDown(end - round(offset)),
+    sill: round(sill),
+    height: roundDown(top - round(sill)),
+    score: Math.max(a.score ?? 1, b.score ?? 1),
+    notes: messages.map(germanText),
+    messages,
+  }
+}
+
 function trimAgainst(opening: PlacedOpening, other: PlacedOpening): PlacedOpening | null {
   const aStart = opening.offset
   const aEnd = opening.offset + opening.width
@@ -266,9 +311,10 @@ function trimAgainst(opening: PlacedOpening, other: PlacedOpening): PlacedOpenin
   const rightFree = aEnd - bEnd
   const overlap = message('survey.opening.overlap')
   const notes = { notes: [...opening.notes, germanText(overlap)], messages: [...opening.messages, overlap] }
-  if (leftFree >= rightFree && leftFree >= MIN_OPENING_M) {
+  // A strip left beside the other opening is no window or door.
+  if (leftFree >= rightFree && leftFree >= MIN_TRIMMED_M) {
     return { ...opening, width: roundDown(leftFree), ...notes }
   }
-  if (rightFree >= MIN_OPENING_M) return { ...opening, offset: round(bEnd), width: roundDown(aEnd - round(bEnd)), ...notes }
+  if (rightFree >= MIN_TRIMMED_M) return { ...opening, offset: round(bEnd), width: roundDown(aEnd - round(bEnd)), ...notes }
   return null
 }

@@ -4,6 +4,7 @@ import { can } from "@/projects/roles";
 import type { Role } from "@/projects/roles";
 import { create } from "zustand";
 import { asOpening } from "@/geometry/floorPlanImport";
+import { joinTouchingOpenings } from "@/geometry/openings";
 import { nameForRoom } from "@/geometry/roomNames";
 import type { FloorPlanEdits } from "@/geometry/floorPlanImport";
 import {
@@ -550,6 +551,10 @@ export function createEditorStore(initial?: Partial<EditorState>) {
               if (!isSimplePolygon(next) || !isCounterClockwise(next)) return;
               state.building.footprint = next;
               refreshAllRooms(state.building, state.language);
+              // Openings are rectangles: one stored in parts (by a survey from before it joined
+              // them) becomes one, not a door with a strip beside it.
+              for (const storey of state.building.storeys)
+                storey.openings = joinTouchingOpenings(storey.openings);
             });
           },
 

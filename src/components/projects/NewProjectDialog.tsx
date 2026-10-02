@@ -1,9 +1,10 @@
 import { Presence } from "@/components/shared/Presence";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { FileImage, MapPin, PencilRuler, Search } from "lucide-react";
 import { readExifSummary } from "lod2-core/exif";
 import { useRouter } from "@/app/router";
 import { CustomButton } from "@/components/shared/CustomButton";
+import { DropZone } from "@/components/shared/DropZone";
 import { CustomDialog } from "@/components/shared/CustomDialog";
 import { CustomFormInput } from "@/components/shared/CustomFormInput";
 import { cx } from "@/components/shared/cx";
@@ -40,7 +41,6 @@ export function NewProjectDialog({ onClose }: { onClose: () => void }) {
   const [place, setPlace] = useState<Place | null>(null);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
-  const fileInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const q = query.trim();
@@ -86,8 +86,8 @@ export function NewProjectDialog({ onClose }: { onClose: () => void }) {
     }
   };
 
-  const fromPhotos = async (files: FileList | null) => {
-    const photo = files?.[0];
+  const fromPhotos = async (files: readonly File[]) => {
+    const photo = files[0];
     if (!photo) return;
     const exif = readExifSummary(new Uint8Array(await photo.arrayBuffer()));
     if (exif?.latitude == null || exif.longitude == null) {
@@ -117,7 +117,6 @@ export function NewProjectDialog({ onClose }: { onClose: () => void }) {
       onClose();
       navigate({ page: "map" }, { query: newProjectQuery(request) });
     } else if (way === "address" && place) void openAt(place);
-    else if (way === "files") fileInput.current?.click();
   };
 
   const ways: { id: Way; icon: React.ReactNode; title: string; text: string }[] = [
@@ -219,30 +218,14 @@ export function NewProjectDialog({ onClose }: { onClose: () => void }) {
           </div>
         </Presence>
         <Presence show={way === "files"}>
-          <button
-            type="button"
-            onClick={() => fileInput.current?.click()}
-            onDragOver={(e) => {
-              e.preventDefault();
+          <DropZone
+            accept="image/jpeg,image/heic,.heic,image/*"
+            label={t("newProject.drop")}
+            onFiles={(files) => {
+              void fromPhotos(files);
             }}
-            onDrop={(e) => {
-              e.preventDefault();
-              void fromPhotos(e.dataTransfer.files);
-            }}
-            className="rounded-card border-2 border-dashed border-line-strong p-6 text-center text-sm text-muted hover:bg-panel"
-          >
-            {t("newProject.drop")}
-          </button>
+          />
         </Presence>
-        <input
-          ref={fileInput}
-          type="file"
-          accept="image/jpeg,image/heic,image/*"
-          className="hidden"
-          onChange={(e) => {
-            void fromPhotos(e.target.files);
-          }}
-        />
 
         <div className="grid grid-cols-2 gap-3">
           <CustomFormInput label={t("newProject.name")} value={name} onChange={setName} />
@@ -270,18 +253,17 @@ export function NewProjectDialog({ onClose }: { onClose: () => void }) {
           </CustomButton>
           <div className="flex gap-2">
             <CustomButton onClick={onClose}>{t("common.cancel")}</CustomButton>
-            <CustomButton
-              variant="primary"
-              disabled={way === "address" && !place}
-              loading={busy}
-              onClick={create}
-            >
-              {way === "map"
-                ? t("newProject.toMap")
-                : way === "files"
-                  ? t("newProject.choosePhoto")
-                  : t("newProject.create")}
-            </CustomButton>
+            {/* A photo goes in through its drop zone, which has its own button. */}
+            {way !== "files" && (
+              <CustomButton
+                variant="primary"
+                disabled={way === "address" && !place}
+                loading={busy}
+                onClick={create}
+              >
+                {way === "map" ? t("newProject.toMap") : t("newProject.create")}
+              </CustomButton>
+            )}
           </div>
         </div>
       </div>

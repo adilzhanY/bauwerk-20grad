@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { aiOffText } from "@/lib/aiHost";
-import { ArrowRight, Camera, FileUp, HousePlus, ImagePlus, Rows3 } from "lucide-react";
+import { ArrowRight, Camera, FileText, FileUp, HousePlus, ImagePlus, Rows3 } from "lucide-react";
 import { CustomButton } from "@/components/shared/CustomButton";
 import { CustomDialog } from "@/components/shared/CustomDialog";
 import { CustomIconButton } from "@/components/shared/CustomIconButton";
 import { CustomSection } from "@/components/shared/CustomField";
 import { Hint } from "@/components/shared/Hint";
+import { UploadDialog } from "@/components/shared/UploadDialog";
 import { Presence } from "@/components/shared/Presence";
 import { Spinner } from "@/components/shared/Spinner";
 import { FloorPlan, Roof, Storey as StoreyIcon } from "@/components/shared/icons";
@@ -28,6 +29,7 @@ import { FilesSection } from "./FilesSection";
 import { FloorPlanSection } from "./FloorPlanSection";
 import { NewBuildingDialog } from "./NewBuildingDialog";
 import { PdfImportDialog } from "./PdfImportDialog";
+import { samplePdfFor } from "./samplePlans";
 import { deleteFloorPlan } from "./deleteFloorPlan";
 import { SettingsSection } from "./SettingsSection";
 import { SurveyRow, Thumb } from "./SurveyRow";
@@ -117,7 +119,7 @@ function StoreysSurvey({ onPreview }: { onPreview: (item: PreviewItem) => void }
   const editor = role === null || can(role, "edit");
   const [planFor, setPlanFor] = useState<Storey | null>(null);
   const [pdf, setPdf] = useState<File | null>(null);
-  const pdfInput = useRef<HTMLInputElement>(null);
+  const [importing, setImporting] = useState(false);
   return (
     <CustomSection
       title={t("survey.storeys")}
@@ -130,23 +132,11 @@ function StoreysSurvey({ onPreview }: { onPreview: (item: PreviewItem) => void }
               label={t("survey.importPdf")}
               size="sm"
               onClick={() => {
-                pdfInput.current?.click();
+                setImporting(true);
               }}
             >
               <FileUp size={15} />
             </CustomIconButton>
-            <input
-              ref={pdfInput}
-              type="file"
-              accept="application/pdf"
-              className="hidden"
-              aria-label={t("survey.importPdf")}
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) setPdf(file);
-                e.target.value = "";
-              }}
-            />
           </>
         )
       }
@@ -178,6 +168,17 @@ function StoreysSurvey({ onPreview }: { onPreview: (item: PreviewItem) => void }
           />
         )}
       </Presence>
+      <Presence show={importing} kind="float">
+        <ImportPlans
+          onClose={() => {
+            setImporting(false);
+          }}
+          onPdf={(file) => {
+            setImporting(false);
+            setPdf(file);
+          }}
+        />
+      </Presence>
       <Presence value={pdf} kind="float">
         {(file) => (
           <PdfImportDialog
@@ -189,6 +190,57 @@ function StoreysSurvey({ onPreview }: { onPreview: (item: PreviewItem) => void }
         )}
       </Presence>
     </CustomSection>
+  );
+}
+
+/**
+ * The floor plans of the whole building as one PDF: dragged in, chosen, pasted, or, for a
+ * building the repository has a plan set of (BOo), that sample.
+ */
+function ImportPlans({ onClose, onPdf }: { onClose: () => void; onPdf: (file: File) => void }) {
+  const t = useT();
+  const building = useEditorStore((s) => s.building);
+  const sample = samplePdfFor(building);
+  const [failed, setFailed] = useState(false);
+  const openSample = async () => {
+    if (!sample) return;
+    try {
+      const res = await fetch(sample);
+      if (!res.ok) throw new Error(res.statusText);
+      onPdf(
+        new File([await res.blob()], sample.split("/").pop() ?? "plans.pdf", {
+          type: "application/pdf",
+        }),
+      );
+    } catch {
+      setFailed(true);
+    }
+  };
+  return (
+    <UploadDialog
+      title={t("survey.importPdf")}
+      hint={t("survey.importPdfHint")}
+      accept="application/pdf,.pdf"
+      label={t("survey.importPdfDrop")}
+      onClose={onClose}
+      onFiles={(files) => {
+        const file = files[0];
+        if (file) onPdf(file);
+      }}
+    >
+      {sample && (
+        <CustomButton
+          variant="quiet"
+          icon={<FileText size={14} />}
+          onClick={() => {
+            void openSample();
+          }}
+        >
+          {t("floorPlan.samplePdf")}
+        </CustomButton>
+      )}
+      {failed && <Hint error>{t("floorPlan.sampleFailed")}</Hint>}
+    </UploadDialog>
   );
 }
 

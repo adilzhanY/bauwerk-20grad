@@ -5,6 +5,7 @@ import { ImagePlus } from "lucide-react";
 import { useT } from "@/i18n/useT";
 import { CustomButton } from "@/components/shared/CustomButton";
 import { cx } from "@/components/shared/cx";
+import { accepts } from "@/lib/accepts";
 import { samplesFor } from "@/components/photo-editor/samples";
 import type { SamplePhoto } from "@/components/photo-editor/samples";
 
@@ -16,6 +17,7 @@ export function PhotoEmptyState({
   error,
   buildingGid,
   onChoose,
+  onFile,
   onSample,
 }: {
   /** Why the last photo did not open, if it did not. */
@@ -23,12 +25,15 @@ export function PhotoEmptyState({
   /** The building the editor is open for, so its own sample comes first. */
   buildingGid: string | null;
   onChoose: () => void;
+  /** A photo dragged onto the stage. */
+  onFile: (file: File) => void;
   /** Opens a sample; rejects when it could not be loaded. */
   onSample: (sample: SamplePhoto) => Promise<void>;
 }) {
   const t = useT();
   const [loading, setLoading] = useState<string | null>(null);
   const [sampleError, setSampleError] = useState(false);
+  const [over, setOver] = useState(false);
   const samples = samplesFor(buildingGid);
 
   const open = (sample: SamplePhoto) => {
@@ -44,7 +49,22 @@ export function PhotoEmptyState({
   };
 
   return (
-    <div className="photo-editor-stage overflow-y-auto">
+    <div
+      className={cx("photo-editor-stage overflow-y-auto transition-colors", over && "bg-white/5")}
+      onDragOver={(e) => {
+        e.preventDefault();
+        setOver(true);
+      }}
+      onDragLeave={() => {
+        setOver(false);
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        setOver(false);
+        const file = Array.from(e.dataTransfer.files).find((f) => accepts(f, "image/*"));
+        if (file) onFile(file);
+      }}
+    >
       <div className="m-auto flex max-w-xl flex-col items-center gap-4 px-6 py-8 text-center">
         <span
           aria-hidden
@@ -64,7 +84,7 @@ export function PhotoEmptyState({
           {t("photo.choosePhoto")}
         </CustomButton>
         <p className="text-xs text-white/60">
-          {t("photo.empty.paste")}{" "}
+          {t("photo.empty.drag")} {t("photo.empty.paste")}{" "}
           <kbd className="rounded-soft border border-white/25 px-1.5 py-0.5 font-num text-[11px] text-white/80">
             Ctrl+V
           </kbd>

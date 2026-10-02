@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   clampOpening,
+  joinTouchingOpenings,
   dragOpening,
   MIN_OPENING_SIZE,
   openingsOverlap,
@@ -208,5 +209,43 @@ describe("dragging an opening in the floor plan", () => {
     expect(dragOpening(base, [base], 4, "end", 9)).toEqual({ offset: 2, width: 2 });
     const stuck = { ...left, offset: 2.5 };
     expect(dragOpening(base, [base, stuck], 10, "move", 6)).toEqual({ offset: 2, width: 1 });
+  });
+});
+
+describe("joinTouchingOpenings", () => {
+  const door = (id: string, offset: number, width: number, height: number) => ({
+    id,
+    wallIndex: 4,
+    kind: "door" as const,
+    offset,
+    width,
+    height,
+    sill: 0,
+    constructionId: "door",
+  });
+
+  it("makes an entrance stored as a door and a strip beside it one rectangle", () => {
+    // BOo's east entrance as an older survey stored it: 0.89 m by 2.15 m, and 0.47 by 2.83 beside.
+    const joined = joinTouchingOpenings([
+      door("a", 12.01, 0.89, 2.15),
+      door("b", 12.9, 0.47, 2.83),
+    ]);
+    expect(joined).toHaveLength(1);
+    expect(joined[0]?.id).toBe("a");
+    expect(joined[0]?.offset).toBeCloseTo(12.01);
+    expect(joined[0]?.width).toBeCloseTo(1.36);
+    expect(joined[0]?.height).toBeCloseTo(2.83);
+  });
+
+  it("leaves openings apart, on other walls or of another kind alone", () => {
+    const window = { ...door("w", 13.0, 1.0, 1.5), kind: "window" as const, sill: 0.9 };
+    const openings = [
+      door("a", 1, 0.9, 2.1),
+      door("b", 2.5, 0.9, 2.1),
+      { ...door("c", 1.9, 0.9, 2.1), wallIndex: 2 },
+      door("d", 12.01, 0.99, 2.15),
+      window,
+    ];
+    expect(joinTouchingOpenings(openings)).toEqual(openings);
   });
 });

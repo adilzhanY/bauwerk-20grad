@@ -35,6 +35,7 @@ export const SURVEY_DE = {
   'survey.opening.doorRaised': 'Tür {height} m über dem Fußboden, mit gemessener Höhe auf den Fußboden gesetzt',
   'survey.opening.doorAsWindow': 'Tür über dem Fußboden als Fenster übernommen',
   'survey.opening.overlap': 'wegen Überlappung gekürzt',
+  'survey.opening.merged': 'zweimal oder in Teilen erkannt, zu einer Öffnung zusammengefasst',
   'survey.warning.noTerrain': 'Keine Geländelinie: Höhen ab Bodenplatte des Modells.',
   'survey.warning.storeyMismatch': 'Das Foto zeigt {rows} Fensterreihen, angegeben sind {count} Geschosse.',
   'survey.warning.tallStoreys': '{count} Geschoss(e) höher als {height} m: prüfen, ob eine Fensterreihe fehlt.',

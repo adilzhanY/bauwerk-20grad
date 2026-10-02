@@ -1,6 +1,7 @@
 import { Presence } from "@/components/shared/Presence";
 import { Hint } from "@/components/shared/Hint";
-import { useRef, useState } from "react";
+import { UploadDialog } from "@/components/shared/UploadDialog";
+import { useState } from "react";
 import { ImagePlus, Trash2 } from "lucide-react";
 import { distance } from "@/geometry/polygon";
 import { useT } from "@/i18n/useT";
@@ -19,7 +20,7 @@ export function UnderlaySection({ collapsible = false }: { collapsible?: boolean
   const underlay = useEditorStore((s) => s.underlay);
   const setUnderlay = useEditorStore((s) => s.setUnderlay);
   const measurement = useEditorStore((s) => s.measurement);
-  const fileInput = useRef<HTMLInputElement>(null);
+  const [choosing, setChoosing] = useState(false);
   const [knownLength, setKnownLength] = useState(5);
 
   const load = (file: File) => {
@@ -59,7 +60,7 @@ export function UnderlaySection({ collapsible = false }: { collapsible?: boolean
           flush
           icon={<ImagePlus size={14} />}
           onClick={() => {
-            fileInput.current?.click();
+            setChoosing(true);
           }}
         >
           {t("underlay.load")}
@@ -77,18 +78,20 @@ export function UnderlaySection({ collapsible = false }: { collapsible?: boolean
           </CustomButton>
         )}
       </div>
-      <input
-        ref={fileInput}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        aria-label={t("underlay.load")}
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) load(file);
-          e.target.value = "";
-        }}
-      />
+      <Presence show={choosing} kind="float">
+        <UploadDialog
+          title={t("underlay.load")}
+          accept="image/*"
+          onClose={() => {
+            setChoosing(false);
+          }}
+          onFiles={(files) => {
+            setChoosing(false);
+            const file = files[0];
+            if (file) load(file);
+          }}
+        />
+      </Presence>
       <Presence value={underlay} className="flex flex-col gap-3.5">
         {(underlay) => (
           <>

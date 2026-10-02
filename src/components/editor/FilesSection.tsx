@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { FileText, Image, Trash2, Upload } from "lucide-react";
 import { CustomIconButton } from "@/components/shared/CustomIconButton";
 import { CustomSection } from "@/components/shared/CustomField";
 import { Hint } from "@/components/shared/Hint";
 import { Presence } from "@/components/shared/Presence";
+import { UploadDialog } from "@/components/shared/UploadDialog";
 import { useT } from "@/i18n/useT";
-import { FILE_TYPES } from "@/projects/collab";
 import type { ProjectFile } from "@/projects/collab";
 import { reloadFiles, removeFile, uploadFiles, useProjectFiles } from "@/projects/files";
 import { can } from "@/projects/roles";
@@ -33,7 +33,7 @@ export function FilesSection({ onPreview }: { onPreview: (item: PreviewItem) => 
   const [busy, setBusy] = useState<string | null>(null);
   const [problems, setProblems] = useState<string[]>([]);
   const [confirming, setConfirming] = useState<string | null>(null);
-  const input = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     if (projectId) void reloadFiles(projectId);
@@ -51,7 +51,9 @@ export function FilesSection({ onPreview }: { onPreview: (item: PreviewItem) => 
             label={busy ? t("tree.uploading", { name: busy }) : t("tree.uploadFile")}
             size="sm"
             disabled={busy !== null}
-            onClick={() => input.current?.click()}
+            onClick={() => {
+              setUploading(true);
+            }}
           >
             <Upload size={15} />
           </CustomIconButton>
@@ -112,27 +114,29 @@ export function FilesSection({ onPreview }: { onPreview: (item: PreviewItem) => 
           ))}
         </ul>
       )}
-      {projectId && (
-        <input
-          ref={input}
-          type="file"
-          multiple
-          className="hidden"
-          aria-label={t("tree.uploadFile")}
-          accept={[...FILE_TYPES].join(",")}
-          onChange={(e) => {
-            const picked = e.target.files ? Array.from(e.target.files) : [];
-            e.target.value = "";
-            void uploadFiles(projectId, picked, setBusy)
-              .then((found) => {
-                setProblems(found.map((p) => t(`files.${p.reason}`, { name: p.name })));
-              })
-              .finally(() => {
-                setBusy(null);
-              });
-          }}
-        />
-      )}
+      <Presence value={uploading ? projectId : null} kind="float">
+        {(id) => (
+          <UploadDialog
+            title={t("tree.uploadFile")}
+            hint={t("files.uploadHint")}
+            multiple
+            onClose={() => {
+              setUploading(false);
+            }}
+            onFiles={(picked) => {
+              setUploading(false);
+              // The server says which files it does not take (type, size); each gets a line.
+              void uploadFiles(id, picked, setBusy)
+                .then((found) => {
+                  setProblems(found.map((p) => t(`files.${p.reason}`, { name: p.name })));
+                })
+                .finally(() => {
+                  setBusy(null);
+                });
+            }}
+          />
+        )}
+      </Presence>
     </CustomSection>
   );
 }
