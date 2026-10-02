@@ -15,7 +15,7 @@ The building's outline is already known from LoD2, to the centimetre. So the ser
 
 `POST /walls` takes the plan image and the footprint in plan metres (a JSON list of `{x, y}`) and returns the walls and doors in the same metres, to the centimetre (each wall with its measured thickness, the gap between its two drawn faces), together with the fit error of the outline, the scale, the transform to image pixels and whether the room model took part. `GET /health` says whether the room model is installed.
 
-On the ground floor plan of BOo (`lod2/sample-plans/`) it fits the outline to 1.7 cm at 49.9 px/m and finds 6 interior walls and 8 doors, which make the 8 rooms of the drawing in the editor. The entrance door comes out at 0.96 m; the plan writes 0.945. On `haus-mueller-test.png`, drawn out of proportion with BOo's footprint and with a title line just above the outline, it finds 5 walls and 4 doors (it found nothing before the room-guided fit).
+On the ground floor plan of BOo (`lod2/sample-plans/`) it fits the outline to 1.7 cm at 49.9 px/m and finds 6 interior walls and 8 doors, which make the 8 rooms of the drawing in the editor. The entrance door comes out at 0.96 m; the plan writes 0.945. On `test_plans/haus-mueller-test.png`, drawn out of proportion with BOo's footprint and with a title line just above the outline, it finds 5 walls and 4 doors (it found nothing before the room-guided fit).
 
 ## Setup
 
@@ -44,4 +44,4 @@ Raster2Seq's code is MIT. The checkpoint is trained on CubiCasa5K, whose licence
 .venv/bin/python test_pipeline.py
 ```
 
-A synthetic L-shaped plan with known walls, a door with jamb ticks, dimension lines and a staircase. It runs without the room model and without a GPU. With the room model installed, `.venv/bin/python test_samples.py` reads the two real plans in `lod2/sample-plans/` end to end.
+A synthetic L-shaped plan with known walls, a door with jamb ticks, dimension lines and a staircase. It runs without the room model and without a GPU. With the room model installed, `.venv/bin/python test_samples.py` reads the BOo sample and the test plan end to end.

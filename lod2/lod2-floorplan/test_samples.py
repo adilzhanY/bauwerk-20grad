@@ -5,7 +5,7 @@ The real plans, read end to end with the room model (needs the GPU setup; skippe
 
 - The ground floor of BOo (sample-plans/DEBE02YY40000BOo-EG.png): 6 interior walls, 8 doors.
 - A plan drawn out of proportion with BOo's footprint, with a title line just above the outline
-  (sample-plans/haus-mueller-test.png): the outline must land on the drawn walls, not the title
+  (lod2-floorplan/test_plans/haus-mueller-test.png): the outline must land on the drawn walls, not the title
   line, and the walls must come through; it read nothing before.
 """
 import json
@@ -21,11 +21,12 @@ import room_model
 
 HERE = Path(__file__).resolve().parent
 PLANS = HERE.parent / "sample-plans"
+TEST_PLANS = HERE / "test_plans"
 FOOTPRINT = np.array([[p["x"], p["y"]] for p in json.loads((HERE / "boo_footprint.json").read_text())])
 
 
 def read(name: str) -> pipeline.Result:
-    path = PLANS / name
+    path = PLANS / name if (PLANS / name).exists() else TEST_PLANS / name
     image = Image.open(path).convert("RGB")
     gray = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2GRAY)
     rooms, doors = room_model.rooms_and_doors(path, image.width, image.height)
