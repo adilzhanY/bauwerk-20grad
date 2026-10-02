@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { exampleHouse } from "@/lib/examples";
 import { resetIds } from "@/lib/ids";
+import { PLAN_REVEAL_MS } from "@/scene/planReveal";
 import { useEditorStore } from "@/store/building";
 import { PdfImportDialog } from "./PdfImportDialog";
 
@@ -58,7 +59,8 @@ describe("floor plans from a PDF", () => {
     );
     const [ground, first] = useEditorStore.getState().building.storeys;
     if (!ground || !first) throw new Error("the example has two storeys");
-    render(<PdfImportDialog file={new File(["%PDF"], "plans.pdf")} onClose={() => undefined} />);
+    const onClose = vi.fn();
+    render(<PdfImportDialog file={new File(["%PDF"], "plans.pdf")} onClose={onClose} />);
 
     // Page 1 is the upper floor, page 2 the ground floor, from their titles.
     const page1 = await screen.findByRole("combobox", { name: "Storey for page 1" });
@@ -77,12 +79,28 @@ describe("floor plans from a PDF", () => {
     // One job at a time on the graphics card.
     expect(most).toBe(1);
 
-    fireEvent.click(screen.getByRole("button", { name: "Apply all" }));
-    const after = useEditorStore.getState();
-    expect(after.floorPlanImages[ground.id]?.url).toBe("blob:page-2");
-    expect(after.floorPlanImages[first.id]?.url).toBe("blob:page-1");
-    expect(after.building.storeys[0]?.interiorWalls.length).toBeGreaterThan(0);
-    expect(screen.getByText(`Applied to ${ground.name}`)).toBeTruthy();
+    // Both pages with their walls drawn over them, and one way on.
+    expect(screen.getByText("12 walls and 16 doors found on 2 pages")).toBeTruthy();
+    vi.useFakeTimers();
+    try {
+      fireEvent.click(screen.getByRole("button", { name: "Apply to all floors" }));
+      // The dialog closes so the floors can be seen arriving, one after another, each in
+      // the plan view of its storey.
+      expect(onClose).toHaveBeenCalled();
+      vi.advanceTimersByTime(0);
+      let state = useEditorStore.getState();
+      expect(state.floorPlanImages[first.id]?.url).toBe("blob:page-1");
+      expect(state.floorPlanImages[ground.id]).toBeUndefined();
+      expect(state.activeStoreyId).toBe(first.id);
+      expect(state.planView).toBe(true);
+      vi.advanceTimersByTime(PLAN_REVEAL_MS + 400);
+      state = useEditorStore.getState();
+      expect(state.floorPlanImages[ground.id]?.url).toBe("blob:page-2");
+      expect(state.activeStoreyId).toBe(ground.id);
+      expect(state.building.storeys[0]?.interiorWalls.length).toBeGreaterThan(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("can keep the pages as floor plans without reading them", async () => {

@@ -8,12 +8,17 @@ import { CustomDialog } from "@/components/shared/CustomDialog";
 import { MediaPreview } from "@/components/shared/MediaPreview";
 import { Presence } from "@/components/shared/Presence";
 
-/** Deleting what is shown: the button's label, the question asked first, and the deletion. */
+/**
+ * Deleting what is shown: the button's label, the question asked first, and the deletion. With
+ * `also`, a second question follows the first yes (a floor plan's walls and doors, which can
+ * go with it); `run` gets the answer. Nothing is deleted until the last answer.
+ */
 export interface PreviewRemove {
   label: string;
   title: string;
   body: string;
-  run: () => void;
+  also?: { title: string; body: string; yes: string; no: string };
+  run: (also: boolean) => void;
 }
 
 /** Something to show in the preview: a picture the editor already holds, or a project file. */
@@ -33,7 +38,7 @@ export function FilePreview({ item, onClose }: { item: PreviewItem; onClose: () 
   const t = useT();
   const [loaded, setLoaded] = useState<{ id: string; url: string } | null>(null);
   const [failed, setFailed] = useState(false);
-  const [confirming, setConfirming] = useState(false);
+  const [step, setStep] = useState<"confirm" | "also" | null>(null);
   const fileId = item.kind === "file" ? item.file.id : null;
   const projectId = item.kind === "file" ? item.projectId : null;
   const remove = item.kind === "url" ? item.remove : undefined;
@@ -77,7 +82,7 @@ export function FilePreview({ item, onClose }: { item: PreviewItem; onClose: () 
               variant="danger"
               icon={<Trash2 size={15} aria-hidden />}
               onClick={() => {
-                setConfirming(true);
+                setStep("confirm");
               }}
             >
               {remove.label}
@@ -85,20 +90,20 @@ export function FilePreview({ item, onClose }: { item: PreviewItem; onClose: () 
           )
         }
       />
-      <Presence value={confirming ? remove : null} kind="float">
+      <Presence value={step === "confirm" ? remove : null} kind="float">
         {(r) => (
           <CustomDialog
             title={r.title}
             closeLabel={t("common.cancel")}
             onClose={() => {
-              setConfirming(false);
+              setStep(null);
             }}
           >
             <p className="text-sm leading-relaxed text-ink">{r.body}</p>
             <div className="mt-5 flex justify-end gap-2">
               <CustomButton
                 onClick={() => {
-                  setConfirming(false);
+                  setStep(null);
                 }}
               >
                 {t("common.cancel")}
@@ -107,12 +112,51 @@ export function FilePreview({ item, onClose }: { item: PreviewItem; onClose: () 
                 variant="danger"
                 icon={<Trash2 size={15} aria-hidden />}
                 onClick={() => {
-                  r.run();
-                  setConfirming(false);
+                  if (r.also) {
+                    setStep("also");
+                    return;
+                  }
+                  r.run(false);
+                  setStep(null);
                   onClose();
                 }}
               >
                 {r.label}
+              </CustomButton>
+            </div>
+          </CustomDialog>
+        )}
+      </Presence>
+      <Presence value={step === "also" ? (remove?.also ?? null) : null} kind="float">
+        {(also) => (
+          <CustomDialog
+            title={also.title}
+            closeLabel={t("common.cancel")}
+            onClose={() => {
+              setStep(null);
+            }}
+          >
+            <p className="text-sm leading-relaxed text-ink">{also.body}</p>
+            <div className="mt-5 flex justify-end gap-2">
+              <CustomButton
+                onClick={() => {
+                  remove?.run(false);
+                  setStep(null);
+                  onClose();
+                }}
+              >
+                {also.no}
+              </CustomButton>
+              <CustomButton
+                variant="danger"
+                icon={<Trash2 size={15} aria-hidden />}
+                onClick={() => {
+                  remove?.run(true);
+                  setStep(null);
+                  onClose();
+                }}
+              >
+                {also.yes}
               </CustomButton>
             </div>
           </CustomDialog>

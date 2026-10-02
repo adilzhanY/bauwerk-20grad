@@ -233,14 +233,28 @@ function StoreyBlock({
           if (plan)
             onPreview({
               ...planPreview(plan.url, storey.name, t("tree.floorPlan")),
-              // People who may edit can delete the drawing; the walls read from it stay.
+              // People who may edit can delete the drawing, and then say whether the walls and
+              // doors read from it go too.
               remove: editor
                 ? {
                     label: t("survey.deletePlan"),
                     title: t("survey.deletePlanTitle", { storey: storey.name }),
                     body: t("survey.deletePlanBody"),
-                    run: () => {
-                      deleteFloorPlan(storey.id);
+                    also:
+                      storey.interiorWalls.length > 0
+                        ? {
+                            title: t("survey.deletePlanAlsoTitle", { storey: storey.name }),
+                            body: t("survey.deletePlanAlsoBody", {
+                              storey: storey.name,
+                              walls: storey.interiorWalls.length,
+                              doors: storey.openings.filter((o) => o.interior).length,
+                            }),
+                            yes: t("survey.deletePlanAlsoYes"),
+                            no: t("survey.deletePlanAlsoNo"),
+                          }
+                        : undefined,
+                    run: (also) => {
+                      deleteFloorPlan(storey.id, also);
                     },
                   }
                 : undefined,

@@ -20,7 +20,9 @@ import { Hint } from "@/components/shared/Hint";
 import { Presence } from "@/components/shared/Presence";
 import { Spinner } from "@/components/shared/Spinner";
 import { useElapsed } from "@/components/shared/useElapsed";
-import { applyReading } from "./applyReading";
+import { applyInTurn } from "./applyReading";
+import { PlanPreview } from "./PlanPreview";
+import { previewMs } from "./previewTiming";
 
 type PageState =
   | { kind: "idle" }
@@ -45,7 +47,9 @@ interface Page {
  * A PDF with the floor plans of the whole building: every page drawn, put on the storey its
  * title names (or the next free one from the bottom up), and each correctable by hand. One
  * button lets the AI read the pages one after another, through the same line for the graphics
- * card as every other AI job; each storey then gets its own walls, doors, rooms and plan.
+ * card as every other AI job, each page's walls drawing in over it as it is read. Applying
+ * closes the dialog and puts the storeys on one after another, each with its reveal in the
+ * plan view, as a single plan arrives.
  */
 export function PdfImportDialog({ file, onClose }: { file: File; onClose: () => void }) {
   const t = useT();
@@ -56,6 +60,8 @@ export function PdfImportDialog({ file, onClose }: { file: File; onClose: () => 
   const [pages, setPages] = useState<Page[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [run, setRun] = useState<{ startedAt: number; ahead: number } | null>(null);
+  // The page just read, its walls drawing in while the next one is read.
+  const [shown, setShown] = useState<Shown | null>(null);
   const stop = useRef<AbortController | null>(null);
   // The pages' pictures the store took over, which must outlive this dialog.
   const kept = useRef(new Set<string>());
@@ -98,6 +104,19 @@ export function PdfImportDialog({ file, onClose }: { file: File; onClose: () => 
     };
   }, [file]);
 
+  useEffect(() => {
+    if (!shown) return;
+    const id = setTimeout(
+      () => {
+        setShown(null);
+      },
+      previewMs(shown.reading) + SHOWN_HOLD_MS,
+    );
+    return () => {
+      clearTimeout(id);
+    };
+  }, [shown]);
+
   const update = (n: number, change: Partial<Page>) => {
     setPages((current) => current?.map((p) => (p.n === n ? { ...p, ...change } : p)) ?? null);
   };
@@ -122,6 +141,7 @@ export function PdfImportDialog({ file, onClose }: { file: File; onClose: () => 
           setRun((current) => current && { ...current, ahead });
         });
         update(page.n, { state: { kind: "read", reading } });
+        setShown({ n: page.n, url: page.url, reading });
       } catch (e) {
         if (stopped()) break;
         update(page.n, { state: { kind: "failed", error: errorText(e, t) } });
@@ -140,11 +160,16 @@ export function PdfImportDialog({ file, onClose }: { file: File; onClose: () => 
     stop.current = null;
   };
 
-  const apply = (page: Page) => {
-    if (page.state.kind !== "read" || !page.storeyId) return;
-    applyReading(page.storeyId, page.state.reading, page.url);
-    kept.current.add(page.url);
-    update(page.n, { state: { kind: "applied" } });
+  /** Closes the dialog, so the storeys can be seen arriving one after another. */
+  const applyAll = () => {
+    const items = readable.flatMap((p) =>
+      p.state.kind === "read" && p.storeyId
+        ? [{ storeyId: p.storeyId, reading: p.state.reading, url: p.url }]
+        : [],
+    );
+    for (const item of items) kept.current.add(item.url);
+    onClose();
+    applyInTurn(items);
   };
 
   /** The pages only as the storeys' floor plan pictures, without reading them. */
@@ -209,16 +234,6 @@ export function PdfImportDialog({ file, onClose }: { file: File; onClose: () => 
                         />
                         <PageStatus page={page} storeyName={storeyName(page.storeyId)} />
                       </div>
-                      {page.state.kind === "read" && (
-                        <CustomButton
-                          variant="quiet"
-                          onClick={() => {
-                            apply(page);
-                          }}
-                        >
-                          {t("pdfImport.apply")}
-                        </CustomButton>
-                      )}
                     </Card>
                   </li>
                 ))}
@@ -232,9 +247,24 @@ export function PdfImportDialog({ file, onClose }: { file: File; onClose: () => 
                     done={done}
                     count={done + toRead.length}
                     url={current?.url}
+                    shown={shown}
                     onStop={() => {
                       stop.current?.abort();
                     }}
+                  />
+                )}
+              </Presence>
+              <Presence value={!busy && readable.length > 0 ? readable : null}>
+                {(list) => (
+                  <Found
+                    pages={list}
+                    storeyName={storeyName}
+                    onApply={applyAll}
+                    applyLabel={
+                      list.length === 1
+                        ? t("floorPlan.apply", { storey: storeyName(list[0]?.storeyId ?? "") })
+                        : t("pdfImport.applyAll")
+                    }
                   />
                 )}
               </Presence>
@@ -253,17 +283,6 @@ export function PdfImportDialog({ file, onClose }: { file: File; onClose: () => 
                       ? t("pdfImport.readOne")
                       : t("pdfImport.readAll", { n: toRead.length })}
                   </AiButton>
-                )}
-                {readable.length > 1 && (
-                  <CustomButton
-                    variant="primary"
-                    disabled={busy}
-                    onClick={() => {
-                      for (const page of readable) apply(page);
-                    }}
-                  >
-                    {t("pdfImport.applyAll")}
-                  </CustomButton>
                 )}
                 <CustomButton
                   variant="quiet"
@@ -308,7 +327,75 @@ function PageStatus({ page, storeyName }: { page: Page; storeyName: string }) {
   );
 }
 
-/** While the AI reads the pages: the page under the scan, which one, how many are done. */
+/** How long a page's found walls stay after they have drawn in, before the next page shows. */
+const SHOWN_HOLD_MS = 900;
+
+interface Shown {
+  n: number;
+  url: string;
+  reading: FloorPlanReading;
+}
+
+/** The pages read: each with its walls and doors drawn over it, and the one way on. */
+function Found({
+  pages,
+  storeyName,
+  onApply,
+  applyLabel,
+}: {
+  pages: Page[];
+  storeyName: (id: string) => string;
+  onApply: () => void;
+  applyLabel: string;
+}) {
+  const t = useT();
+  const read = pages.flatMap((p) =>
+    p.state.kind === "read" ? [{ page: p, reading: p.state.reading }] : [],
+  );
+  const walls = read.reduce((n, r) => n + r.reading.walls.length, 0);
+  const doors = read.reduce((n, r) => n + r.reading.doors.length, 0);
+  return (
+    <AiCard
+      status="done"
+      title={t(read.length === 1 ? "pdfImport.doneOne" : "pdfImport.done", {
+        walls,
+        doors,
+        pages: read.length,
+      })}
+      bar={false}
+      detail={t("pdfImport.doneDetail")}
+      actions={
+        <CustomButton variant="primary" onClick={onApply}>
+          {applyLabel}
+        </CustomButton>
+      }
+    >
+      <ul className={read.length === 1 ? "grid grid-cols-1 gap-3" : "grid grid-cols-2 gap-3"}>
+        {read.map(({ page, reading }) => (
+          <li key={page.n} className="flex flex-col gap-1">
+            <div className="overflow-hidden rounded-inner bg-paper">
+              <PlanPreview
+                reading={reading}
+                url={page.url}
+                label={t("pdfImport.previewOf", { n: page.n, storey: storeyName(page.storeyId) })}
+                fit
+              />
+            </div>
+            <Hint>
+              {storeyName(page.storeyId)}:{" "}
+              {t("pdfImport.found", { walls: reading.walls.length, doors: reading.doors.length })}
+            </Hint>
+          </li>
+        ))}
+      </ul>
+    </AiCard>
+  );
+}
+
+/**
+ * While the AI reads the pages: the page under the scan, which one, how many are done; and
+ * as each page is read, its walls and doors drawing in over it before the next page shows.
+ */
 function Running({
   startedAt,
   ahead,
@@ -316,6 +403,7 @@ function Running({
   done,
   count,
   url,
+  shown,
   onStop,
 }: {
   startedAt: number;
@@ -324,6 +412,7 @@ function Running({
   done: number;
   count: number;
   url: string | undefined;
+  shown: Shown | null;
   onStop: () => void;
 }) {
   const t = useT();
@@ -332,7 +421,17 @@ function Running({
   return (
     <AiCard
       status="working"
-      title={ahead > 0 ? t("ai.queue.title") : t("pdfImport.aiTitle", { page, done, count })}
+      title={
+        shown
+          ? t("pdfImport.pageFound", {
+              page: shown.n,
+              walls: shown.reading.walls.length,
+              doors: shown.reading.doors.length,
+            })
+          : ahead > 0
+            ? t("ai.queue.title")
+            : t("pdfImport.aiTitle", { page, done, count })
+      }
       meta={`${formatNumber(seconds, language, 1)} s`}
       detail={
         ahead > 0
@@ -345,11 +444,18 @@ function Running({
         </CustomButton>
       }
     >
-      {url && (
-        <div className="relative max-h-56 overflow-hidden rounded-inner">
-          <img src={url} alt="" className="block w-full" />
-          <AiScan />
+      {shown ? (
+        <div key={shown.n} className="overflow-hidden rounded-inner bg-paper">
+          <PlanPreview reading={shown.reading} url={shown.url} label={t("floorPlan.preview")} fit />
         </div>
+      ) : (
+        url && (
+          // The whole page, not a strip of it: the plan is often in its lower half.
+          <div className="relative mx-auto w-fit overflow-hidden rounded-inner">
+            <img src={url} alt="" className="block max-h-80 max-w-full" />
+            <AiScan />
+          </div>
+        )
       )}
     </AiCard>
   );

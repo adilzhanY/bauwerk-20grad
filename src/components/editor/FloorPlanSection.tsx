@@ -6,7 +6,7 @@ import { isPdf } from "@/lib/pdfPages";
 import { useT } from "@/i18n/useT";
 import { formatNumber } from "@/lib/format";
 import { errorText } from "@/lod2/api/errors";
-import { readFloorPlan, toPlanImage, useFloorplanAvailable } from "@/lod2/api/floorplan";
+import { readFloorPlan, useFloorplanAvailable } from "@/lod2/api/floorplan";
 import type { FloorPlanReading } from "@/lod2/api/floorplan";
 import { AiScan } from "@/components/shared/ai/AiScan";
 import { AiButton } from "@/components/shared/ai/AiButton";
@@ -18,16 +18,11 @@ import { useElapsed } from "@/components/shared/useElapsed";
 import { useEditorStore } from "@/store/building";
 import { CustomButton } from "@/components/shared/CustomButton";
 import { applyReading } from "./applyReading";
+import { PlanPreview } from "./PlanPreview";
 import { samplePdfFor, samplePlanFor } from "./samplePlans";
-
-const xy = (p: [number, number]) => ({ x: p[0], y: p[1] });
 
 /** How long the Applied card stays before it leaves. */
 const APPLIED_SHOW_MS = 2600;
-
-/** The reveal of a result: one wall after another, then the doors. */
-const WALL_STAGGER_MS = 120;
-const DOOR_STAGGER_MS = 70;
 
 /**
  * Reads a floor plan drawing into the active storey's interior walls and doors. The walls
@@ -317,69 +312,5 @@ function Reading({ url, startedAt, ahead }: { url: string; startedAt: number; ah
         <AiScan />
       </div>
     </AiCard>
-  );
-}
-
-/**
- * The drawing with the outline, walls and doors the service found, drawn over it. The walls
- * draw themselves in one after another and the doors pop in after them, so the result
- * arrives the way the AI found it.
- */
-function PlanPreview({
-  reading,
-  url,
-  label,
-}: {
-  reading: FloorPlanReading;
-  url: string;
-  label: string;
-}) {
-  const footprint = useEditorStore((s) => s.building.footprint);
-  const [w, h] = reading.imageSize;
-  const at = (p: { x: number; y: number }) => toPlanImage(reading, p);
-  const line = (a: [number, number], b: [number, number]) => {
-    const p = at(xy(a));
-    const q = at(xy(b));
-    return { x1: p.x, y1: p.y, x2: q.x, y2: q.y };
-  };
-  const stroke = Math.max(w, h) / 150;
-  return (
-    <svg viewBox={`0 0 ${String(w)} ${String(h)}`} role="img" aria-label={label} className="w-full">
-      <image href={url} width={w} height={h} />
-      <polygon
-        points={footprint.map((p) => `${String(at(p).x)},${String(at(p).y)}`).join(" ")}
-        fill="none"
-        stroke="var(--color-select)"
-        strokeWidth={stroke}
-        opacity={0.6}
-      />
-      {reading.walls.map((wall, i) => (
-        <line
-          key={`w${String(i)}`}
-          {...line(wall.a, wall.b)}
-          pathLength={1}
-          className="ai-draw"
-          style={{ animationDelay: `${String(i * WALL_STAGGER_MS)}ms` }}
-          stroke="var(--color-select)"
-          // As thick as the service measured it, so the band lies on the drawn wall.
-          strokeWidth={Math.max(stroke, (wall.thickness ?? 0) * reading.transform.scale)}
-          strokeOpacity={wall.thickness ? 0.6 : 1}
-          strokeLinecap="round"
-        />
-      ))}
-      {reading.doors.map((door, i) => (
-        <line
-          key={`d${String(i)}`}
-          {...line(door.a, door.b)}
-          className="ai-pop"
-          style={{
-            animationDelay: `${String(reading.walls.length * WALL_STAGGER_MS + i * DOOR_STAGGER_MS)}ms`,
-          }}
-          stroke="var(--color-mark)"
-          strokeWidth={stroke * 1.6}
-          strokeLinecap="round"
-        />
-      ))}
-    </svg>
   );
 }

@@ -98,6 +98,20 @@ describe("the ground floor plan of BOo in the editor", () => {
     const named = store.getState().building.storeys[0]?.rooms ?? [];
     expect(named.filter((r) => r.name === "Contor")).toHaveLength(1);
     expect(named.filter((r) => /^Room \d+$/.test(r.name))).toHaveLength(7);
+
+    // Deleting the plan with its walls and doors: one room in the outline again, the windows
+    // stay, and one undo brings the walls back.
+    const read = store.getState().building;
+    store.getState().clearInteriors(ground.id);
+    const cleared = store.getState().building.storeys[0];
+    expect(cleared?.interiorWalls).toHaveLength(0);
+    expect(cleared?.openings.filter((o) => o.interior)).toHaveLength(0);
+    expect(cleared?.openings.filter((o) => !o.interior)).toEqual(
+      ground.openings.filter((o) => !o.interior),
+    );
+    expect(cleared?.rooms).toHaveLength(1);
+    store.getState().undo();
+    expect(store.getState().building).toEqual(read);
     store.getState().undo();
     expect(store.getState().building).toEqual(before);
   });

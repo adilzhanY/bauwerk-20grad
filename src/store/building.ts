@@ -312,6 +312,8 @@ export interface EditorActions {
    * plan's, rooms follow. One undo step. See geometry/floorPlanImport.ts.
    */
   applyFloorPlan: (storeyId: Id, edits: FloorPlanEdits) => void;
+  /** Takes a storey's interior walls and their doors out: back to one room in the outline. */
+  clearInteriors: (storeyId: Id) => void;
   removeInteriorWall: (storeyId: Id, index: number) => void;
   renameRoom: (storeyId: Id, roomId: Id, name: string) => void;
   assignRoomToZone: (storeyId: Id, roomId: Id, zoneId: Id | undefined) => void;
@@ -1115,6 +1117,21 @@ export function createEditorStore(initial?: Partial<EditorState>) {
             });
           },
 
+          clearInteriors: (storeyId) => {
+            set((state) => {
+              const storey = findStorey(state.building, storeyId);
+              if (!storey) return;
+              storey.interiorWalls = [];
+              storey.openings = storey.openings.filter((o) => !o.interior);
+              refreshRooms(storey, state.building.footprint, state.language);
+              if (
+                state.selection &&
+                "storeyId" in state.selection &&
+                state.selection.storeyId === storeyId
+              )
+                state.selection = null;
+            });
+          },
           removeInteriorWall: (storeyId, index) => {
             set((state) => {
               const storey = findStorey(state.building, storeyId);

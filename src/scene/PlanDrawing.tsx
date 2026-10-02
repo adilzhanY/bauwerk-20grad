@@ -28,6 +28,7 @@ import {
 } from "@/geometry/plan";
 import type { Arrowhead, Dimension, PlanLine } from "@/geometry/plan";
 import { add, bounds, centroid, pointInPolygon, scale } from "@/geometry/polygon";
+import { REVEAL_GLOW_MS, REVEAL_SWEEP_MS } from "./planReveal";
 import type { Vec2 } from "@/geometry/types";
 import { buildWalls, interiorWallAsWall } from "@/geometry/walls";
 import { interiorWallThickness } from "@/geometry/constructions";
@@ -71,8 +72,6 @@ const MIN_LABELLED_PX = 34;
  * left to right, and each wall, door and room it passes glows in the AI colours and settles
  * into ink.
  */
-const REVEAL_SWEEP_MS = 1500;
-const REVEAL_GLOW_MS = 1100;
 const REVEAL_BAND_PX = 110;
 /**
  * The selected room is tinted in the selection colour, clearly but without hiding the
