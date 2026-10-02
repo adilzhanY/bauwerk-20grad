@@ -1,6 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { LayoutGrid, X } from "lucide-react";
-import { floorPlanEdits } from "@/geometry/floorPlanImport";
+import { pastedImage } from "@/lib/clipboard";
+import { inTextField } from "@/lib/inTextField";
+import { isPdf } from "@/lib/pdfPages";
 import { useT } from "@/i18n/useT";
 import { formatNumber } from "@/lib/format";
 import { errorText } from "@/lod2/api/errors";
@@ -15,20 +17,8 @@ import { Presence } from "@/components/shared/Presence";
 import { useElapsed } from "@/components/shared/useElapsed";
 import { useEditorStore } from "@/store/building";
 import { CustomButton } from "@/components/shared/CustomButton";
-
-/** Floor plans that come with the repository, named `<Gebäude-ID>-<storey>.png`. */
-const SAMPLE_PLANS = import.meta.glob<string>("/lod2/sample-plans/*.png", {
-  query: "?url",
-  import: "default",
-  eager: true,
-});
-
-function samplePlanFor(buildingId: string): string | null {
-  const gid = buildingId.startsWith("lod2-") ? buildingId.slice("lod2-".length) : null;
-  if (!gid) return null;
-  const key = Object.keys(SAMPLE_PLANS).find((k) => k.startsWith(`/lod2/sample-plans/${gid}-`));
-  return key ? (SAMPLE_PLANS[key] ?? null) : null;
-}
+import { applyReading } from "./applyReading";
+import { samplePlanFor } from "./samplePlans";
 
 const xy = (p: [number, number]) => ({ x: p[0], y: p[1] });
 
@@ -47,18 +37,19 @@ const DOOR_STAGGER_MS = 70;
  */
 export function FloorPlanSection({
   onApplied,
+  onPdf,
 }: {
   /** Called once a reading is applied, so a dialog around it can close on the reveal. */
   onApplied?: () => void;
+  /** A PDF was picked: its pages go to the storeys in the PDF import. */
+  onPdf?: (file: File) => void;
 } = {}) {
   const t = useT();
   const language = useEditorStore((s) => s.language);
   const building = useEditorStore((s) => s.building);
   const activeStoreyId = useEditorStore((s) => s.activeStoreyId);
-  const applyFloorPlan = useEditorStore((s) => s.applyFloorPlan);
   const setActiveStorey = useEditorStore((s) => s.setActiveStorey);
   const setPlanView = useEditorStore((s) => s.setPlanView);
-  const setFloorPlanImage = useEditorStore((s) => s.setFloorPlanImage);
   const planImage = useEditorStore((s) =>
     s.activeStoreyId ? s.floorPlanImages[s.activeStoreyId] : undefined,
   );
@@ -88,16 +79,35 @@ export function FloorPlanSection({
     };
   }, [applied]);
 
-  const storey = building.storeys.find((s) => s.id === activeStoreyId);
-  const sample = samplePlanFor(building.id);
+  // An image copied anywhere (a screenshot, a scan open in another app) pasted here is read.
+  const onPaste = useEffectEvent((event: ClipboardEvent) => {
+    if (!available || busy || inTextField(event.target)) return;
+    const file = pastedImage(event.clipboardData);
+    if (!file) return;
+    event.preventDefault();
+    void read(file);
+  });
+  useEffect(() => {
+    const listener = (event: ClipboardEvent) => {
+      onPaste(event);
+    };
+    document.addEventListener("paste", listener);
+    return () => {
+      document.removeEventListener("paste", listener);
+    };
+  }, []);
+
+  const storeyIndex = building.storeys.findIndex((s) => s.id === activeStoreyId);
+  const storey = building.storeys[storeyIndex];
+  const sample = samplePlanFor(building, storeyIndex);
   if (!available || !storey) return null;
 
-  const discard = () => {
+  function discard() {
     if (result) URL.revokeObjectURL(result.url);
     setResult(null);
-  };
+  }
 
-  const read = async (plan: Blob) => {
+  async function read(plan: Blob) {
     setError(null);
     discard();
     const url = URL.createObjectURL(plan);
@@ -114,37 +124,26 @@ export function FloorPlanSection({
     } finally {
       setJob(null);
     }
-  };
+  }
 
   const readSample = async () => {
     if (!sample) return;
-    const res = await fetch(sample);
-    await read(await res.blob());
+    try {
+      const res = await fetch(sample);
+      if (!res.ok) throw new Error(t("floorPlan.sampleFailed"));
+      await read(await res.blob());
+    } catch (e) {
+      setError(errorText(e, t));
+    }
   };
 
   const apply = () => {
     if (!result) return;
-    const { walls, doors } = result.reading;
-    const edits = floorPlanEdits(
-      walls.map((w) => ({ a: xy(w.a), b: xy(w.b), thickness: w.thickness })),
-      doors.map((d) => ({ a: xy(d.a), b: xy(d.b) })),
-      building.footprint,
-      storey.height,
-      building.constructions,
-    );
-    // The plan view of this storey, where the reveal plays as the walls go in.
+    // The plan view of this storey, where the reveal plays as the walls go in. The drawing
+    // stays with the storey, and with the project once it is saved.
     setActiveStorey(storey.id);
     setPlanView(true);
-    applyFloorPlan(storey.id, edits);
-    const rooms = useEditorStore.getState().building.storeys.find((s) => s.id === storey.id);
-    setApplied({
-      walls: edits.interiorWalls.length,
-      doors: edits.doors.length,
-      rooms: rooms?.rooms.length ?? 0,
-    });
-    // The drawing stays with the storey, and with the project once it is saved.
-    const [width, height] = result.reading.imageSize;
-    setFloorPlanImage(storey.id, { url: result.url, width, height });
+    setApplied(applyReading(storey.id, result.reading, result.url));
     setResult(null);
     onApplied?.();
   };
@@ -186,15 +185,17 @@ export function FloorPlanSection({
           </CustomButton>
         )}
       </div>
+      <Hint>{t(onPdf ? "floorPlan.pasteOrPdf" : "floorPlan.paste")}</Hint>
       <input
         ref={fileInput}
         type="file"
-        accept="image/*"
+        accept={onPdf ? "image/*,application/pdf" : "image/*"}
         className="hidden"
         aria-label={t("floorPlan.choose")}
         onChange={(e) => {
           const file = e.target.files?.[0];
-          if (file) void read(file);
+          if (file && onPdf && isPdf(file)) onPdf(file);
+          else if (file) void read(file);
           e.target.value = "";
         }}
       />
