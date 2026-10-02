@@ -10,6 +10,8 @@ COPY public ./public
 COPY src ./src
 # The photo editor's sample photos, bundled from here.
 COPY lod2/sample-photos ./lod2/sample-photos
+# The floor plan dialog's sample plans ("Try the sample plan"), bundled from here too.
+COPY lod2/sample-plans ./lod2/sample-plans
 # The app asks the server whether there are accounts (/auth/mode); nothing about them is
 # baked into the build.
 # Where the AI runs when it is a home computer ("Adil's PC"): named in the message the app
