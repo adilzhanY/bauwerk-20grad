@@ -1,3 +1,4 @@
+import { LiveToasts } from "@/components/editor/LiveToasts";
 import { Floating } from "@/components/shared/Floating";
 import { Presence } from "@/components/shared/Presence";
 import { ToastStack } from "@/components/shared/Toast";
@@ -110,6 +111,7 @@ export function EditorPage({
         <ToastStack offset="below-bar">
           <VersionPreviewBanner />
           <SinceLastVisit />
+          <LiveToasts />
           <OverwriteNotice sync={sync} />
           <Presence value={sync.rejection} kind="float">
             {(r) => <SyncRejectNotice rejection={r} onDismiss={sync.dismissRejection} />}

@@ -51,7 +51,7 @@ const threads = async (id: string, token: string) =>
 const inbox = async (token: string) =>
   (
     (await (await call("GET", "/notifications", token)).json()) as {
-      items: { kind: string; count: number }[];
+      items: { kind: string; count: number; payload: Record<string, unknown> }[];
     }
   ).items;
 
@@ -112,7 +112,9 @@ describe("threads", () => {
     expect(started.status).toBe(201);
     const { id: threadId } = (await started.json()) as { id: string };
     // Lena, a member, is told; Sam has no access and is told nothing.
-    expect((await inbox(lena.token)).map((n) => n.kind)).toContain("mentioned");
+    const told = (await inbox(lena.token)).find((n) => n.kind === "mentioned");
+    // Where the note is comes with it, for the toast that says "mentioned you on Wall 3".
+    expect(told?.payload.target).toEqual({ kind: "wall", wallIndex: 2 });
     expect(await inbox(stranger.token)).toEqual([]);
 
     expect(

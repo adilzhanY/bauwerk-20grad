@@ -1,3 +1,5 @@
+import { receiveActivity, setActivitySender } from "./activity";
+import type { ActivityEvent } from "./activity";
 import { io } from "socket.io-client";
 import { randomId } from "@/lib/ids";
 import { can } from "@/projects/roles";
@@ -270,6 +272,13 @@ export class SyncClient {
     socket.on("files", () => {
       window.dispatchEvent(new Event("bauwerk:files"));
     });
+    // Someone else applied a floor plan, a facade or a version: a short toast says so.
+    socket.on("activity", (message: ActivityEvent) => {
+      receiveActivity(message);
+    });
+    setActivitySender((activity) => {
+      if (this.joined) socket.emit("activity", { activity });
+    });
     socket.on("ops", (message: OpsMessage) => {
       this.receive(message);
     });
@@ -355,6 +364,7 @@ export class SyncClient {
   stop(): void {
     this.stopped = true;
     listenPresence(null);
+    setActivitySender(null);
     for (const timer of this.timers.values()) clearTimeout(timer);
     this.unsubscribe?.();
     this.socket?.disconnect();

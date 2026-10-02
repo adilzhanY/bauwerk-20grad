@@ -1,3 +1,4 @@
+import { shareActivity } from "./activity";
 import { useEffect, useMemo, useState } from "react";
 import type { ChangeSummary } from "./summary";
 import { loginPath, useRouter } from "@/app/router";
@@ -174,8 +175,11 @@ export function endVersionPreview(): void {
 /** Makes the version on screen the newest one: one ordinary edit, which undo takes back. */
 export function restoreVersion(): void {
   const building = previewed;
+  const version = useEditorStore.getState().historyPreview?.version;
   endVersionPreview();
-  if (building) useEditorStore.getState().loadBuilding(building);
+  if (!building) return;
+  useEditorStore.getState().loadBuilding(building);
+  if (version !== undefined) shareActivity({ kind: "restore", version });
 }
 
 export async function listProjects(): Promise<ProjectSummary[]> {

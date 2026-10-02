@@ -1,3 +1,4 @@
+import { shareActivity } from "@/sync/activity";
 import { normalizeWalls } from "@/geometry/wallGraph";
 import { can } from "@/projects/roles";
 import type { Role } from "@/projects/roles";
@@ -1070,6 +1071,8 @@ export function createEditorStore(initial?: Partial<EditorState>) {
           },
 
           applyFloorPlan: (storeyId, edits) => {
+            // The others see a toast; the walls themselves travel as ops.
+            shareActivity({ kind: "floorPlan", storeyId });
             set((state) => {
               const storey = findStorey(state.building, storeyId);
               if (!storey) return;

@@ -15,6 +15,7 @@ export function Toast({
   actions,
   dismissLabel,
   onDismiss,
+  onHover,
   children,
 }: {
   tone?: "neutral" | "info" | "warning";
@@ -23,12 +24,20 @@ export function Toast({
   /** With onDismiss, a close button at the end. */
   dismissLabel?: string;
   onDismiss?: () => void;
+  /** Told when the pointer comes and goes: a toast that times out waits while it is read. */
+  onHover?: (hovering: boolean) => void;
   children: ReactNode;
 }) {
   const motion = useFloatMotion();
   return (
     <div
       role={tone === "warning" ? "alert" : "status"}
+      onMouseEnter={() => {
+        onHover?.(true);
+      }}
+      onMouseLeave={() => {
+        onHover?.(false);
+      }}
       className={cx(
         "pointer-events-auto flex max-w-[40rem] items-center gap-3 rounded-card border py-1.5 pr-1.5 pl-4 text-sm shadow-float",
         tone === "warning" && "border-mark bg-mark-soft text-mark",

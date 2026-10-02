@@ -1,3 +1,4 @@
+import { shareActivity } from "@/sync/activity";
 import { useMemo } from "react";
 import { Box } from "lucide-react";
 import type { Opening as PhotoOpening } from "lod2-core/openings";
@@ -107,6 +108,7 @@ export function WallPhotoEditor() {
             onClick={() => {
               if (!next || edge === null) return;
               applyWallOpenings(next.building, edge);
+              shareActivity({ kind: "facade", wallIndex: edge, count: openings.length });
               // Every wall takes the colour of the photographed facade.
               if (wallImage) {
                 void facadeColourOf(wallImage, openings, WALL_PX_PER_METRE).then((colour) => {

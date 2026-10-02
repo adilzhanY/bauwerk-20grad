@@ -220,6 +220,15 @@ export class ThreadsService implements OnModuleInit {
         )
       : { rows: [] };
     const excerpt = text.length > 140 ? `${text.slice(0, 139)}…` : text;
+    // Where the note is, so a toast can say "on Ground floor, Room 1" and jump there.
+    const where = mentioned.rows.length
+      ? (
+          await this.pool.query<{ target: unknown }>(
+            "SELECT target FROM app.threads WHERE id = $1",
+            [threadId],
+          )
+        ).rows[0]?.target
+      : undefined;
     const told = new Set<string>();
     for (const { user_id } of mentioned.rows) {
       told.add(user_id);
@@ -228,7 +237,7 @@ export class ThreadsService implements OnModuleInit {
         kind: "mentioned",
         projectId,
         actorId: author.id,
-        payload: { threadId, text: excerpt },
+        payload: { threadId, text: excerpt, target: where ?? null },
       });
     }
     for (const userId of earlier) {

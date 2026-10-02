@@ -71,6 +71,21 @@ const isText = (value: unknown, max: number): value is string =>
 const isIndex = (value: unknown): value is number =>
   typeof value === "number" && Number.isInteger(value) && value >= 0;
 
+/** An activity a tab may announce: what kind and where, nothing more. */
+function isActivity(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  switch (value.kind) {
+    case "floorPlan":
+      return isText(value.storeyId, 128);
+    case "facade":
+      return isIndex(value.wallIndex) && typeof value.count === "number" && value.count >= 0;
+    case "restore":
+      return typeof value.version === "number" && Number.isInteger(value.version);
+    default:
+      return false;
+  }
+}
+
 function isSelection(value: unknown): boolean {
   if (value === null) return true;
   if (!isRecord(value) || typeof value.kind !== "string") return false;
@@ -356,6 +371,20 @@ export class ProjectsGateway
     data.storeyId = isText(body.storeyId, 128) ? body.storeyId : null;
     this.track(socket);
     await this.sendPresence(data.projectId);
+  }
+
+  /**
+   * Something big this tab did (a floor plan applied, a facade's openings put on, a version
+   * restored), for a short toast on the others' screens. Only relayed, never stored: the
+   * change itself travels as ops; this only says who did it.
+   */
+  @SubscribeMessage("activity")
+  activity(@ConnectedSocket() socket: Socket, @MessageBody() body: unknown) {
+    const { projectId, clientId, actor, user } = member(socket);
+    if (!projectId || !isRecord(body) || !isActivity(body.activity)) return;
+    socket
+      .to(room(projectId))
+      .emit("activity", { clientId, actor, userId: user?.id ?? null, activity: body.activity });
   }
 
   /**
