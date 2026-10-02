@@ -437,6 +437,22 @@ describe("Socket.IO", () => {
     expect(await b.next("view")).toMatchObject({ plan: false, zoom: null });
   });
 
+  it("relays big moments to the others for a toast, and drops unknown or malformed ones", async () => {
+    const { id } = await createHouse();
+    const a = await tab(id, "a");
+    const b = await tab(id, "b");
+    a.socket.emit("activity", { activity: { kind: "launch", storeyId: "s1" } });
+    a.socket.emit("activity", { activity: { kind: "facade", wallIndex: -1, count: 3 } });
+    a.socket.emit("activity", { activity: { kind: "floorPlan", storeyId: "s1" } });
+    expect(await b.next("activity")).toMatchObject({
+      clientId: "a",
+      activity: { kind: "floorPlan", storeyId: "s1" },
+    });
+    // Only the valid one arrived (next took it), and never back at the tab that sent it.
+    expect(b.received.some((m) => m.event === "activity")).toBe(false);
+    expect(a.received.some((m) => m.event === "activity")).toBe(false);
+  });
+
   it("relays a selection to the others and shows it in the presence list", async () => {
     const { id } = await createHouse();
     const a = await tab(id, "a");
