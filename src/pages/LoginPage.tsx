@@ -47,29 +47,35 @@ export function LoginPage() {
 
   if (status === "off") {
     return (
-      <main className="mx-auto max-w-md px-6 py-16">
-        <PageTitle title={t("auth.title")} subtitle={t("auth.off")} />
-      </main>
+      <div className="h-full overflow-y-auto">
+        <main className="mx-auto max-w-md px-6 py-16">
+          <PageTitle title={t("auth.title")} subtitle={t("auth.off")} />
+        </main>
+      </div>
     );
   }
 
+  // The shell clips its pages: this one scrolls itself, so Sign up's last fields and its button
+  // stay reachable on a laptop screen.
   return (
-    <main className="mx-auto flex max-w-md flex-col gap-6 px-6 py-16">
-      <PageTitle title={t("auth.title")} subtitle={t("auth.intro")} />
-      <CustomTabs
-        id={tabsId}
-        label={t("auth.title")}
-        value={mode}
-        tabs={[
-          { value: "signIn", label: t("auth.signIn") },
-          { value: "signUp", label: t("auth.signUp") },
-        ]}
-        onChange={setMode}
-      />
-      <CustomTabPanel id={tabsId} value={mode}>
-        {mode === "signIn" ? <SignInForm /> : <SignUpForm />}
-      </CustomTabPanel>
-    </main>
+    <div className="h-full overflow-y-auto">
+      <main className="mx-auto flex max-w-md flex-col gap-6 px-6 py-10 lg:py-16">
+        <PageTitle title={t("auth.title")} subtitle={t("auth.intro")} />
+        <CustomTabs
+          id={tabsId}
+          label={t("auth.title")}
+          value={mode}
+          tabs={[
+            { value: "signIn", label: t("auth.signIn") },
+            { value: "signUp", label: t("auth.signUp") },
+          ]}
+          onChange={setMode}
+        />
+        <CustomTabPanel id={tabsId} value={mode}>
+          {mode === "signIn" ? <SignInForm /> : <SignUpForm />}
+        </CustomTabPanel>
+      </main>
+    </div>
   );
 }
 
