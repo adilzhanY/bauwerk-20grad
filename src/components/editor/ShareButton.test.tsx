@@ -47,7 +47,7 @@ describe("ShareButton", () => {
     expect(screen.getByText(/\?project=p-123/)).toBeTruthy();
   });
 
-  it("says so when the server does not answer, after trying again twice", async () => {
+  it("says so when the server does not answer, after trying again for about 17 seconds", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     const fetchMock = vi.fn(() => Promise.reject(new Error("down")));
     vi.stubGlobal("fetch", fetchMock);
@@ -55,11 +55,11 @@ describe("ShareButton", () => {
     render(<ShareButton />);
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Share" }));
-      // A deploy restarts the server for a few seconds: two more tries, 1.5 and 3 s apart.
-      await vi.advanceTimersByTimeAsync(5000);
+      // A deploy restarts the server for about 15 seconds: four more tries, 1.5 to 8 s apart.
+      await vi.advanceTimersByTimeAsync(20000);
     });
     expect(await screen.findByText(/does not answer/)).toBeTruthy();
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledTimes(5);
     expect(window.location.search).toBe("");
     vi.useRealTimers();
   });

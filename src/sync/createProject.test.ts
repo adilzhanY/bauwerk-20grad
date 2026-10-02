@@ -30,14 +30,14 @@ describe("createProject", () => {
     expect(lastCreateFailure()).toBeNull();
   });
 
-  it("gives up after three tries and says the server could not save it", async () => {
+  it("gives up after five tries, about 17 seconds, and says the server could not save it", async () => {
     vi.stubEnv("VITE_API_URL", "/collab");
     vi.useFakeTimers();
-    const fetchMock = answers(503, 503, 503, 503);
+    const fetchMock = answers(503, 503, 503, 503, 503, 503);
     const pending = createProject();
-    await vi.advanceTimersByTimeAsync(5000);
+    await vi.advanceTimersByTimeAsync(20000);
     expect(await pending).toBeNull();
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledTimes(5);
     expect(lastCreateFailure()).toBe("server");
   });
 

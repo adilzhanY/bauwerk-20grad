@@ -107,6 +107,11 @@ cd /srv/bauwerk && git pull
 docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
 ```
 
+This restarts the collaboration server whenever the app's code changed (its image carries the
+shared code), which takes about 15 seconds; saves in that time are tried again for about 17
+seconds. A change to the app only can keep the server running:
+`docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build --no-deps web`.
+
 ## When something is wrong
 
 ```bash

@@ -195,8 +195,8 @@ let created: { id: string; building: Building } | null = null;
 let createFailure: "signIn" | "server" | null = null;
 export const lastCreateFailure = () => createFailure;
 
-/** Waits before each new try: a deploy restarts the server for a few seconds. */
-const RETRY_MS = [1500, 3000];
+/** Waits before each new try: a deploy restarts the server for about 15 seconds. */
+const RETRY_MS = [1500, 3000, 5000, 8000];
 
 export async function createProject(): Promise<string | null> {
   createFailure = null;
