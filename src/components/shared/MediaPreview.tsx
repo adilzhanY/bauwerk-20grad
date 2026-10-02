@@ -1,4 +1,5 @@
 import { Download } from "lucide-react";
+import type { ReactNode } from "react";
 import { CustomButton } from "./CustomButton";
 import { CustomDialog } from "./CustomDialog";
 import { Hint } from "./Hint";
@@ -19,8 +20,11 @@ export function MediaPreview({
   noPreviewLabel,
   failedLabel,
   failed = false,
+  actions,
   onClose,
 }: {
+  /** More buttons before Download, such as Delete. */
+  actions?: ReactNode;
   title: string;
   url: string | null;
   mime: string;
@@ -56,18 +60,20 @@ export function MediaPreview({
           )}
         </div>
         {url && !failed && (
-          <CustomButton
-            className="self-end"
-            icon={<Download size={15} aria-hidden />}
-            onClick={() => {
-              const link = document.createElement("a");
-              link.href = url;
-              link.download = fileName;
-              link.click();
-            }}
-          >
-            {downloadLabel}
-          </CustomButton>
+          <div className="flex justify-end gap-2">
+            {actions}
+            <CustomButton
+              icon={<Download size={15} aria-hidden />}
+              onClick={() => {
+                const link = document.createElement("a");
+                link.href = url;
+                link.download = fileName;
+                link.click();
+              }}
+            >
+              {downloadLabel}
+            </CustomButton>
+          </div>
         )}
       </div>
     </CustomDialog>
