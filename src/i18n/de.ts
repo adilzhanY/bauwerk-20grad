@@ -1286,6 +1286,10 @@ export const de: Messages = {
   "share.copy": "Link kopieren",
   "share.copied": "Link kopiert",
   "share.close": "Schließen",
+  "share.failedServer":
+    "Das Projekt konnte nicht auf dem Server gespeichert werden und lässt sich darum noch nicht teilen. Versuchen Sie es gleich noch einmal.",
+  "share.failedSignIn":
+    "Ihre Anmeldung ist abgelaufen. Melden Sie sich erneut an, um dieses Projekt zu teilen.",
   "share.failed":
     "Der Kollaborationsserver antwortet nicht. Läuft npm run dev mit der Zeile collab?",
   "view.3d": "3D",

@@ -7,7 +7,7 @@ import { useEditorStore } from "@/store/building";
 import { CustomButton } from "@/components/shared/CustomButton";
 import { CustomDialog } from "@/components/shared/CustomDialog";
 import { saveProject } from "@/projects/session";
-import { syncEnabled } from "@/sync/useSync";
+import { lastCreateFailure, syncEnabled } from "@/sync/useSync";
 import { loginPath } from "@/app/router";
 import { useAuth } from "@/auth/store";
 
@@ -21,11 +21,12 @@ export function ShareButton() {
   const projectId = useEditorStore((s) => s.projectId);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState(false);
+  // Why the project could not be saved, so it could not be shared.
+  const [failed, setFailed] = useState<"signIn" | "server" | null>(null);
   if (!syncEnabled) return null;
 
   const share = async () => {
-    setFailed(false);
+    setFailed(null);
     // Sharing needs an account; after signing in the user comes back here.
     const auth = useAuth.getState().status;
     // Until the server has said whether there are accounts, a click waits for that.
@@ -40,7 +41,7 @@ export function ShareButton() {
       const saved = await saveProject();
       setBusy(false);
       if (!saved) {
-        setFailed(true);
+        setFailed(lastCreateFailure() ?? "server");
         setOpen(true);
         return;
       }
@@ -68,7 +69,15 @@ export function ShareButton() {
               setOpen(false);
             }}
           >
-            <p className="text-sm text-mark">{t("share.failed")}</p>
+            <p className="text-sm text-mark">
+              {t(
+                failed === "signIn"
+                  ? "share.failedSignIn"
+                  : import.meta.env.DEV
+                    ? "share.failed"
+                    : "share.failedServer",
+              )}
+            </p>
           </CustomDialog>
         ) : (
           <ShareDialog

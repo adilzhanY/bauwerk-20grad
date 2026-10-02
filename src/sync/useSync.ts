@@ -191,20 +191,49 @@ export async function listProjects(): Promise<ProjectSummary[]> {
  */
 let created: { id: string; building: Building } | null = null;
 
+/** Why the last createProject failed: the sign in ran out, or the server could not save it. */
+let createFailure: "signIn" | "server" | null = null;
+export const lastCreateFailure = () => createFailure;
+
+/** Waits before each new try: a deploy restarts the server for a few seconds. */
+const RETRY_MS = [1500, 3000];
+
 export async function createProject(): Promise<string | null> {
+  createFailure = null;
   const cfg = syncConfigFromEnv();
   if (!cfg) return null;
   const { actor } = actorIdentity();
   const building = useEditorStore.getState().building;
-  const res = await fetch(`${cfg.apiUrl}/projects`, {
-    method: "POST",
-    headers: { "content-type": "application/json", "x-actor": actor, ...(await authHeaders()) },
-    body: JSON.stringify({ building }),
-  });
-  if (!res.ok) return null;
-  const project = (await res.json()) as { id: string };
-  created = { id: project.id, building };
-  return project.id;
+  for (let attempt = 0; ; attempt++) {
+    let status = 0;
+    try {
+      const res = await fetch(`${cfg.apiUrl}/projects`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-actor": actor, ...(await authHeaders()) },
+        body: JSON.stringify({ building }),
+      });
+      if (res.ok) {
+        const project = (await res.json()) as { id: string };
+        created = { id: project.id, building };
+        return project.id;
+      }
+      status = res.status;
+    } catch {
+      // No answer at all: the server is restarting or the connection dropped. Tried again.
+    }
+    if (status === 401) {
+      createFailure = "signIn";
+      return null;
+    }
+    // Only "not reachable" is worth another try; the server refusing the building is not.
+    const transient = status === 0 || status === 502 || status === 503 || status === 504;
+    const wait = RETRY_MS[attempt];
+    if (!transient || wait === undefined) {
+      createFailure = "server";
+      return null;
+    }
+    await new Promise((resolve) => setTimeout(resolve, wait));
+  }
 }
 
 /**

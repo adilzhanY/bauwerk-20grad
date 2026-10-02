@@ -1324,6 +1324,9 @@ export const en = {
   "share.copy": "Copy link",
   "share.copied": "Link copied",
   "share.close": "Close",
+  "share.failedServer":
+    "The project could not be saved on the server, so it cannot be shared yet. Try again in a moment.",
+  "share.failedSignIn": "Your sign in has run out. Sign in again to share this project.",
   "share.failed":
     "The collaboration server does not answer. Is npm run dev running with its collab line?",
   "view.3d": "3D",

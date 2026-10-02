@@ -47,18 +47,20 @@ describe("ShareButton", () => {
     expect(screen.getByText(/\?project=p-123/)).toBeTruthy();
   });
 
-  it("says so when the server does not answer", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(() => Promise.reject(new Error("down"))),
-    );
+  it("says so when the server does not answer, after trying again twice", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const fetchMock = vi.fn(() => Promise.reject(new Error("down")));
+    vi.stubGlobal("fetch", fetchMock);
     const ShareButton = await load("/collab");
     render(<ShareButton />);
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Share" }));
-      await Promise.resolve();
+      // A deploy restarts the server for a few seconds: two more tries, 1.5 and 3 s apart.
+      await vi.advanceTimersByTimeAsync(5000);
     });
     expect(await screen.findByText(/does not answer/)).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(window.location.search).toBe("");
+    vi.useRealTimers();
   });
 });
