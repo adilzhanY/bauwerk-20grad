@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import io
 import json
+from dataclasses import dataclass, field
 import hmac
 import os
 import tempfile
@@ -28,7 +29,9 @@ import uvicorn
 from fastapi import FastAPI, File, Form, Header, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse, Response
 from PIL import Image, ImageOps
+from shapely.geometry import Point, Polygon
 
+import labels
 import pipeline
 from gpu_queue import Abandoned, GpuLine, Jobs
 import room_model
@@ -116,22 +119,66 @@ def walls(
     return jobs.respond(x_job_id, prefer, lambda: _read_walls(image, outline, x_job_id))
 
 
+@dataclass
+class Reading:
+    result: pipeline.Result
+    # Words written on the plan inside the building: (text, confidence 0 to 100, x, y metres).
+    labels: list[tuple[str, float, float, float]] = field(default_factory=list)
+    # The room model's room types: (kind, x, y metres).
+    kinds: list[tuple[str, float, float]] = field(default_factory=list)
+
+
+def read_plan(image: Image.Image, outline: np.ndarray) -> pipeline.Result:
+    """The walls and doors of one plan image (see read_plan_fully)."""
+    return read_plan_fully(image, outline).result
+
+
+def read_plan_fully(image: Image.Image, outline: np.ndarray) -> Reading:
+    """The whole reading of one plan image: the drawing found on the sheet, the room model on
+    it, then the pipeline, and the words on it; the transform is in the pixels of the image
+    given, the words and room types in plan metres."""
+    gray_sheet = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2GRAY)
+    x0, y0, x1, y1 = pipeline.plan_region(gray_sheet)
+    plan = image.crop((x0, y0, x1, y1))
+    gray = gray_sheet[y0:y1, x0:x1]
+    rooms, doors, kinds = None, [], []
+    if room_model.available():
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "plan.png"
+            plan.save(path)
+            try:
+                rooms, doors, kinds = room_model.rooms_doors_kinds(path, plan.width, plan.height)
+            except Exception:  # noqa: BLE001 - the drawing alone still gives walls
+                rooms, doors, kinds = None, [], []
+    result = pipeline.analyse(gray, outline, rooms, doors)
+    t = result.transform
+    building = Polygon(outline).buffer(0.1)
+    inside = lambda m: building.contains(Point(m))
+    words = []
+    for label in labels.read_words(plan):
+        m = t.to_m(label.x, label.y)
+        if inside(m):
+            words.append((label.text, round(label.confidence, 1), round(m[0], 2), round(m[1], 2)))
+    room_kinds = []
+    for poly, kind in zip(rooms or [], kinds):
+        if kind is None or len(poly) < 3:
+            continue
+        p = Polygon(poly).buffer(0).representative_point()
+        m = t.to_m(p.x, p.y)
+        if inside(m):
+            room_kinds.append((kind, round(m[0], 2), round(m[1], 2)))
+    t.ox += x0
+    t.oy += y0
+    return Reading(result, words, room_kinds)
+
+
 def _read_walls(image: Image.Image, outline: np.ndarray, job_id: str | None) -> dict:
-    gray = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2GRAY)
-    rooms, doors = None, []
     try:
         with gpu_line.turn(job_id):
-            if room_model.available():
-                with tempfile.TemporaryDirectory() as tmp:
-                    path = Path(tmp) / "plan.png"
-                    image.save(path)
-                    try:
-                        rooms, doors = room_model.rooms_and_doors(path, image.width, image.height)
-                    except Exception:  # noqa: BLE001 - the drawing alone still gives walls
-                        rooms, doors = None, []
-            result = pipeline.analyse(gray, outline, rooms, doors)
+            reading = read_plan_fully(image, outline)
     except Abandoned as exc:
         raise HTTPException(409, "Nobody waits for this plan any more.") from exc
+    result = reading.result
     cm = lambda p: [round(float(p[0]), 2), round(float(p[1]), 2)]
     t = result.transform
     return {
@@ -147,6 +194,10 @@ def _read_walls(image: Image.Image, outline: np.ndarray, job_id: str | None) -> 
         "transform": {"scale": t.scale, "theta": t.theta, "ox": t.ox, "oy": t.oy},
         "imageSize": [image.width, image.height],
         "roomModel": result.used_model,
+        # What is written in the building (room names, numbers, areas), in plan metres; the
+        # editor names its rooms from it, and from the model's room types where nothing reads.
+        "labels": [{"text": text, "confidence": conf, "at": [x, y]} for text, conf, x, y in reading.labels],
+        "roomKinds": [{"kind": kind, "at": [x, y]} for kind, x, y in reading.kinds],
     }
 
 

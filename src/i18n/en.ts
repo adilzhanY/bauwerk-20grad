@@ -692,6 +692,7 @@ export const en = {
     "Read an old floor plan drawing into this storey: interior walls and doors, fitted into the building's outline.",
   "floorPlan.choose": "Read floor plan",
   "floorPlan.sample": "Try the sample plan",
+  "floorPlan.samplePdf": "Try the sample plans (PDF, all floors)",
   "floorPlan.aiTitle": "AI is reading the floor plan",
   "floorPlan.aiDetail":
     "The room model finds the rooms and doors, then the walls are measured in the drawing, inside the building's outline.",

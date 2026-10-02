@@ -29,8 +29,18 @@ def available() -> bool:
     return (MODEL_DIR / "predict.py").is_file()
 
 
+# The room types of the CubiCasa5K classes, for naming a room when its name cannot be read.
+KINDS = {1: "kitchen", 2: "living", 3: "bedroom", 4: "bath", 5: "entry", 6: "storage", 7: "garage"}
+
+
 def rooms_and_doors(image_path: Path, width: int, height: int) -> tuple[list, list]:
     """(rooms, doors) in pixels of the original image. Raises when the model fails."""
+    rooms, doors, _ = rooms_doors_kinds(image_path, width, height)
+    return rooms, doors
+
+
+def rooms_doors_kinds(image_path: Path, width: int, height: int) -> tuple[list, list, list]:
+    """(rooms, doors, kinds): kinds[i] is room i's type ("kitchen", "bath", ...) or None."""
     with tempfile.TemporaryDirectory() as tmp:
         src = Path(tmp) / "in"
         src.mkdir()
@@ -55,11 +65,12 @@ def rooms_and_doors(image_path: Path, width: int, height: int) -> tuple[list, li
     k = min(SIZE / height, SIZE / width)
     top, left = (SIZE - int(height * k)) // 2, (SIZE - int(width * k)) // 2
     back = lambda q: ((q[0] - left) / k, (q[1] - top) / k)
-    rooms, doors = [], []
+    rooms, doors, kinds = [], [], []
     for p in predictions:
         pts = [back(q) for q in p["segmentation"]]
         if p["category_id"] == DOOR:
             doors.append(pts[:2])
         elif p["category_id"] not in (WINDOW, OUTDOOR):
             rooms.append(pts)
-    return rooms, doors
+            kinds.append(KINDS.get(p["category_id"]))
+    return rooms, doors, kinds

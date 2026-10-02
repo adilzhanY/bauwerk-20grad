@@ -11,6 +11,7 @@
 import { nearestInteriorWallType } from "./constructions";
 import { defaultOpening, validateOpening } from "./openings";
 import { distance, dot, sub } from "./polygon";
+import type { NameHint } from "./roomNames";
 import type { Construction, InteriorWall, Opening, Segment, Vec2 } from "./types";
 
 export interface PlanWall {
@@ -38,6 +39,8 @@ export interface FloorPlanEdits {
   doors: FloorPlanDoor[];
   /** Doors the service found that fit no wall or overlap another door, left out. */
   skippedDoors: number;
+  /** Room names the plan gives, by where they stand; the rooms made from the walls take them. */
+  roomNames?: NameHint[];
 }
 
 /** A door belongs to a wall when both its ends lie this close to the wall's line. */

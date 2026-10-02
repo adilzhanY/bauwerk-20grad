@@ -2,6 +2,13 @@ import { describe, expect, it } from "vitest";
 import { levelFromText, storeysForPages } from "./storeyFromText";
 
 describe("levelFromText", () => {
+  it("takes the storey from the plan title over notes naming other storeys", () => {
+    expect(
+      levelFromText("Grundriss Erdgeschoss\nBestand\nLaden und Büro, Wohnungen ab 1. OG"),
+    ).toBe(0);
+    expect(levelFromText("Treppe zum DG\nGrundriss des 2. Obergeschosses")).toBe(2);
+  });
+
   it("reads German and English storey names", () => {
     expect(levelFromText("GRUNDRISS DES ERDGESCHOSSES v. HAUS MÜLLER")).toBe(0);
     expect(levelFromText("Grundriss EG  M 1:100")).toBe(0);

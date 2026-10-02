@@ -30,8 +30,21 @@ const NUMBERED = [
 ];
 const UPPER = [inflected("obergeschoss"), rx("upper floor"), rx("OG", "u")];
 
-/** The storey a page's text names, or null when it names none. */
+// The plan's title, "Grundriss Erdgeschoss", "Grundriss des 1. Obergeschosses", "Floor plan,
+// ground floor": what follows it is the storey this page shows. Notes elsewhere on the sheet
+// can name other storeys ("Wohnungen ab 1. OG", "Treppe zum DG").
+const TITLE = /(?:grundriss\p{L}*|floor\s*plan)[\s,:.-]+((?:des|der|vom|im|of the)?[^\n]{0,40})/giu;
+
+/** The storey a page's text names, or null when it names none; its plan title first. */
 export function levelFromText(text: string): Level | null {
+  for (const title of text.matchAll(TITLE)) {
+    const level = levelIn(title[1] ?? "");
+    if (level !== null) return level;
+  }
+  return levelIn(text);
+}
+
+function levelIn(text: string): Level | null {
   for (const pattern of NUMBERED) {
     const match = pattern.exec(text);
     if (match?.[1]) return Number(match[1]);

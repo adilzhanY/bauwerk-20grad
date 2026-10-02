@@ -644,6 +644,7 @@ export const de: Messages = {
     "Einen alten Grundriss in dieses Geschoss übernehmen: Innenwände und Türen, eingepasst in den Umriss des Gebäudes.",
   "floorPlan.choose": "Grundriss einlesen",
   "floorPlan.sample": "Beispielgrundriss testen",
+  "floorPlan.samplePdf": "Beispielpläne testen (PDF, alle Geschosse)",
   "floorPlan.aiTitle": "Die KI liest den Grundriss",
   "floorPlan.aiDetail":
     "Das Raummodell findet Räume und Türen, dann werden die Wände in der Zeichnung gemessen, innerhalb des Gebäudeumrisses.",

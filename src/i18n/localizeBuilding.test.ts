@@ -33,7 +33,7 @@ describe("localizeBuilding", () => {
     const source = exampleAltbau("en");
     source.name = "Haus Müller";
     if (source.storeys[2]) source.storeys[2].name = "Dachatelier";
-    if (source.storeys[1]?.rooms[0]) source.storeys[1].rooms[0].name = "Bibliothek";
+    if (source.storeys[1]?.rooms[0]) source.storeys[1].rooms[0].name = "Musikzimmer";
     if (source.zones[0]) source.zones[0].name = "Privat";
     if (source.constructions[1]) {
       source.constructions[1].name = "Eigene Wand";
@@ -48,7 +48,7 @@ describe("localizeBuilding", () => {
     expect(english.storeys[0]?.name).toBe("Ground floor");
     expect(english.storeys[2]?.name).toBe("Dachatelier");
     expect(english.storeys[0]?.rooms.some((room) => room.name === "Shop")).toBe(true);
-    expect(english.storeys[1]?.rooms[0]?.name).toBe("Bibliothek");
+    expect(english.storeys[1]?.rooms[0]?.name).toBe("Musikzimmer");
     expect(english.zones[0]?.name).toBe("Privat");
     expect(english.constructions[1]?.name).toBe("Eigene Wand");
     expect(english.constructions[1]?.layers?.[0]?.name).toBe("Eigener Putz");

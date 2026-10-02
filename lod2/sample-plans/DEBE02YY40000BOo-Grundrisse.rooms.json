@@ -1,0 +1,56 @@
+{
+ "EG": {
+  "E.01": "Laden",
+  "E.02": "Hausflur",
+  "E.03": "Büro",
+  "E.04": "Flur",
+  "E.05": "Lager",
+  "E.06": "Treppenhaus",
+  "E.07": "Personalraum",
+  "E.08": "Werkstatt"
+ },
+ "1. OG": {
+  "1.01": "Treppenhaus",
+  "1.02": "Flur",
+  "1.03": "Küche",
+  "1.04": "Bad",
+  "1.05": "Wohnzimmer",
+  "1.06": "Diele",
+  "1.07": "Kinderzimmer",
+  "1.08": "Küche",
+  "1.09": "Abstellraum",
+  "1.10": "Esszimmer",
+  "1.11": "Bad",
+  "1.12": "Wohnzimmer",
+  "1.13": "Schlafzimmer"
+ },
+ "2. OG": {
+  "2.01": "Treppenhaus",
+  "2.02": "Flur",
+  "2.03": "Küche",
+  "2.04": "Bad",
+  "2.05": "Wohnzimmer",
+  "2.06": "Diele",
+  "2.07": "Gästezimmer",
+  "2.08": "Küche",
+  "2.09": "HWR",
+  "2.10": "Speisezimmer",
+  "2.11": "Bad",
+  "2.12": "Wohnzimmer",
+  "2.13": "Schlafzimmer"
+ },
+ "3. OG": {
+  "3.01": "Treppenhaus",
+  "3.02": "Flur",
+  "3.03": "Küche",
+  "3.04": "Bad",
+  "3.05": "Wohnen/Schlafen",
+  "3.06": "Diele",
+  "3.07": "Arbeitszimmer",
+  "3.08": "Wohnküche",
+  "3.09": "Esszimmer",
+  "3.10": "Bad",
+  "3.11": "Wohnzimmer",
+  "3.12": "Kinderzimmer"
+ }
+}

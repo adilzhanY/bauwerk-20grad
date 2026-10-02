@@ -150,16 +150,42 @@ def wall_mask(ink: np.ndarray) -> np.ndarray:
     return mask
 
 
+def plan_region(gray: np.ndarray) -> tuple[int, int, int, int]:
+    """Where the floor plan is on the sheet, as (x0, y0, x1, y1) pixels.
+
+    An architect's sheet carries a title block, a legend, an area schedule and notes around
+    the drawing; read whole, the building is a small part of it and the room model sees it at
+    a few dozen of its 256 pixels. The plan is the cluster with the most wall-like ink; a sheet
+    that is mostly plan already is returned whole.
+    """
+    h, w = gray.shape
+    walls = wall_mask(ink_of(gray))
+    reach = max(3, max(h, w) // 120)
+    joined = cv2.dilate(walls, cv2.getStructuringElement(cv2.MORPH_RECT, (2 * reach + 1, 2 * reach + 1)))
+    n, labels, stats, _ = cv2.connectedComponentsWithStats(joined)
+    if n < 2:
+        return 0, 0, w, h
+    # The most wall ink, not the largest box: a sheet's frame is long but thin.
+    ink_per = np.bincount(labels[walls > 0], minlength=n)
+    i = 1 + int(np.argmax(ink_per[1:]))
+    x, y, bw, bh = (int(v) for v in stats[i, :4])
+    if bw * bh > 0.6 * w * h:
+        return 0, 0, w, h
+    margin = int(0.08 * max(bw, bh))
+    return max(0, x - margin), max(0, y - margin), min(w, x + bw + margin), min(h, y + bh + margin)
+
+
 def register(ink: np.ndarray, footprint: np.ndarray, rooms_px=None) -> tuple[Transform, float]:
     """The transform that lays the footprint on the drawn outer walls, and its mean error in px.
 
     Only wall-like ink counts, so dimension lines and text cannot pull the outline, and with the
     room model's rooms only the ink near them: a drawing is rarely in exact proportion with the
     measured building, and a title line or a frame just outside the plan would otherwise win.
-    Smaller shapes also fit on interior walls, and
-    larger ones on a frame or a title line round the plan, so among fits about as good as the
-    best: with the room model's rooms, the one that wraps them most tightly (the outer walls
-    are one wall thickness round the rooms), else the largest (the outer walls are outermost).
+    Smaller shapes also fit on interior walls, so among fits about as good as the best the
+    largest wins (the outer walls are outermost), with the room model's rooms the largest that
+    keeps them inside. Over a wall drawn filled, every place across its thickness fits equally
+    well, so the winner is then grown about its middle while it stays on the ink: the outline
+    is the outer face.
     """
     h, w = ink.shape
     walls_px = wall_mask(ink)
@@ -211,14 +237,33 @@ def register(ink: np.ndarray, footprint: np.ndarray, rooms_px=None) -> tuple[Tra
     best = min(v for v, _ in fits)
     good = [(v, Transform(*(float(x) for x in p))) for v, p in fits if v <= best * 1.25 + 0.5]
     if rooms is not None:
-        def slack(t: Transform) -> float:
-            outline = Polygon(t.to_px(footprint)).buffer(0)
-            # Rooms sticking out of the outline rule a fit out; then the least empty margin.
-            return 10 * rooms.difference(outline).area + outline.difference(rooms).area
-        value, transform = min(good, key=lambda f: slack(f[1]))
+        def outside(t: Transform) -> float:
+            """Share of the rooms that sticks out of the outline."""
+            return rooms.difference(Polygon(t.to_px(footprint)).buffer(0)).area / rooms.area
+
+        # The outer walls are the outermost wall ink near the rooms (ink further out is already
+        # left out), so the largest fit that keeps the rooms in; none keeps them: the closest.
+        holding = [f for f in good if outside(f[1]) < 0.03]
+        if holding:
+            value, transform = max(holding, key=lambda f: f[1].scale)
+        else:
+            value, transform = min(good, key=lambda f: outside(f[1]))
     else:
         value, transform = max(good, key=lambda f: f[1].scale)
-    return transform, value
+    return _grown(transform, footprint, cost, value), value
+
+
+def _grown(t: Transform, footprint: np.ndarray, cost, value: float) -> Transform:
+    """`t` scaled up about the outline's middle as far as the fit stays as good (to half a pixel)."""
+    centre = t.to_px(footprint.mean(axis=0, keepdims=True))[0]
+    best = t
+    for k in np.arange(1.0025, 1.08, 0.0025):
+        # Scaling about the middle in pixels: the origin moves away from it by the same factor.
+        grown = Transform(t.scale * k, t.theta, centre[0] + (t.ox - centre[0]) * k, centre[1] + (t.oy - centre[1]) * k)
+        if cost(np.array([grown.scale, grown.theta, grown.ox, grown.oy])) > value + 0.5:
+            break
+        best = grown
+    return best
 
 
 def _room_union(rooms_px):
@@ -237,11 +282,18 @@ def strokes_of(ink: np.ndarray, min_length_px: int, max_thickness_px: float):
         opened = cv2.morphologyEx(ink, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, kernel))
         n, _, stats, _ = cv2.connectedComponentsWithStats(opened)
         for i in range(1, n):
-            x, y, w, h, _ = stats[i]
-            if o == "h" and h < max_thickness_px:
-                out.append(("h", y + h / 2, float(x), float(x + w), float(h)))
-            if o == "v" and w < max_thickness_px:
-                out.append(("v", x + w / 2, float(y), float(y + h), float(w)))
+            x, y, w, h, area = stats[i]
+            # A long wall a degree or two off the image axes (a skewed outline, a scan put in a
+            # little crooked) has a box taller than the wall is thick: then its thickness is its
+            # ink per length. Short blobs and corners keep the box, so they stay out.
+            length, box = (w, h) if o == "h" else (h, w)
+            thickness = box if box < max_thickness_px else area / length
+            if thickness >= max_thickness_px or (box >= max_thickness_px and length < 8 * max_thickness_px):
+                continue
+            if o == "h":
+                out.append(("h", y + h / 2, float(x), float(x + w), float(thickness)))
+            else:
+                out.append(("v", x + w / 2, float(y), float(y + h), float(thickness)))
     return out
 
 

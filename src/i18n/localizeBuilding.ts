@@ -1,5 +1,6 @@
 import { ageConstructionName } from "@/geometry/ageDefaults";
 import { defaultConstructions } from "@/geometry/constructions";
+import { ROOM_NAME_PAIRS } from "@/geometry/roomNames";
 import { windowConstruction, windowType } from "@/geometry/windows";
 import { surveyBuildingName, surveyConstructionName } from "@/lod2/messages";
 import type { Building, Construction } from "@/geometry/types";
@@ -30,6 +31,8 @@ const ROOMS: Pair[] = [
   ["Bedroom left", "Schlafen links"],
   ["Bedroom right", "Schlafen rechts"],
   ["Stairwell", "Treppenhaus"],
+  // Every name the floor plan reader gives a room.
+  ...ROOM_NAME_PAIRS,
 ];
 
 const ZONES: Pair[] = [
@@ -69,6 +72,12 @@ function roomName(value: string, language: Language): string {
   }
   const core = /^(?:Core|Kern) (\d+)$/.exec(value);
   if (core?.[1]) return `${language === "de" ? "Kern" : "Core"} ${core[1]}`;
+  // Two names read from one plan label ("Wohnzimmer/Schlafzimmer").
+  if (value.includes("/"))
+    return value
+      .split("/")
+      .map((part) => knownName(part, ROOMS, language))
+      .join("/");
   return knownName(value, ROOMS, language);
 }
 

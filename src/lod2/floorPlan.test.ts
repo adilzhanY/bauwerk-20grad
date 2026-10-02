@@ -5,7 +5,7 @@ import { PRESET_IDS } from "@/geometry/constructions";
 import { floorPlanEdits } from "@/geometry/floorPlanImport";
 import type { PlanDoor, PlanWall } from "@/geometry/floorPlanImport";
 import { validateOpening, openingsOn } from "@/geometry/openings";
-import { distance } from "@/geometry/polygon";
+import { centroid, distance } from "@/geometry/polygon";
 import { createEditorStore } from "@/store/building";
 import { analyzePart } from "./analysis";
 import { loadFixture, surveyFromFixture } from "./testFixtures";
@@ -86,6 +86,18 @@ describe("the ground floor plan of BOo in the editor", () => {
       ground.openings.filter((o) => !o.interior),
     );
 
+    store.getState().undo();
+    expect(store.getState().building).toEqual(before);
+
+    // A name read inside a room names it, in the same undo step; the others keep "Room n".
+    const inside = centroid(storey.rooms[0]?.polygon ?? []);
+    store.getState().applyFloorPlan(ground.id, {
+      ...edits,
+      roomNames: [{ at: inside, name: "Contor", score: 2 }],
+    });
+    const named = store.getState().building.storeys[0]?.rooms ?? [];
+    expect(named.filter((r) => r.name === "Contor")).toHaveLength(1);
+    expect(named.filter((r) => /^Room \d+$/.test(r.name))).toHaveLength(7);
     store.getState().undo();
     expect(store.getState().building).toEqual(before);
   });

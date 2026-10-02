@@ -4,6 +4,7 @@ import { can } from "@/projects/roles";
 import type { Role } from "@/projects/roles";
 import { create } from "zustand";
 import { asOpening } from "@/geometry/floorPlanImport";
+import { nameForRoom } from "@/geometry/roomNames";
 import type { FloorPlanEdits } from "@/geometry/floorPlanImport";
 import {
   placeAfterSplit,
@@ -1089,6 +1090,10 @@ export function createEditorStore(initial?: Partial<EditorState>) {
                 })),
               ];
               refreshRooms(storey, state.building.footprint, state.language);
+              for (const room of storey.rooms) {
+                const name = nameForRoom(room.polygon, edits.roomNames ?? []);
+                if (name) room.name = name;
+              }
               if (
                 state.selection &&
                 "storeyId" in state.selection &&

@@ -1,5 +1,5 @@
 import { useEffect, useEffectEvent, useRef, useState } from "react";
-import { LayoutGrid, X } from "lucide-react";
+import { FileText, LayoutGrid, X } from "lucide-react";
 import { pastedImage } from "@/lib/clipboard";
 import { inTextField } from "@/lib/inTextField";
 import { isPdf } from "@/lib/pdfPages";
@@ -18,7 +18,7 @@ import { useElapsed } from "@/components/shared/useElapsed";
 import { useEditorStore } from "@/store/building";
 import { CustomButton } from "@/components/shared/CustomButton";
 import { applyReading } from "./applyReading";
-import { samplePlanFor } from "./samplePlans";
+import { samplePdfFor, samplePlanFor } from "./samplePlans";
 
 const xy = (p: [number, number]) => ({ x: p[0], y: p[1] });
 
@@ -100,6 +100,7 @@ export function FloorPlanSection({
   const storeyIndex = building.storeys.findIndex((s) => s.id === activeStoreyId);
   const storey = building.storeys[storeyIndex];
   const sample = samplePlanFor(building, storeyIndex);
+  const samplePdf = onPdf ? samplePdfFor(building) : null;
   if (!available || !storey) return null;
 
   function discard() {
@@ -132,6 +133,18 @@ export function FloorPlanSection({
       const res = await fetch(sample);
       if (!res.ok) throw new Error(t("floorPlan.sampleFailed"));
       await read(await res.blob());
+    } catch (e) {
+      setError(errorText(e, t));
+    }
+  };
+
+  const openSamplePdf = async () => {
+    if (!samplePdf || !onPdf) return;
+    try {
+      const res = await fetch(samplePdf);
+      if (!res.ok) throw new Error(t("floorPlan.sampleFailed"));
+      const name = samplePdf.split("/").pop() ?? "plans.pdf";
+      onPdf(new File([await res.blob()], name, { type: "application/pdf" }));
     } catch (e) {
       setError(errorText(e, t));
     }
@@ -182,6 +195,18 @@ export function FloorPlanSection({
             }}
           >
             {t("floorPlan.sample")}
+          </CustomButton>
+        )}
+        {samplePdf && (
+          <CustomButton
+            variant="quiet"
+            icon={<FileText size={14} />}
+            disabled={busy}
+            onClick={() => {
+              void openSamplePdf();
+            }}
+          >
+            {t("floorPlan.samplePdf")}
           </CustomButton>
         )}
       </div>

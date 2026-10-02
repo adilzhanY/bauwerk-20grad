@@ -1,4 +1,5 @@
 import { floorPlanEdits } from "@/geometry/floorPlanImport";
+import { roomNameHints } from "@/geometry/roomNames";
 import type { FloorPlanReading } from "@/lod2/api/floorplan";
 import { useEditorStore } from "@/store/building";
 
@@ -6,7 +7,7 @@ const xy = (p: [number, number]) => ({ x: p[0], y: p[1] });
 
 /**
  * Puts what the AI read from a floor plan onto a storey: its interior walls, doors and rooms
- * as one undo step, and the drawing as the storey's floor plan picture, which goes with the
+ * (named as the plan names them, else after the room model's room type) as one undo step, and the drawing as the storey's floor plan picture, which goes with the
  * project. `url` is the drawing's object URL; the store keeps it from here on.
  */
 export function applyReading(
@@ -24,7 +25,12 @@ export function applyReading(
     storey.height,
     state.building.constructions,
   );
-  state.applyFloorPlan(storeyId, edits);
+  const roomNames = roomNameHints(
+    reading.labels.map((l) => ({ ...l, at: xy(l.at) })),
+    reading.roomKinds.map((k) => ({ ...k, at: xy(k.at) })),
+    state.language,
+  );
+  state.applyFloorPlan(storeyId, { ...edits, roomNames });
   const [width, height] = reading.imageSize;
   state.setFloorPlanImage(storeyId, { url, width, height });
   const rooms = useEditorStore.getState().building.storeys.find((s) => s.id === storeyId);

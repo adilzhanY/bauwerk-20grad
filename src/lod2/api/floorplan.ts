@@ -33,6 +33,16 @@ export const FloorPlanReadingSchema = z.object({
   imageSize: z.tuple([z.number(), z.number()]),
   /** Whether the room model (Raster2Seq) took part, or the walls come from the drawing alone. */
   roomModel: z.boolean(),
+  /** Words written inside the building (room names, numbers, areas), in plan metres. */
+  labels: z
+    .array(
+      z.object({ text: z.string(), confidence: z.number(), at: z.tuple([z.number(), z.number()]) }),
+    )
+    .default([]),
+  /** The room model's room types (kitchen, bath, ...), for rooms whose name cannot be read. */
+  roomKinds: z
+    .array(z.object({ kind: z.string(), at: z.tuple([z.number(), z.number()]) }))
+    .default([]),
 });
 
 export type FloorPlanReading = z.infer<typeof FloorPlanReadingSchema>;
