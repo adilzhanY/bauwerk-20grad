@@ -37,8 +37,9 @@ def read_words(image: Image.Image) -> list[Label]:
     """Lines of words as Tesseract groups them, each with its middle and its letter height."""
     if not available():
         return []
-    # Small print on a plan reads better twice the size; Tesseract likes about 30 px letters.
-    scale = 2 if max(image.size) < 2600 else 1
+    # Small print on a plan reads better three times the size: a room stamp on a 2400 px A3
+    # sheet has 12 px letters, and Tesseract likes about 30.
+    scale = 3 if max(image.size) < 2600 else 1
     big = image.convert("L").resize((image.width * scale, image.height * scale), Image.LANCZOS)
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "plan.png"

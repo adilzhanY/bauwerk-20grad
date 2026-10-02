@@ -394,7 +394,8 @@ def draw_doors(storey: Storey) -> list[str]:
         u = ((wl.b[0] - wl.a[0]) / L, (wl.b[1] - wl.a[1]) / L)
         n = (-u[1] * d.side, u[0] * d.side)
         start = d.centre - d.width / 2
-        t = wl.thickness / 2 + 0.01
+        # Past the wall's outline stroke on both faces, so no line runs on through the opening.
+        t = wl.thickness / 2 + 0.03
         cut = opening_rect(wl.a, u, (-u[1], u[0]), start, d.width, t, -t)
         out.append(f'<path d="{path_of(cut)}" fill="#fff" stroke="none"/>')
         p0 = (wl.a[0] + u[0] * start, wl.a[1] + u[1] * start)
@@ -453,28 +454,70 @@ def draw_stair(storey: Storey) -> list[str]:
     return out
 
 
-def stamp(room: Room, face: Polygon, storey: Storey) -> list[str]:
+def symbols(storey: Storey):
+    """Where the doors swing and the windows carry their labels, in plan metres: room stamps
+    keep clear of them."""
+    areas = []
+    for d in storey.doors:
+        wl = d.wall
+        L = math.dist(wl.a, wl.b)
+        u = ((wl.b[0] - wl.a[0]) / L, (wl.b[1] - wl.a[1]) / L)
+        n = (-u[1] * d.side, u[0] * d.side)
+        start, near, far = d.centre - d.width / 2, wl.thickness / 2, wl.thickness / 2 + d.width + 0.1
+        p0 = (wl.a[0] + u[0] * (start - 0.1), wl.a[1] + u[1] * (start - 0.1))
+        p1 = (p0[0] + u[0] * (d.width + 0.2), p0[1] + u[1] * (d.width + 0.2))
+        areas.append(Polygon([(p[0] + n[0] * k, p[1] + n[1] * k) for p, k in ((p0, near), (p1, near), (p1, far), (p0, far))]))
+    for w in storey.windows:
+        a, _, _, u, n = edge(w.edge)
+        p0 = (a[0] + u[0] * (w.offset - 0.1), a[1] + u[1] * (w.offset - 0.1))
+        p1 = (p0[0] + u[0] * (w.width + 0.2), p0[1] + u[1] * (w.width + 0.2))
+        near, far = OUTER, OUTER + 1.05
+        areas.append(Polygon([(p[0] - n[0] * k, p[1] - n[1] * k) for p, k in ((p0, near), (p1, near), (p1, far), (p0, far))]))
+    return unary_union(areas)
+
+
+def _inside(face: Polygon, at: tuple[float, float], w: float, h: float, taken) -> tuple[float, float] | None:
+    """The sheet position for a stamp w by h metres near `at`, clear of the walls and of `taken`."""
+    room = face.buffer(-0.08).difference(taken)
+    candidates = sorted(
+        ((at[0] + dx * 0.05, at[1] + dy * 0.05) for dx in range(-60, 61) for dy in range(-60, 61)),
+        key=lambda c: math.dist(c, at),
+    )
+    for cx, cy in candidates:
+        if room.contains(box(cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2)):
+            return sx(cx), sy(cy)
+    return None
+
+
+def stamp(room: Room, face: Polygon, storey: Storey, taken) -> list[str]:
+    """The room stamp, in the full form (number, name, area, perimeter, clear height, floor)
+    or, in a small room or where the full one would cross a wall, the short form."""
     at = room.label_at or room.seed
-    x, y = sx(at[0]), sy(at[1])
     area = face.area
-    perimeter = face.exterior.length
-    clear = storey.height - 0.30
-    small = area < 8
-    lines = [
-        (f"{room.number}", 1.8, "normal", "#333"),
-        (room.name, 2.6 if not small else 2.1, "bold", "#111"),
-        (f"{num(area)} m²", 2.2, "normal", "#111"),
-    ]
-    if not small:
-        lines += [(f"U {num(perimeter)} m", 1.6, "normal", "#333"), (f"LH {num(clear)} m", 1.6, "normal", "#333"),
-                  (room.floor, 1.6, "normal", "#333")]
-    gap = 2.5 if not small else 2.1
+    for small in (False, True) if area >= 8 else (True,):
+        lines = [
+            (f"{room.number}", 1.8, "normal", "#333"),
+            (room.name, 2.6 if not small else 2.1, "bold", "#111"),
+            (f"{num(area)} m²", 2.2, "normal", "#111"),
+        ]
+        if not small:
+            lines += [(f"U {num(face.exterior.length)} m", 1.6, "normal", "#333"),
+                      (f"LH {num(storey.height - 0.30)} m", 1.6, "normal", "#333"),
+                      (room.floor, 1.6, "normal", "#333")]
+        gap = 2.5 if not small else 2.1
+        w = max(len(room.name) * 1.55 + 4, 15) if not small else len(room.name) * 1.3 + 2.6
+        h = gap * len(lines) + 0.6
+        spot = _inside(face, at, w / K, h / K, taken)
+        if spot:
+            break
+    else:
+        raise SystemExit(f"{storey.code}: no room for the stamp of {room.name}")
+    x, y = spot
+    # The box's middle is half a line above its text's middle.
+    y += gap / 2 - 0.6
     top = y - gap * (len(lines) - 1) / 2
-    out = []
-    w = max(len(room.name) * 1.55 + 4, 15) if not small else len(room.name) * 1.3 + 4
-    h = gap * len(lines) + 0.6
-    out.append(f'<rect x="{x - w / 2:.2f}" y="{top - gap + 0.3:.2f}" width="{w:.2f}" height="{h:.2f}" fill="#fff" '
-               f'stroke="#555" stroke-width="0.15" rx="0.6"/>')
+    out = [f'<rect x="{x - w / 2:.2f}" y="{top - gap + 0.3:.2f}" width="{w:.2f}" height="{h:.2f}" fill="#fff" '
+           f'stroke="#555" stroke-width="0.15" rx="0.6"/>']
     for i, (s, size, weight, fill) in enumerate(lines):
         out.append(text(x, top + i * gap, s, size, weight=weight, fill=fill))
     return out
@@ -632,8 +675,9 @@ def sheet(storey: Storey, index: int, total: int) -> str:
     parts += draw_windows(storey)
     parts += draw_doors(storey)
     parts += draw_stair(storey)
+    taken = symbols(storey)
     for room, face in rooms:
-        parts += stamp(room, face, storey)
+        parts += stamp(room, face, storey, taken)
     parts += dimensions(storey)
     parts += legend_and_frame(storey, index, total, rooms)
     body = "\n".join(parts)
