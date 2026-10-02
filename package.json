@@ -37,6 +37,7 @@
     "lod2-core": "file:lod2/lod2-core",
     "lucide-react": "^1.41.0",
     "maplibre-gl": "^5.24.0",
+    "pdfjs-dist": "6.3.289",
     "react": "~19.2.8",
     "react-dom": "~19.2.8",
     "socket.io-client": "^4.8.4",

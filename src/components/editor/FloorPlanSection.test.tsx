@@ -87,4 +87,30 @@ describe("reading a floor plan", () => {
     useEditorStore.getState().undo();
     expect(useEditorStore.getState().building).toEqual(before);
   });
+
+  it("reads an image pasted with Ctrl+V", async () => {
+    service(true);
+    render(<FloorPlanSection />);
+    await screen.findByLabelText("Read floor plan");
+    const plan = new File(["png"], "image.png", { type: "image/png" });
+    const paste = Object.assign(new Event("paste", { bubbles: true, cancelable: true }), {
+      clipboardData: {
+        items: [{ kind: "file", type: "image/png", getAsFile: () => plan }],
+      },
+    });
+    document.body.dispatchEvent(paste);
+    expect(await screen.findByText("6 interior walls and 8 doors found")).toBeTruthy();
+    expect(paste.defaultPrevented).toBe(true);
+  });
+
+  it("hands a picked PDF over to the PDF import", async () => {
+    service(true);
+    const onPdf = vi.fn();
+    render(<FloorPlanSection onPdf={onPdf} />);
+    const input = await screen.findByLabelText("Read floor plan");
+    const pdf = new File(["%PDF"], "plans.pdf", { type: "application/pdf" });
+    fireEvent.change(input, { target: { files: [pdf] } });
+    expect(onPdf).toHaveBeenCalledWith(pdf);
+    expect(screen.queryByText("AI is reading the floor plan")).toBeNull();
+  });
 });

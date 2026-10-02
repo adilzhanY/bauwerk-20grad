@@ -34,7 +34,8 @@ import { OpeningsToolbar, SummaryStrip } from "@/components/photo-editor/Opening
 import { CornerTable, PhotoDetails } from "@/components/photo-editor/PhotoDetails";
 import { PhotoEmptyState } from "@/components/photo-editor/PhotoEmptyState";
 import { PhotoStage } from "@/components/photo-editor/PhotoStage";
-import { pastedImage, sampleFile } from "@/components/photo-editor/samples";
+import { sampleFile } from "@/components/photo-editor/samples";
+import { pastedImage } from "@/lib/clipboard";
 import { EditorNotices } from "@/components/photo-editor/EditorNotices";
 import type {
   EditorMode,

@@ -25,7 +25,11 @@ export function fileLabel(
 }
 
 /** A storey's floor plan picture as a preview item. */
-export function planPreview(url: string, storeyName: string, word: string): PreviewItem {
+export function planPreview(
+  url: string,
+  storeyName: string,
+  word: string,
+): Extract<PreviewItem, { kind: "url" }> {
   return {
     kind: "url",
     title: `${word}, ${storeyName}`,

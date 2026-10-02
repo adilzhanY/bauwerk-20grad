@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { aiOffText } from "@/lib/aiHost";
-import { ArrowRight, Camera, HousePlus, ImagePlus, Rows3 } from "lucide-react";
+import { ArrowRight, Camera, FileUp, HousePlus, ImagePlus, Rows3 } from "lucide-react";
 import { CustomButton } from "@/components/shared/CustomButton";
 import { CustomDialog } from "@/components/shared/CustomDialog";
 import { CustomIconButton } from "@/components/shared/CustomIconButton";
@@ -27,6 +27,8 @@ import type { PreviewItem } from "./FilePreview";
 import { FilesSection } from "./FilesSection";
 import { FloorPlanSection } from "./FloorPlanSection";
 import { NewBuildingDialog } from "./NewBuildingDialog";
+import { PdfImportDialog } from "./PdfImportDialog";
+import { deleteFloorPlan } from "./deleteFloorPlan";
 import { SettingsSection } from "./SettingsSection";
 import { SurveyRow, Thumb } from "./SurveyRow";
 import { UnderlaySection } from "./UnderlaySection";
@@ -111,9 +113,44 @@ export function LeftPanel() {
 function StoreysSurvey({ onPreview }: { onPreview: (item: PreviewItem) => void }) {
   const t = useT();
   const storeys = useEditorStore((s) => s.building.storeys);
+  const role = useEditorStore((s) => s.projectRole);
+  const editor = role === null || can(role, "edit");
   const [planFor, setPlanFor] = useState<Storey | null>(null);
+  const [pdf, setPdf] = useState<File | null>(null);
+  const pdfInput = useRef<HTMLInputElement>(null);
   return (
-    <CustomSection title={t("survey.storeys")} first>
+    <CustomSection
+      title={t("survey.storeys")}
+      first
+      action={
+        editor &&
+        storeys.length > 0 && (
+          <>
+            <CustomIconButton
+              label={t("survey.importPdf")}
+              size="sm"
+              onClick={() => {
+                pdfInput.current?.click();
+              }}
+            >
+              <FileUp size={15} />
+            </CustomIconButton>
+            <input
+              ref={pdfInput}
+              type="file"
+              accept="application/pdf"
+              className="hidden"
+              aria-label={t("survey.importPdf")}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) setPdf(file);
+                e.target.value = "";
+              }}
+            />
+          </>
+        )
+      }
+    >
       <Presence show={storeys.length === 0}>
         <Hint>{t("empty.body")}</Hint>
       </Presence>
@@ -133,6 +170,20 @@ function StoreysSurvey({ onPreview }: { onPreview: (item: PreviewItem) => void }
             storey={storey}
             onClose={() => {
               setPlanFor(null);
+            }}
+            onPdf={(file) => {
+              setPlanFor(null);
+              setPdf(file);
+            }}
+          />
+        )}
+      </Presence>
+      <Presence value={pdf} kind="float">
+        {(file) => (
+          <PdfImportDialog
+            file={file}
+            onClose={() => {
+              setPdf(null);
             }}
           />
         )}
@@ -179,7 +230,21 @@ function StoreyBlock({
         meta={plan ? undefined : t("survey.missing")}
         muted={!plan}
         onSelect={() => {
-          if (plan) onPreview(planPreview(plan.url, storey.name, t("tree.floorPlan")));
+          if (plan)
+            onPreview({
+              ...planPreview(plan.url, storey.name, t("tree.floorPlan")),
+              // People who may edit can delete the drawing; the walls read from it stay.
+              remove: editor
+                ? {
+                    label: t("survey.deletePlan"),
+                    title: t("survey.deletePlanTitle", { storey: storey.name }),
+                    body: t("survey.deletePlanBody"),
+                    run: () => {
+                      deleteFloorPlan(storey.id);
+                    },
+                  }
+                : undefined,
+            });
           else if (editor) onAddPlan();
         }}
         action={
@@ -220,7 +285,15 @@ function StoreyBlock({
  * "Add plan" for one storey: the AI reads the drawing onto the storey (FloorPlanSection), and
  * below it, folded, a drawing laid under the model to trace by hand.
  */
-function FloorPlanDialog({ storey, onClose }: { storey: Storey; onClose: () => void }) {
+function FloorPlanDialog({
+  storey,
+  onClose,
+  onPdf,
+}: {
+  storey: Storey;
+  onClose: () => void;
+  onPdf: (file: File) => void;
+}) {
   const t = useT();
   const setActiveStorey = useEditorStore((s) => s.setActiveStorey);
   const available = useFloorplanAvailable();
@@ -235,7 +308,9 @@ function FloorPlanDialog({ storey, onClose }: { storey: Storey; onClose: () => v
       onClose={onClose}
       width={560}
     >
-      <div className="flex max-h-[70vh] flex-col gap-3 overflow-y-auto">
+      {/* The underlay below reaches to the dialog's edges: the scroll box spans them too, or
+          it would scroll sideways. */}
+      <div className="-mx-5 flex max-h-[70vh] flex-col gap-3 overflow-y-auto px-5">
         <Presence show={available === null}>
           <Spinner />
         </Presence>
@@ -244,7 +319,7 @@ function FloorPlanDialog({ storey, onClose }: { storey: Storey; onClose: () => v
             {aiOffText(t)} {t("survey.planServiceDown")}
           </Hint>
         </Presence>
-        <FloorPlanSection onApplied={onClose} />
+        <FloorPlanSection onApplied={onClose} onPdf={onPdf} />
         <div className="-mx-4">
           <UnderlaySection collapsible />
         </div>
