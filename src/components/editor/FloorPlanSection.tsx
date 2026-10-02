@@ -3,6 +3,7 @@ import { LayoutGrid, X } from "lucide-react";
 import { floorPlanEdits } from "@/geometry/floorPlanImport";
 import { useT } from "@/i18n/useT";
 import { formatNumber } from "@/lib/format";
+import { errorText } from "@/lod2/api/errors";
 import { readFloorPlan, toPlanImage, useFloorplanAvailable } from "@/lod2/api/floorplan";
 import type { FloorPlanReading } from "@/lod2/api/floorplan";
 import { AiScan } from "@/components/shared/ai/AiScan";
@@ -109,7 +110,7 @@ export function FloorPlanSection({
       setResult({ reading, url, seconds: (performance.now() - startedAt) / 1000 });
     } catch (e) {
       URL.revokeObjectURL(url);
-      setError(e instanceof Error ? e.message : String(e));
+      setError(errorText(e, t));
     } finally {
       setJob(null);
     }

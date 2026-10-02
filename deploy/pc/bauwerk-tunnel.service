@@ -1,12 +1,13 @@
-# The Cloudflare Tunnel that carries bauwerk-demo.xyz to the web container on port 8088.
-# The token is in ~/.config/bauwerk/tunnel-token (Cloudflare, Zero Trust, Networks, Tunnels).
-# While it runs the PC does not suspend when idle, or the site would go down with it.
+# The Cloudflare Tunnel that carries vision.<domain> and plans.<domain> from the server to the
+# AI services on this PC (deploy/README.md, "Website on a server, AI on this PC"). Its settings
+# are in ~/.config/bauwerk/tunnel.yml. While it runs the PC does not suspend when idle, or the
+# site's AI would go away with it.
 [Unit]
 Description=Bauwerk Cloudflare Tunnel
 After=network-online.target
 
 [Service]
-ExecStart=/usr/bin/systemd-inhibit --what=sleep --who=Bauwerk --why="Serving bauwerk-demo.xyz" %h/.local/bin/cloudflared tunnel --no-autoupdate run --token-file %h/.config/bauwerk/tunnel-token
+ExecStart=/usr/bin/systemd-inhibit --what=sleep --who=Bauwerk --why="Serving the AI of bauwerk-demo.xyz" %h/.local/bin/cloudflared tunnel --no-autoupdate --config %h/.config/bauwerk/tunnel.yml run
 Restart=on-failure
 RestartSec=10
 

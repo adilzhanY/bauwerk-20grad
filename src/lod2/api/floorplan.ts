@@ -7,7 +7,7 @@ import { authHeaders } from "@/auth/api";
 import { useEffect, useState } from "react";
 import { z } from "zod";
 import type { Vec2 } from "@/geometry/types";
-import { postInLine } from "./queue";
+import { aiDownError, aiUnreachable, postInLine } from "./queue";
 
 const BASE = "/floorplan";
 const POLL_MS = 15000;
@@ -88,6 +88,7 @@ export async function readFloorPlan(
   form.append("plan", plan, "plan.png");
   form.append("footprint", JSON.stringify(footprint.map((p) => ({ x: p.x, y: p.y }))));
   const res = await postInLine(BASE, "/walls", form, signal, onAhead);
+  if (aiUnreachable(res.status)) throw aiDownError("plan");
   if (!res.ok) {
     const detail = ((await res.json().catch(() => ({}))) as { detail?: unknown }).detail;
     throw new Error(typeof detail === "string" ? detail : `lod2-floorplan ${String(res.status)}`);

@@ -4,7 +4,9 @@ Local vision service for the LoD2 viewer: SAM 3 behind two routes.
   POST /corners   photo + wall size in metres  ->  four corners, hidden-base fraction,
                   and the photo with occluders painted flat (base64 JPEG)
   POST /openings  rectified wall image + pixels per metre  ->  windows and doors in metres
-  GET  /queue/<id>  how many jobs are ahead of this one (the browser sends <id> as X-Job-Id)
+  GET  /queue/<id>  how many jobs are ahead of this one (the browser sends <id> as X-Job-Id),
+                  or {done: true} once its answer waits
+  GET  /result/<id> the answer of a job posted with "Prefer: respond-async" (which returns 202)
   GET  /health    model and device
 
 Listens on 127.0.0.1 only. There is no authentication, like lod2-api, and for the same
@@ -52,11 +54,11 @@ import torch  # noqa: E402
 import uvicorn  # noqa: E402
 from fastapi import FastAPI, File, Form, Header, HTTPException, Request, UploadFile  # noqa: E402
 from fastapi.exceptions import RequestValidationError  # noqa: E402
-from fastapi.responses import JSONResponse  # noqa: E402
+from fastapi.responses import JSONResponse, Response  # noqa: E402
 from huggingface_hub.errors import HfHubHTTPError, LocalEntryNotFoundError  # noqa: E402
 from PIL import Image, ImageOps  # noqa: E402
 
-from gpu_queue import Abandoned, GpuLine  # noqa: E402
+from gpu_queue import Abandoned, GpuLine, Jobs  # noqa: E402
 from pipeline import Sam3, find_openings, find_wall  # noqa: E402
 
 # Loopback on the development PC. On a rented GPU instance the provider's proxy has to reach
@@ -77,8 +79,9 @@ HF_HELP = (
 OUT_OF_MEMORY = "The GPU ran out of memory on this image. Close other programs that use the GPU and try again."
 
 sam: Sam3 | None = None
-# One model serves every request, and sync routes run in a thread pool, so jobs take turns.
+# One line for the card, shared with lod2-floorplan: one AI job at a time on this computer.
 gpu_line = GpuLine()
+jobs = Jobs()
 
 
 def fail(message: str) -> None:
@@ -185,11 +188,23 @@ def gpu_memory() -> dict:
 
 @app.get("/queue/{job_id}")
 def queue(job_id: str) -> dict:
-    """Jobs ahead of this one; 0 while it runs. 404 before it arrives and after it ends."""
+    """Jobs ahead of this one (0 while it runs), done once its answer waits, else 404."""
+    if jobs.finished(job_id):
+        return {"ahead": 0, "done": True}
     ahead = gpu_line.ahead(job_id)
     if ahead is None:
         raise HTTPException(404, "No such job in line.")
     return {"ahead": ahead}
+
+
+@app.get("/result/{job_id}")
+def result(job_id: str) -> Response:
+    """A background job's answer, once, with the status it would have had."""
+    got = jobs.collect(job_id)
+    if got is None:
+        raise HTTPException(404, "No answer for this job.")
+    status, body = got
+    return JSONResponse(status_code=status, content=body)
 
 
 @app.get("/health")
@@ -203,25 +218,30 @@ def corners(
     wallWidth: float = Form(..., gt=0),
     wallHeight: float = Form(..., gt=0),
     x_job_id: str | None = Header(None),
-) -> dict:
+    prefer: str | None = Header(None),
+):
     image = read_image(photo)
-    try:
-        result = run_model(x_job_id, find_wall, image, wallWidth, wallHeight)
-    except ValueError as exc:
-        raise HTTPException(422, str(exc)) from exc
-    buf = io.BytesIO()
-    result.painted_photo.save(buf, format="JPEG", quality=90)
-    return {
-        "width": image.width,
-        "height": image.height,
-        "corners": result.corners,
-        "baseHidden": round(result.base_hidden, 3),
-        "bottomFromVanishingPoint": result.bottom_from_vanishing_point,
-        "facadeScore": round(result.facade_score, 3),
-        "facadePrompt": result.facade_prompt,
-        "seconds": round(result.seconds, 2),
-        "paintedPhoto": "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode("ascii"),
-    }
+
+    def work() -> dict:
+        try:
+            found = run_model(x_job_id, find_wall, image, wallWidth, wallHeight)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        buf = io.BytesIO()
+        found.painted_photo.save(buf, format="JPEG", quality=90)
+        return {
+            "width": image.width,
+            "height": image.height,
+            "corners": found.corners,
+            "baseHidden": round(found.base_hidden, 3),
+            "bottomFromVanishingPoint": found.bottom_from_vanishing_point,
+            "facadeScore": round(found.facade_score, 3),
+            "facadePrompt": found.facade_prompt,
+            "seconds": round(found.seconds, 2),
+            "paintedPhoto": "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode("ascii"),
+        }
+
+    return jobs.respond(x_job_id, prefer, work)
 
 
 @app.post("/openings")
@@ -229,10 +249,15 @@ def openings(
     image: UploadFile = File(...),
     pixelsPerMetre: float = Form(100.0, gt=0),
     x_job_id: str | None = Header(None),
-) -> dict:
+    prefer: str | None = Header(None),
+):
     rectified = read_image(image)
-    found = run_model(x_job_id, find_openings, rectified, pixelsPerMetre)
-    return {"openings": [asdict(o) for o in found]}
+
+    def work() -> dict:
+        found = run_model(x_job_id, find_openings, rectified, pixelsPerMetre)
+        return {"openings": [asdict(o) for o in found]}
+
+    return jobs.respond(x_job_id, prefer, work)
 
 
 if __name__ == "__main__":

@@ -13,7 +13,7 @@ import {
   type VisionOpening,
 } from "lod2-core/api";
 import { UserError } from "./errors.ts";
-import { postInLine } from "./queue.ts";
+import { aiDownError, aiUnreachable, postInLine } from "./queue.ts";
 
 const BASE = "/vision";
 
@@ -33,8 +33,8 @@ async function postForm(
 
 /** An error the user can act on, rather than a status code. */
 function describeFailure(status: number, text: string): Error {
-  // The Vite proxy answers 502 or 504 when nothing listens on the service's port.
-  if (status === 502 || status === 504) return new UserError("photo.error.visionDown");
+  // Nothing listens (the Vite proxy's 502 or 504), or the PC with the card is off (Cloudflare's 530).
+  if (aiUnreachable(status)) return aiDownError("vision");
   // The service's own explanation is in English and passed on as it is.
   const detail = readDetail(text);
   return detail ? new Error(detail) : new UserError("photo.error.visionFailed", { status });

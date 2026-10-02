@@ -162,7 +162,8 @@ stays hidden. The PC has to stay on.
   to `http://localhost:8790`. The vision service stays on loopback; the key keeps the public
   vision address closed to everyone but the site's proxy.
 - Two user services, linked from `deploy/pc/`: `bauwerk-vision` (SAM 3, about 3.5 GB of
-  graphics memory) and `bauwerk-tunnel` (cloudflared, token in `~/.config/bauwerk/tunnel-token`).
+  graphics memory) and `bauwerk-tunnel` (cloudflared, settings in `~/.config/bauwerk/tunnel.yml`
+  as in the next section, with one more hostname: `<domain>` to `http://localhost:8088`).
   While the tunnel runs, the PC does not suspend when idle. `npm run dev` uses the running
   vision service instead of starting a second one.
 
@@ -184,9 +185,18 @@ floor plan reading run on this PC's graphics card and reach the server through a
 Tunnel. When the PC is off, the site keeps working and every AI button says so: "The AI runs on
 Adil's PC, which is turned off right now."
 
-1. Cloudflare dashboard, Zero Trust, Networks, Tunnels: create a tunnel, copy its token into
-   `~/.config/bauwerk/tunnel-token` (`chmod 600`). Public hostnames:
-   `vision.<domain>` to `http://localhost:8790`, `plans.<domain>` to `http://localhost:8791`.
+1. The tunnel, from this PC: `cloudflared tunnel login` (pick the domain in the browser), then
+
+   ```bash
+   cloudflared tunnel create bauwerk-pc
+   cloudflared tunnel route dns bauwerk-pc vision.<domain>
+   cloudflared tunnel route dns bauwerk-pc plans.<domain>
+   ```
+
+   and `~/.config/bauwerk/tunnel.yml` with the tunnel's id, its credentials file and the two
+   hostnames: `vision.<domain>` to `http://127.0.0.1:8790`, `plans.<domain>` to
+   `http://127.0.0.1:8791`, anything else `http_status:404`.
+
 2. `deploy/.env.pc` on this PC (ignored by git): `VISION_KEY=<a long random string>`. Both
    services refuse every request without it, so the public tunnel addresses are closed to all
    but the server.
@@ -203,3 +213,11 @@ systemctl --user enable --now bauwerk-vision bauwerk-floorplan bauwerk-tunnel
 
 Only signed in people reach the AI: Caddy asks the collaboration server about the request's
 token before it passes anything on (`signed_in` in the Caddyfile).
+
+One AI job at a time: both services take turns on the card in one line (`gpu_queue.py`, a folder
+of ticket files both read), first come first served, so a plan waits behind someone's photo and
+the other way round, and the waiting person sees how many jobs are ahead. An upload returns at
+once (202) and the browser asks every second for its place and collects the answer when it is
+done, so no request waits in line: Cloudflare cuts any request after 100 seconds. A job whose
+browser stopped asking is dropped when its turn comes; more than 12 waiting jobs and new ones are
+turned away.
