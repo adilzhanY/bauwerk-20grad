@@ -104,6 +104,22 @@ describe("SyncClient", () => {
     expectConverged(a, b);
   });
 
+  it("keeps someone's new selection when an older presence list arrives after it", () => {
+    const b = openTab("b");
+    openTab("a");
+    hub.flush();
+    const wall = { kind: "wall", storeyId: ground(b.store.getState().building).id, wallIndex: 1 };
+    // The list was read on the server just before a's selection got there.
+    b.socket.fire("selection", { clientId: "a", selection: wall });
+    b.socket.fire("presence", {
+      actors: [
+        { clientId: "a", actor: "a", color: "#123456", selection: null },
+        { clientId: "b", actor: "b", color: "#123456", selection: null },
+      ],
+    });
+    expect(b.store.getState().presence.find((p) => p.clientId === "a")?.selection).toEqual(wall);
+  });
+
   it("opens the project with an empty history and sends a local edit as one batch", () => {
     const a = openTab("a");
     a.store.getState().renameBuilding("Local draft");

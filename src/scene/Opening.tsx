@@ -4,10 +4,10 @@ import type { Wall } from "@/geometry/walls";
 import type { Id, Opening as OpeningData } from "@/geometry/types";
 import { colors } from "@/lib/colors";
 import type { StoreyDisplay } from "./display";
-import { sameSelection, useEditorStore } from "@/store/building";
+import { useEditorStore } from "@/store/building";
 import type { Selection } from "@/store/building";
 import { useGhost } from "./ghost";
-import { useHover, useMarked } from "./hover";
+import { useHover, useMarked, useRemoteColor } from "./hover";
 import { yawFor } from "./three";
 import { pointOnVertical } from "./tools/plane";
 import { useDragLock } from "./tools/useDragLock";
@@ -45,9 +45,7 @@ export function Opening({
     [storeyId, opening.id],
   );
   const { selected, hovered } = useMarked(target);
-  const remoteColor = useEditorStore(
-    (s) => s.presence.find((p) => sameSelection(p.selection, target))?.color ?? null,
-  );
+  const remoteColor = useRemoteColor(target);
   // Someone else is dragging this opening: follow their drag live and keep hands off.
   const remoteDrag = useEditorStore((s) =>
     s.presence.find((p) => p.dragging?.id === opening.id && p.dragging.storeyId === storeyId),

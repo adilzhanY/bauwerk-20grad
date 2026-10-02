@@ -426,6 +426,17 @@ describe("Socket.IO", () => {
     expect(a.received.some((m) => m.event === "drag")).toBe(false);
   });
 
+  it("passes a view on with its mode and plan zoom, for whoever follows", async () => {
+    const { id } = await createHouse();
+    const a = await tab(id, "a");
+    const b = await tab(id, "b");
+    const view = { position: [1, 20, 2], target: [1, 0, 2], storeyId: "s1", plan: true, zoom: 40 };
+    a.socket.emit("view", view);
+    expect(await b.next("view")).toEqual({ clientId: "a", ...view });
+    a.socket.emit("view", { ...view, plan: "yes", zoom: -3 });
+    expect(await b.next("view")).toMatchObject({ plan: false, zoom: null });
+  });
+
   it("relays a selection to the others and shows it in the presence list", async () => {
     const { id } = await createHouse();
     const a = await tab(id, "a");

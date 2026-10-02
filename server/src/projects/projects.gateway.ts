@@ -367,9 +367,17 @@ export class ProjectsGateway
     const { projectId, clientId } = member(socket);
     if (!projectId || !isRecord(body) || !isVec3(body.position) || !isVec3(body.target)) return;
     const storeyId = isText(body.storeyId, 128) ? body.storeyId : null;
-    socket.volatile
-      .to(room(projectId))
-      .emit("view", { clientId, position: body.position, target: body.target, storeyId });
+    // Plan or 3D, and the plan's zoom: a follower mirrors the view, not only the camera.
+    const plan = body.plan === true;
+    const zoom = isNumber(body.zoom) && body.zoom > 0 ? body.zoom : null;
+    socket.volatile.to(room(projectId)).emit("view", {
+      clientId,
+      position: body.position,
+      target: body.target,
+      storeyId,
+      plan,
+      zoom,
+    });
   }
 
   async handleDisconnect(socket: Socket) {

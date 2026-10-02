@@ -14,11 +14,16 @@ export interface DragPreview {
   offset: number;
 }
 
-/** Where a tab's camera is: world position and orbit target, and the storey it shows. */
+/**
+ * Where a tab's camera is: world position and orbit target, the storey it shows, whether it
+ * is the 2D plan (with the plan's zoom) or the 3D view. The elevations are 3D cameras.
+ */
 export interface SharedView {
   position: [number, number, number];
   target: [number, number, number];
   storeyId: string | null;
+  plan?: boolean;
+  zoom?: number | null;
 }
 
 interface Listener {
