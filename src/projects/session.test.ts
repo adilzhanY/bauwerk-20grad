@@ -1,6 +1,7 @@
 import { normalizeWalls } from "@/geometry/wallGraph";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { useRouter } from "@/app/router";
+import { useAuth } from "@/auth/store";
 import type { Building } from "@/geometry/types";
 import { exampleHouse } from "@/lib/examples";
 import { listProjectCopies } from "@/lib/storage";
@@ -12,6 +13,7 @@ import {
   openForWork,
   openProjectCard,
   saveProject,
+  startAutoSave,
   startLeaveGuard,
   useLeave,
 } from "./session";
@@ -166,5 +168,48 @@ describe("unsaved work", () => {
     useRouter.getState().navigate({ page: "building", gid: "DEBE02YY40000BOo" });
     expect(useRouter.getState().route).toEqual({ page: "building", gid: "DEBE02YY40000BOo" });
     expect(useLeave.getState().answer).toBeNull();
+  });
+});
+
+describe("saving by itself", () => {
+  let stopAutoSave: () => void = () => undefined;
+  beforeEach(() => {
+    useAuth.setState({ status: "off", account: null });
+  });
+  afterEach(() => {
+    stopAutoSave();
+  });
+
+  it("saves a chosen building as soon as it opens", async () => {
+    stopAutoSave = startAutoSave();
+    await openForWork(boo(), undefined, { fresh: true });
+    await expect.poll(() => listProjectCopies()).toHaveLength(1);
+    expect(isUnsaved()).toBe(false);
+  });
+
+  it("saves the building made in the editor only at its first change, even a window moved", async () => {
+    stopAutoSave = startAutoSave();
+    await Promise.resolve();
+    expect(listProjectCopies()).toEqual([]);
+    const storey = useEditorStore.getState().building.storeys[0];
+    const window = storey?.openings[0];
+    if (!storey || !window) throw new Error("the example house has windows");
+    useEditorStore.getState().updateOpening(storey.id, window.id, { offset: window.offset + 0.1 });
+    await expect.poll(() => listProjectCopies()).toHaveLength(1);
+    expect(isUnsaved()).toBe(false);
+    // Saved once: further changes go into the same project.
+    useEditorStore.getState().setWallThickness(0.4);
+    await Promise.resolve();
+    expect(listProjectCopies()).toHaveLength(1);
+  });
+
+  it("waits for the sign-in state before it saves", async () => {
+    useAuth.setState({ status: "loading", account: null });
+    stopAutoSave = startAutoSave();
+    await openForWork(boo(), undefined, { fresh: true });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(listProjectCopies()).toEqual([]);
+    useAuth.setState({ status: "signedOut", account: null });
+    await expect.poll(() => listProjectCopies()).toHaveLength(1);
   });
 });

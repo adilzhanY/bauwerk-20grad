@@ -262,7 +262,7 @@ export const en = {
   "project.saveShortcut": "Save project (Ctrl+S)",
   "leave.title": "Save this project?",
   "leave.body":
-    "This project is not saved yet. If you leave without saving, its model, photos and floor plans are gone.",
+    "This project could not be saved yet. If you leave without saving, its model, photos and floor plans are gone.",
   "leave.discard": "Don't save",
   "sync.rejected":
     "Your last change was taken back: {reason}. Someone changed the same part at the same moment.",

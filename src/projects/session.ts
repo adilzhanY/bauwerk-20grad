@@ -1,8 +1,9 @@
 /**
- * The project the editor works on, from start to save. A project exists only once it was
- * saved: until then the work lives in this tab alone, and leaving it asks whether to save.
- * After the first Save a server project syncs live with everyone in it, and a project in
- * this browser keeps every change, so there is nothing more to save by hand.
+ * The project the editor works on, from start to save. Work is saved by itself as soon as
+ * there is any (startAutoSave): a building chosen from the map, the search or a photo as it
+ * opens, a building made in the editor at its first change. A server project then syncs live
+ * with everyone in it, and a project in this browser keeps every change, so there is nothing
+ * to save by hand. Only when saving failed does leaving ask whether to save.
  *
  * Every new project starts from the building it is given and nothing else: no copy kept for
  * the same house, no photos or floor plans of the project open before, no undo back into it.
@@ -12,6 +13,7 @@
 import { create } from "zustand";
 import type { Route } from "@/app/router";
 import { setLeaveGuard } from "@/app/router";
+import { useAuth } from "@/auth/store";
 import type { Building } from "@/geometry/types";
 import { randomId } from "@/lib/ids";
 import { loadProjectCopy, saveProjectCopy } from "@/lib/storage";
@@ -199,6 +201,52 @@ export function confirmLeave(): Promise<boolean> {
 function insideProject(route: Route, gid: string | undefined): boolean {
   if (route.page === "building") return gid !== undefined && route.gid === gid;
   return route.page === "editor" || route.page === "variants" || route.page === "report";
+}
+
+/** After a failed save, the next try waits this long (the server may be restarting). */
+const RETRY_SAVE_MS = 30_000;
+
+/**
+ * Saves work as soon as it is unsaved. A building with project facts (chosen from the map, the
+ * search or a photo) is a project the moment it opens; a building made in the editor (the
+ * default house, an example, New building) becomes one at its first change, even a window
+ * moved. So a reload or a closed tab loses nothing: a page cannot show its own question in
+ * front of those, only the browser's. A failed save is tried again on a later change, after a
+ * pause; until then the leave guard still asks.
+ */
+export function startAutoSave(): () => void {
+  let pausedUntil = 0;
+  let pending = false;
+  const attempt = () => {
+    if (pending || Date.now() < pausedUntil || !isUnsaved()) return;
+    pending = true;
+    // Signed in or not is known first, so the project is made with its owner.
+    void authSettled()
+      .then(() => (isUnsaved() ? saveProject() : true))
+      .then((saved) => {
+        if (!saved) pausedUntil = Date.now() + RETRY_SAVE_MS;
+      })
+      .finally(() => {
+        pending = false;
+      });
+  };
+  attempt();
+  // After the change is in the store, not inside it: saving writes to the store too.
+  return useEditorStore.subscribe(() => {
+    queueMicrotask(attempt);
+  });
+}
+
+/** Resolves once the sign-in state is known (at once, unless the page is still asking). */
+function authSettled(): Promise<void> {
+  if (useAuth.getState().status !== "loading") return Promise.resolve();
+  return new Promise((resolve) => {
+    const stop = useAuth.subscribe((state) => {
+      if (state.status === "loading") return;
+      stop();
+      resolve();
+    });
+  });
 }
 
 /**

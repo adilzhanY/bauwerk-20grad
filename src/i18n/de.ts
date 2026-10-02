@@ -269,7 +269,7 @@ export const de: Messages = {
   "project.saveShortcut": "Projekt speichern (Strg+S)",
   "leave.title": "Projekt speichern?",
   "leave.body":
-    "Dieses Projekt ist noch nicht gespeichert. Wenn Sie ohne Speichern gehen, sind Modell, Fotos und Grundrisse verloren.",
+    "Dieses Projekt konnte noch nicht gespeichert werden. Wenn Sie ohne Speichern gehen, sind Modell, Fotos und Grundrisse verloren.",
   "leave.discard": "Nicht speichern",
   "sync.rejected":
     "Ihre letzte Änderung wurde zurückgenommen: {reason}. Jemand hat gleichzeitig denselben Teil geändert.",
