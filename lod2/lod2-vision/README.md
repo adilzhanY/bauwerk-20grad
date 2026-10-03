@@ -45,7 +45,7 @@ Then from the repo root:
 npm run vision                         # port 8790
 ```
 
-The model loads when the service starts, before the port opens. The first start downloads about 3.4 GB into the Hugging Face cache (set `HF_HOME` in the root `.env` to move it). The service prints a ready line when it can take requests.
+The model loads with the first job, not when the service starts, and is let go after 10 minutes without one (`LOD2_VISION_IDLE_MINUTES`): while nobody uses the site, the service holds about 0.2 GB on the graphics card and 1.5 GB of memory instead of 3.4 GB and 7 GB. The first job after a quiet spell waits about 25 seconds while the model loads; the site shows it working. The first load ever downloads about 3.4 GB into the Hugging Face cache (set `HF_HOME` in the root `.env` to move it). Loading onto a card that is too full (a game running) answers 503 with the out of memory message, like a job that does not fit.
 
 `npm run vision` runs `scripts/vision.mjs`, which reads the repo-root `.env`, finds the Python in `.venv` (or `LOD2_VISION_PYTHON`), and starts `server.py`. Settings in `.env`: `HF_TOKEN`, `HF_HOME`, `LOD2_VISION_PORT` (default 8790) and `LOD2_VISION_PYTHON`. Variables already set in the shell win over the file.
 

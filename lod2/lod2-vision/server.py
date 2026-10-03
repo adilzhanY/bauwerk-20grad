@@ -7,7 +7,10 @@ Local vision service for the LoD2 viewer: SAM 3 behind two routes.
   GET  /queue/<id>  how many jobs are ahead of this one (the browser sends <id> as X-Job-Id),
                   or {done: true} once its answer waits
   GET  /result/<id> the answer of a job posted with "Prefer: respond-async" (which returns 202)
-  GET  /health    model and device
+  GET  /health    model, whether it is loaded, and the device
+
+SAM 3 is loaded for the first job and let go after LOD2_VISION_IDLE_MINUTES (10) without one,
+so the graphics card and the memory are free while nobody uses the site.
 
 Listens on 127.0.0.1 only. There is no authentication, like lod2-api, and for the same
 reason: it is a localhost tool.
@@ -17,10 +20,14 @@ Settings such as HF_TOKEN, HF_HOME and LOD2_VISION_PORT may come from the repo-r
 from __future__ import annotations
 
 import base64
+import ctypes
+import gc
 import hmac
 import io
 import os
 import sys
+import threading
+import time
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 from pathlib import Path
@@ -81,6 +88,10 @@ OUT_OF_MEMORY = "The GPU ran out of memory on this image. Close other programs t
 sam: Sam3 | None = None
 # One line for the card, shared with lod2-floorplan: one AI job at a time on this computer.
 gpu_line = GpuLine()
+# The model is let go after this long without a job; the next one loads it again (about 20 s).
+IDLE_S = float(os.environ.get("LOD2_VISION_IDLE_MINUTES", "10")) * 60
+model_lock = threading.Lock()
+last_used = time.monotonic()
 jobs = Jobs()
 
 
@@ -99,13 +110,48 @@ def load_model() -> Sam3:
         fail(f"{HF_HELP}\n({type(exc).__name__}: {str(exc).splitlines()[0]})")
 
 
+def model() -> Sam3:
+    """SAM 3, loaded now if it is not (the first job after a quiet spell waits for it)."""
+    global sam
+    with model_lock:
+        if sam is None:
+            sam = load_model()
+            sam.warm_up()
+            print(f"SAM 3 loaded on {sam.device}", flush=True)
+        return sam
+
+
+def unload_when_idle() -> None:
+    """Lets the model go once nobody has used it for IDLE_S: its gigabytes on the graphics card
+    and in memory go back to the computer. Runs for the life of the service."""
+    global sam
+    while True:
+        time.sleep(30)
+        with model_lock:
+            if sam is None or gpu_line_busy() or time.monotonic() - last_used < IDLE_S:
+                continue
+            sam = None
+            gc.collect()
+            release_gpu_cache()
+            # Python's allocator keeps freed memory for itself; hand it back to the system.
+            try:
+                ctypes.CDLL("libc.so.6").malloc_trim(0)
+            except OSError:
+                pass
+            print("SAM 3 let go after a quiet spell", flush=True)
+
+
+def gpu_line_busy() -> bool:
+    return running_jobs > 0
+
+
+running_jobs = 0
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    global sam
-    sam = load_model()
-    # Before "ready", so the first photo is as fast as every later one.
-    sam.warm_up()
-    print(f"lod2-vision ready on http://{HOST}:{PORT}  (SAM 3 on {sam.device})", flush=True)
+    threading.Thread(target=unload_when_idle, daemon=True).start()
+    print(f"lod2-vision ready on http://{HOST}:{PORT}  (SAM 3 loads with the first job)", flush=True)
     yield
 
 
@@ -159,15 +205,23 @@ def run_model(job_id: str | None, job, *args):
     dropped before the cache is released, because its traceback still holds the tensors that
     filled the card.
     """
-    assert sam is not None
+    global last_used, running_jobs
     out_of_memory = False
     try:
         with gpu_line.turn(job_id):
+            running_jobs += 1
             try:
-                return job(sam, *args)
+                return job(model(), *args)
             except torch.OutOfMemoryError:
                 out_of_memory = True
+            except RuntimeError as exc:
+                # Loading onto a full card fails as a CUDA error, not as OutOfMemoryError.
+                if "out of memory" not in str(exc):
+                    raise
+                out_of_memory = True
             finally:
+                running_jobs -= 1
+                last_used = time.monotonic()
                 release_gpu_cache()
     except Abandoned as exc:
         raise HTTPException(409, "Nobody waits for this job any more.") from exc
@@ -209,7 +263,8 @@ def result(job_id: str) -> Response:
 
 @app.get("/health")
 def health() -> dict:
-    return {"model": "sam3", "device": sam.device if sam else None, "gpu": gpu_memory()}
+    loaded = sam
+    return {"model": "sam3", "loaded": loaded is not None, "device": loaded.device if loaded else None, "gpu": gpu_memory()}
 
 
 @app.post("/corners")
