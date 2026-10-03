@@ -524,6 +524,7 @@ export const en = {
   "facade.detect": "Detect windows",
   "facade.addPhoto": "Add photo",
   "facade.deselect": "Clear the wall selection",
+  "ai.signIn": "The AI is for signed in users. Sign in or create a free account to try it.",
   "ai.off": "The AI is not running right now. Everything else works.",
   "ai.offHost":
     "The AI runs on {host}, which is turned off right now. Everything else works; try the AI again later.",

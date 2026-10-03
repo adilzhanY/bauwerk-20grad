@@ -531,6 +531,8 @@ export const de: Messages = {
   "facade.detect": "Fenster erkennen",
   "facade.deselect": "Wandauswahl aufheben",
   "facade.addPhoto": "Foto hinzufügen",
+  "ai.signIn":
+    "Die KI steht angemeldeten Nutzern zur Verfügung. Melden Sie sich an oder legen Sie kostenlos ein Konto an.",
   "ai.off": "Die KI läuft gerade nicht. Alles andere funktioniert.",
   "ai.offHost":
     "Die KI läuft auf {host}, und der ist gerade ausgeschaltet. Alles andere funktioniert; die KI später noch einmal versuchen.",
