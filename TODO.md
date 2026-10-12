@@ -1235,3 +1235,13 @@ From the product audit and Hannes's two points (calculations come after the surv
 - [x] One tool bar over the view (Select, Wall, Window, Door, Measure, More), the view switch under it (3D, Plan, N, E, S, W, View menu), "+" on the storey card, the tool hint as a status line; keys 1 to 8 in that order.
 - [x] Walk-through findings 10 to 34 for the editor, the Variants step and the photo editor.
 - [ ] Manual check: the editor at 1200, 1280 and 1600 px wide, light and dark, English and German.
+
+## 42. All of Berlin on the server (2026-10-12)
+
+An address search in a part of Berlin the server did not hold yet (Friedenauer Höhe 24) started 16 on-demand tile downloads in 90 s. The API parses them in its own process on the 2-core server, so its map tiles timed out, the map drew no buildings and the search kept waiting. The fix is to hold all of Berlin, so nothing is downloaded while someone uses the site.
+
+- [ ] Load all 925 Berlin tiles on the server. Started 2026-10-12 01:53 UTC in the container `bauwerk-ingest` (one tile at a time, 1 CPU, 1.5 GB). It skips tiles already loaded, so the same command resumes it after any stop: `ssh deploy@138.199.213.29 'cd /srv/bauwerk && docker rm -f bauwerk-ingest; docker compose -f deploy/docker-compose.yml --env-file deploy/.env run -d --no-deps --name bauwerk-ingest lod2-api nice -n 10 node /lod2/lod2-ingest/src/cli.ts tiles --state BE --all --concurrency 1 && docker update --cpus 1 --memory 1500m --memory-swap 1500m bauwerk-ingest'`. Progress: `SELECT status, count(*) FROM tile_status GROUP BY 1` in the postgis container.
+- [ ] When it is done: every tile `ready` or `empty`, `ANALYZE` the building tables, note the database size and the free disk, remove the `bauwerk-ingest` container.
+- [ ] The map heals itself: reload the building tiles after a tile failed and once the server's downloads have finished (a small `/pending` on the API again; it was removed on 2026-10-12 because nothing used it).
+- [ ] Fewer downloads per search: none while the map flies to an address, and the tile under the address first.
+- [ ] Then run `/ponytail-audit` on the whole repo.
