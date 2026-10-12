@@ -111,15 +111,9 @@ function isSelection(value: unknown): boolean {
   }
 }
 
-const isCoordinate = (value: unknown): value is number =>
-  typeof value === "number" && Number.isFinite(value) && Math.abs(value) < 1e5;
-const isPoint = (value: unknown) =>
-  isRecord(value) && isCoordinate(value.x) && isCoordinate(value.y);
+const isPoint = (value: unknown) => isRecord(value) && isNumber(value.x) && isNumber(value.y);
 const isDrag = (value: unknown) =>
-  isRecord(value) &&
-  isText(value.storeyId, 128) &&
-  isText(value.id, 128) &&
-  isCoordinate(value.offset);
+  isRecord(value) && isText(value.storeyId, 128) && isText(value.id, 128) && isNumber(value.offset);
 
 const room = (projectId: string) => `project:${projectId}`;
 const userRoom = (userId: string) => `user:${userId}`;
@@ -307,8 +301,26 @@ export class ProjectsGateway
     };
   }
 
+  /** The last batch of each tab still in progress, so the next one waits for it. */
+  private readonly batches = new WeakMap<Socket, Promise<unknown>>();
+
+  /**
+   * Nest handles one socket's messages concurrently and the client does not wait for an ack
+   * before its next batch, so each tab's batches are applied strictly in the order sent.
+   */
   @SubscribeMessage("ops")
-  async ops(@ConnectedSocket() socket: Socket, @MessageBody() body: unknown) {
+  ops(@ConnectedSocket() socket: Socket, @MessageBody() body: unknown) {
+    const result = (this.batches.get(socket) ?? Promise.resolve()).then(() =>
+      this.applyOps(socket, body),
+    );
+    this.batches.set(
+      socket,
+      result.catch(() => undefined),
+    );
+    return result;
+  }
+
+  private async applyOps(socket: Socket, body: unknown) {
     const { projectId, clientId, actor } = member(socket);
     if (!projectId || !clientId || !actor) return { ok: false, reason: "notJoined" };
     if (!can(member(socket).role, "edit")) return { ok: false, reason: "notAllowed" };

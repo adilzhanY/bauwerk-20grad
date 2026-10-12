@@ -387,6 +387,23 @@ describe("Socket.IO", () => {
     expect(again.joined).toMatchObject({ version: 2, lastSeq: 1 });
   });
 
+  it("applies one tab's batches in the order sent, even when they are not awaited", async () => {
+    const { id, building } = await createHouse();
+    const a = await tab(id, "a");
+    const path = openingPath(building, 0, "width");
+    const widths = Array.from({ length: 30 }, (_, i) => 1 + i / 100);
+    const acks = await Promise.all(
+      widths.map((value, i) =>
+        a.socket.emitWithAck("ops", { seq: i + 1, ops: [{ op: "set", path, value }] }),
+      ),
+    );
+    expect(acks.map((x) => (x as { version: number }).version)).toEqual(
+      widths.map((_, i) => i + 2),
+    );
+    const project = await service.get(id);
+    expect(project?.building.storeys[0]?.openings[0]?.width).toBe(widths.at(-1));
+  });
+
   it("answers a batch that breaks an invariant with the reason and sends nothing", async () => {
     const { id, building } = await createHouse();
     const a = await tab(id, "a");
