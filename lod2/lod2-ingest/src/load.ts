@@ -383,7 +383,10 @@ async function loadTileWithClient(
     } catch (err) {
       await client.query('ROLLBACK').catch(() => {})
       const message = (err as Error).message
-      await markStatus(client, adapter.code, tile, 'failed', { error: message }).catch(() => {})
+      // Stopped on purpose (the API shutting down for a deploy): back in line, not failed, or
+      // the tile would never be fetched again. A timeout is still a failure of the tile.
+      const stopped = opts.signal?.aborted && (opts.signal.reason as Error | undefined)?.name !== 'TimeoutError'
+      await markStatus(client, adapter.code, tile, stopped ? 'unfetched' : 'failed', { error: message }).catch(() => {})
       return failedResult(tile, started, err)
     } finally {
       await client.query('SELECT pg_advisory_unlock($1)', [lockKey.toString()]).catch(() => {})

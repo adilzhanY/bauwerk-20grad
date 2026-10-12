@@ -40,6 +40,7 @@ export interface EnqueueResult {
 
 export class OnDemandFetcher {
   readonly #pool: pg.Pool
+  readonly #load: typeof loadTile
   readonly #queue: Job[] = []
   readonly #inFlight = new Set<string>()
   /** Aborts in-flight downloads when the server shuts down. */
@@ -48,8 +49,10 @@ export class OnDemandFetcher {
   #stopped = false
   #onIdle: (() => void) | null = null
 
-  constructor(pool: pg.Pool) {
+  /** `load` is replaceable so the queue can be tested without a database or a download. */
+  constructor(pool: pg.Pool, load: typeof loadTile = loadTile) {
     this.#pool = pool
+    this.#load = load
   }
 
   get pendingCount(): number {
@@ -126,7 +129,7 @@ export class OnDemandFetcher {
 
     const signal = AbortSignal.any([AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS), this.#shutdown.signal])
     try {
-      const res = await loadTile(this.#pool, job.adapter, job.tile, { skipUnchanged: true, signal })
+      const res = await this.#load(this.#pool, job.adapter, job.tile, { skipUnchanged: true, signal })
       if (res.status === 'failed') {
         console.warn(`on-demand ${job.key} failed: ${res.error}`)
       }
@@ -153,8 +156,10 @@ export async function resetStaleFetching(pool: pg.Pool): Promise<number> {
 }
 
 /**
- * Source tiles covering a web-mercator tile that have never been fetched, or were reset by
- * resetStaleFetching.
+ * Source tiles covering a web-mercator tile that have never been fetched, or that a process
+ * left in 'fetching' longer than STALE_FETCHING_MINUTES ago (it died, or lost its connection
+ * before it could write the outcome). A download still running holds the tile's advisory lock,
+ * so picking its row again costs one skipped job, never a second download.
  *
  * Deliberately excludes 'failed': a tile that already errored should not be retried
  * on every pan across it. Re-running the CLI with --force is the way back.
@@ -172,10 +177,12 @@ export async function findUnfetchedTiles(
        FROM tile_index ti
        LEFT JOIN tile_status ts ON ts.state = ti.state AND ts.tile_id = ti.tile_id
       WHERE ST_Intersects(ti.bbox, ST_Transform(ST_TileEnvelope($1,$2,$3), 4326))
-        AND (ts.status IS NULL OR ts.status = 'unfetched')
+        AND (ts.status IS NULL OR ts.status = 'unfetched'
+             OR (ts.status = 'fetching'
+                 AND (ts.requested_at IS NULL OR ts.requested_at < now() - make_interval(mins => $4))))
       ORDER BY ti.size_bytes ASC
       LIMIT 32`,
-    [z, x, y],
+    [z, x, y, STALE_FETCHING_MINUTES],
   )
 
   const byState = new Map<string, TileRef[]>()
