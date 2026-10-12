@@ -7,7 +7,7 @@ import { readArchiveMember } from '../src/unzip.ts'
  * Build a ZIP by hand rather than committing a binary fixture.
  *
  * The point of the reader is that it understands the container, so the test should be able
- * to say what is in the container — including the awkward parts: a member before the one we
+ * to say what is in the container, including the awkward parts: a member before the one we
  * want, a stored (uncompressed) entry, and a local header whose extra field is a different
  * length from the central directory's, which is where a naive reader lands on the wrong byte.
  */
@@ -58,7 +58,7 @@ const GML = '<?xml version="1.0"?><CityModel><bldg:Building gml:id="x"/></CityMo
 
 test('the wanted member is read past the ones before it', () => {
   // A tile archive can hold the CityGML beside other members, and the order is not
-  // guaranteed — so the reader must select by `archiveMember`, not take the first entry.
+  // guaranteed, so the reader must select by `archiveMember`, not take the first entry.
   const zip = buildZip([
     { name: 'LoD2_389_5819_meta.html', body: '<html>metadata</html>' },
     { name: 'LoD2_389_5819_BE.xml', body: GML },

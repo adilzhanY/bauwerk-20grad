@@ -3,6 +3,7 @@ import { mkdir, rename, stat } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
+import { setImmediate } from 'node:timers/promises'
 import { createReadStream } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { readArchiveMember } from './unzip.ts'
@@ -45,9 +46,20 @@ export interface FetchOptions {
   archiveMember?: RegExp
 }
 
-/** One buffer as the same async text iterable a streamed body produces. */
-async function* textOf(data: Buffer): AsyncGenerator<string> {
-  yield new TextDecoder('utf-8').decode(data)
+/**
+ * One buffer as the same async text iterable a streamed body produces, in slices.
+ *
+ * Handing the parser a whole unzipped tile parses it in one synchronous call; a turn of the
+ * event loop between slices keeps the API answering while an on-demand tile loads.
+ */
+export async function* textOf(data: Uint8Array, sliceBytes = 1 << 20): AsyncGenerator<string> {
+  async function* slices(): AsyncGenerator<Uint8Array> {
+    for (let i = 0; i < data.length; i += sliceBytes) {
+      if (i > 0) await setImmediate()
+      yield data.subarray(i, i + sliceBytes)
+    }
+  }
+  yield* decodeUtf8(slices())
 }
 
 async function existsWithSize(path: string, expected?: number): Promise<boolean> {

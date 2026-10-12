@@ -25,7 +25,7 @@ const poly = (exterior: number[], interiors: number[][] = []): Polygon => ({ ext
 
 /**
  * Unit cube, 1 x 1 x 1, sitting on z = 0, with every face wound counter-clockwise
- * seen from outside — the same convention AdV uses.
+ * seen from outside, the same convention AdV uses.
  */
 const unitCube = (): Polygon[] => [
   poly(ring([0, 0, 0], [0, 1, 0], [1, 1, 0], [1, 0, 0])), // ground, normal -z
@@ -134,7 +134,7 @@ test('polygon with a hole triangulates and loses the hole area', () => {
 test('volume survives being computed at real UTM coordinates', () => {
   // Regression: the divergence-theorem sum is origin-independent in exact arithmetic but
   // not in float64. At EPSG:25832 magnitudes (x~2.8e5, y~5.66e6) an unrebased integration
-  // returned 6.5e7 m3 for a 94 m3 house — pure cancellation noise.
+  // returned 6.5e7 m3 for a 94 m3 house, pure cancellation noise.
   const cube = unitCube()
   const shifted = cube.map((p) => ({
     exterior: p.exterior.map((v, i) => (i % 3 === 0 ? v + 280942 : i % 3 === 1 ? v + 5657541 : v + 38)),
@@ -157,7 +157,7 @@ test('triangulation preserves each face orientation', () => {
   // input winding. That flips every face whose normal points down the dropped axis.
   // It stayed invisible because solidVolume rebases to the solid's minimum corner,
   // and for an axis-aligned box the three faces touching that corner contribute
-  // exactly zero to the integral — and they are precisely the flipped ones.
+  // exactly zero to the integral, and they are precisely the flipped ones.
   const triangulatedNormal = (p: Polygon): Vec3 => {
     const { positions, indices } = triangulatePolygon(p)
     let n: Vec3 = [0, 0, 0]

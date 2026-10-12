@@ -83,9 +83,5 @@ export function functionGroup(code: string | null | undefined): FunctionGroup {
   return 'other'
 }
 
-export function isResidential(code: string | null | undefined): boolean {
-  return functionGroup(code) === 'residential'
-}
-
 export const roofTypeCodes = Object.freeze({ ...roofTypes })
 export const buildingFunctionCodes = Object.freeze({ ...buildingFunctions })

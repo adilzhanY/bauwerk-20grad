@@ -13,7 +13,7 @@ test('roof type codes decode to their AdV labels', () => {
 })
 
 test('building function codes decode to their ALKIS labels', () => {
-  // The sample tile's DENW43AL00001j2X carries this code — a 35 m2 garage.
+  // The sample tile's DENW43AL00001j2X carries this code: a 35 m2 garage.
   assert.equal(buildingFunctionLabel('31001_2460'), 'Gebäude zum Parken')
   assert.equal(buildingFunctionLabel('31001_1010'), 'Wohnhaus')
   assert.equal(buildingFunctionLabel(null), null)

@@ -3,8 +3,8 @@
  *
  * Berlin is the only one here. Adding another state means adding one file beside `be.ts` and
  * registering it below, and nothing else: the crawler, loader, API and viewer are all
- * state-agnostic, and every per-state fact — CRS, tile grid, how the catalogue is discovered,
- * which DOP service to ask — lives on the adapter object.
+ * state-agnostic, and every per-state fact (CRS, tile grid, how the catalogue is discovered,
+ * which DOP service to ask) lives on the adapter object.
  */
 import type { StateAdapter, StateCode } from 'lod2-core'
 import { be } from './be.ts'

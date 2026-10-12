@@ -43,7 +43,7 @@ test('a simple shed-roofed building measures up', async () => {
   assert.ok(Math.abs(m.volume - 93.07) < 0.01)
   assert.deepEqual(m.flags, [], 'clean building should carry no flags')
 
-  // This building is a prism — a flat quadrilateral roof over a flat base — so its
+  // This building is a prism (a flat quadrilateral roof over a flat base), so its
   // volume is exactly footprint x mean height. Held to 0.01% because anything looser
   // hides orientation bugs in the volume integration.
   const meanHeight = (m.eaveHeight! + m.ridgeHeight!) / 2

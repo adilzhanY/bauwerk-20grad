@@ -102,9 +102,6 @@ function ageClass(id: AgeClassId, index: number, storeyHeight: number, wallName:
   }
 }
 
-/** Used when the user has not said: most of Berlin's inner-city housing is pre-1918. */
-export const DEFAULT_AGE_CLASS: AgeClassId = 'bis1918'
-
 export function ageClassById(id: AgeClassId): AgeClass {
   const found = AGE_CLASSES.find((c) => c.id === id)
   if (!found) throw new Error(`Unknown age class ${id}`)

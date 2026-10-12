@@ -25,7 +25,6 @@ test('parses the AdV LoD2 profile off a real CityGML 2.0 tile', async () => {
   assert.equal(summary.buildings, 2)
   assert.equal(summary.parts, 2)
   assert.equal(summary.srsName, 'urn:adv:crs:ETRS89_UTM32*DE_DHHN2016_NH')
-  assert.deepEqual(summary.otherLods, [], 'sample should contain only LoD2 geometry')
   assert.equal(buildings.length, 4)
 })
 
@@ -84,7 +83,7 @@ test('ClosureSurface is kept as its own kind, not folded into walls', async () =
 })
 
 test('Berlin ships CityGML 1.0, and it reads the same as 2.0', async () => {
-  // Most states publish version 2.0 — `nrw-sample.gml` is one of them. `nsOf` classifies by
+  // Most states publish version 2.0, and `nrw-sample.gml` is one of them. `nsOf` classifies by
   // namespace URI rather than by prefix or version, and this is the fixture that proves it
   // rather than asserting it in a comment: the file declares `citygml/building/1.0` throughout.
   const raw = await readFile(fixture('be-sample.gml'), 'utf8')
@@ -104,7 +103,7 @@ test('Berlin ships CityGML 1.0, and it reads the same as 2.0', async () => {
 })
 
 test('Berlin carries contact lines, so its ground warps without a terrain model', async () => {
-  // 2,275 of 2,279 buildings in a central tile have one — which is why the ground surface
+  // 2,275 of 2,279 buildings in a central tile have one, which is why the ground surface
   // can be warped from the models themselves, with no terrain model wired up.
   const { buildings } = await readAll('be-sample.gml')
   const withGeometry = buildings.filter((b) => b.surfaces.length)
@@ -121,7 +120,7 @@ test('Berlin carries contact lines, so its ground warps without a terrain model'
 test('Berlin publishes no addresses, and that is the source, not a parse failure', async () => {
   // Not one of 2,279 buildings in Berlin-Mitte carries an address; the CityGML has no
   // `bldg:address` element at all. Pinned so a future "addresses are broken" report can be
-  // answered without re-deriving it — the fix is a spatial join against the Hauskoordinaten,
+  // answered without re-deriving it. The fix is a spatial join against the Hauskoordinaten,
   // not a parser change.
   const raw = await readFile(fixture('be-sample.gml'), 'utf8')
   assert.ok(!raw.includes('bldg:address'))

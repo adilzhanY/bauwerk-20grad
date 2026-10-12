@@ -68,8 +68,6 @@ export interface ParseSummary {
   buildings: number
   parts: number
   srsName: string | null
-  /** LoDs encountered that were not the requested one — useful for spotting bad assumptions. */
-  otherLods: number[]
 }
 
 function parseCoords(text: string, srsDimension: number): number[] {
@@ -95,7 +93,7 @@ function parseCoords(text: string, srsDimension: number): number[] {
  *
  * Buildings are yielded as they close, so memory stays flat regardless of tile size.
  * `bldg:BuildingPart` is emitted as its own record with `parentGid` set rather than being
- * merged here — parts carry their own attributes and callers need to see them.
+ * merged here: parts carry their own attributes and callers need to see them.
  */
 export async function* streamBuildings(
   input: AsyncIterable<string | Buffer>,
@@ -106,7 +104,7 @@ export async function* streamBuildings(
 
   const pending: RawBuilding[] = []
   const stack: Ctx[] = []
-  const summary: ParseSummary = { buildings: 0, parts: 0, srsName: null, otherLods: [] }
+  const summary: ParseSummary = { buildings: 0, parts: 0, srsName: null }
 
   // --- transient parse state -------------------------------------------------
   let text = ''
@@ -193,7 +191,6 @@ export async function* streamBuildings(
           lodDepth++
           if (local === `lod${wantLod}TerrainIntersection`) inTerrain = true
         } else {
-          if (!summary.otherLods.includes(lod)) summary.otherLods.push(lod)
           skipUntilDepth = elemDepth // ignore geometry at other LoDs entirely
         }
         return

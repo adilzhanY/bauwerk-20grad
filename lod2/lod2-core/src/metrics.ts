@@ -1,5 +1,5 @@
 /**
- * Derived geometry for a single LoD2 building — the numbers an energy assessment
+ * Derived geometry for a single LoD2 building: the numbers an energy assessment
  * actually wants: roof area and orientation per plane, wall area, enclosed volume.
  *
  * A note on ClosureSurface: AdV uses it as a virtual lid where a building abuts a
@@ -239,7 +239,7 @@ export function buildMesh(building: RawBuilding, origin?: [number, number, numbe
  * Ground-surface polygons in the source CRS, for the 2D footprint.
  *
  * Returns polygons rather than a flat list of rings so the exterior/interior
- * distinction survives — WKT needs it, and flattening would turn courtyards into
+ * distinction survives: WKT needs it, and flattening would turn courtyards into
  * separate outlines.
  */
 export function footprintPolygons(building: RawBuilding): Polygon[] {

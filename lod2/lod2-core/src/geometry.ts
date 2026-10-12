@@ -45,7 +45,7 @@ export function ringVertexCount(ring: number[]): number {
  * Newell's method. Robust for non-convex and slightly non-planar polygons, which
  * matters because LoD2 roof faces are only approximately planar after rounding.
  *
- * The result is NOT normalised — its magnitude is twice the polygon's area, which
+ * The result is NOT normalised: its magnitude is twice the polygon's area, which
  * is exactly what `ringArea3d` wants.
  */
 export function newellNormal(ring: number[]): Vec3 {
@@ -176,7 +176,7 @@ export function triangulatePolygon(poly: Polygon): { positions: number[]; indice
 
   // earcut always emits counter-clockwise triangles in the 2D projection, discarding
   // the input ring's winding. In 3D that silently flips every face whose normal points
-  // down the dropped axis — half the faces of any closed solid — which destroys the
+  // down the dropped axis (half the faces of any closed solid), which destroys the
   // orientation that volume integration depends on. Restore it here, at the source, so
   // renderers get correct outward normals too.
   if ((normal[dropped] ?? 0) < 0) {
@@ -195,7 +195,7 @@ export function triangulatePolygon(poly: Polygon): { positions: number[]; indice
  *
  * Returns the absolute value, so a uniformly inward-wound solid still yields a
  * positive volume. Callers should consult `isClosedSolid` before trusting the number
- * at all — an open solid produces a plausible-looking but meaningless value.
+ * at all: an open solid produces a plausible-looking but meaningless value.
  */
 export function solidVolume(polygons: Polygon[]): number {
   // The integral is origin-independent in exact arithmetic, but not in float64: with raw

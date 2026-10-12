@@ -35,7 +35,7 @@ function findEocd(buf: Buffer): number {
 }
 
 /**
- * Read the first member whose name matches, or throw naming what the archive does hold —
+ * Read the first member whose name matches, or throw naming what the archive does hold:
  * the error a mistyped pattern deserves.
  */
 export function readArchiveMember(buf: Buffer, match: RegExp): ArchiveMember {
@@ -74,5 +74,5 @@ export function readArchiveMember(buf: Buffer, match: RegExp): ArchiveMember {
     }
     offset += 46 + nameLength + extraLength + commentLength
   }
-  throw new Error(`no ZIP member matching ${match} — archive holds: ${names.join(', ')}`)
+  throw new Error(`no ZIP member matching ${match}, archive holds: ${names.join(', ')}`)
 }

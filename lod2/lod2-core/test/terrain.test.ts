@@ -97,7 +97,7 @@ test('nothing is drawn under the building', () => {
 })
 
 test('with no constraints the surface is exactly the flat plane of today', () => {
-  // The degradation path — not every source publishes contact lines, and the honest answer
+  // The degradation path: not every source publishes contact lines, and the honest answer
   // where there are none is a flat plane.
   const mesh = buildTerrainMesh({
     bbox: BOX, rimRings: [], constraints: [], holes: [], fallbackZ: 42.5, origin: ORIGIN,
@@ -142,7 +142,7 @@ test('the bucket index agrees with a brute-force search', () => {
       return d < best.d ? { d, z: p[2]! } : best
     }, { d: Infinity, z: 0 })
     const z = sampleHeight(index, x, y, 0)
-    // Not equality — IDW blends ten neighbours — but it must land in the data's range and
+    // Not equality (IDW blends ten neighbours), but it must land in the data's range and
     // never fall back, which is what a missed bucket would cause.
     assert.ok(z >= index.minZ - 1e-9 && z <= index.maxZ + 1e-9)
     assert.ok(Number.isFinite(nearest.z))
@@ -152,7 +152,7 @@ test('the bucket index agrees with a brute-force search', () => {
 test('a small, distant constraint cloud is scanned rather than searched', () => {
   // The two strategies must agree where they overlap, or the surface would change shape at
   // whatever cloud size flips between them. Below LINEAR_SCAN_MAX the scan is exact, so it is
-  // the one to check against brute force — including from far outside the cloud, which is the
+  // the one to check against brute force, including from far outside the cloud, which is the
   // case the ring search used to handle by grinding through thousands of empty buckets.
   const pts = [[0, 0, 10], [2, 0, 12], [0, 2, 14], [2, 2, 16]]
   const index = bucketIndex(pts)
@@ -172,7 +172,7 @@ test('a sparse contact line over a wide box does not melt the main thread', () =
   // points against a grid spanning the whole 800 m context box. Searching a bucket grid
   // outward from each of those ~40,000 probes cost 20.8 seconds in Chrome and hung the tab.
   //
-  // The budget is deliberately loose — this is a guard against an algorithmic regression of
+  // The budget is deliberately loose. This is a guard against an algorithmic regression of
   // two orders of magnitude, not a performance target, and it must not flake on a busy
   // machine.
   const wide: BBox = { minX: 390_000, minY: 5_819_000, maxX: 390_800, maxY: 5_819_800 }
@@ -262,7 +262,7 @@ test('simplification drops what says nothing and keeps what does', () => {
 
 test('with nothing to warp, the plane has no holes cut in it', () => {
   // With no contact line anywhere, the surface has no relief for a building to poke through,
-  // so cutting its footprint out would only open a window onto the background — a regression
+  // so cutting its footprint out would only open a window onto the background, a regression
   // against the flat plane this replaced.
   const footprint = [0, 0, 10, 10, 0, 10, 10, 10, 10, 0, 10, 10, 0, 0, 10]
   const mesh = buildTerrainMesh({
@@ -302,7 +302,7 @@ test('a terrain model replaces the interpolation entirely', () => {
 test('with a terrain model the contact line is still exact', () => {
   // Where a source publishes no contact line, a footprint draped over a terrain model can
   // stand in for one. The collar has to pass through it just as precisely as through a
-  // published line — this is what the `field` seam has to preserve.
+  // published line. This is what the `field` seam has to preserve.
   const footprint = [10, 10, 0, 30, 10, 0, 30, 26, 0, 10, 26, 0, 10, 10, 0]
   const rim = [...footprint]
   for (let i = 0; i + 2 < rim.length; i += 3) rim[i + 2] = slope(rim[i]!, rim[i + 1]!)
@@ -355,7 +355,7 @@ test('a terrain model still gets holes cut under the buildings', () => {
 
 test('the grid coarsens with the extent instead of exploding', () => {
   // Holding a 2 m cell over an 800 m box means 160,000 vertices and, measured, 1.8 seconds
-  // of blocked main thread — for detail that is 1/400 of the view.
+  // of blocked main thread, for detail that is 1/400 of the view.
   const small = buildTerrainMesh({
     bbox: { minX: 0, minY: 0, maxX: 300, maxY: 300 },
     rimRings: [], constraints: [], holes: [], field: slope, fallbackZ: 0, origin: ORIGIN,

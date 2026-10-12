@@ -1,15 +1,15 @@
 /**
  * A ground surface warped to the terrain the building model already knows.
  *
- * LoD2 carries `bldg:lod2TerrainIntersection` — the line where a building's walls meet the
- * ground — and it is the only height information in the data. There is no terrain model here:
+ * LoD2 carries `bldg:lod2TerrainIntersection` (the line where a building's walls meet the
+ * ground), and it is the only height information in the data. There is no terrain model here:
  * heights exist along building walls and nowhere else, so everything between them is an
  * interpolation. That is honest as a picture of the ground and must not be read as a survey.
  *
  * The design turns on one fact about how the result is drawn: the orthophoto's UV is a
  * function of x and y alone (`orthoUv`) and the material is unlit, so two surfaces overlapping
  * in plan view produce *identical pixels* whatever their heights. Overlap is therefore free,
- * which is what lets an exactly-placed collar meet a coarse grid without stitching them —
+ * which is what lets an exactly-placed collar meet a coarse grid without stitching them:
  * no constrained triangulation, no new dependency.
  */
 import { orthoUv } from './geometry.ts'
@@ -23,7 +23,7 @@ export const TERRAIN_CELL_M = 2
  * The cell size has to follow the extent, not be fixed: at 300 m a 2 m cell is 1/150 of the
  * view and worth having, but holding it at 800 m means 160,000 vertices and one and a half
  * seconds of blocked main thread for detail nobody can see. The collar is unaffected either
- * way — it is built from the contact line itself, so the ground stays exact at the walls
+ * way: it is built from the contact line itself, so the ground stays exact at the walls
  * however coarse the field behind it is.
  */
 const TERRAIN_MAX_CELLS = 200
@@ -63,7 +63,7 @@ const IDW_NEIGHBOURS = 10
  *
  * The sparse case is not hypothetical, it is the common one: every selection builds the
  * ground once from the selected building's own contact line alone, before its neighbours
- * have arrived — a few dozen points against a grid covering the whole 800 m context box, so
+ * have arrived: a few dozen points against a grid covering the whole 800 m context box, so
  * almost every probe is hundreds of metres from anything. Measured in Chrome, that single
  * pass took 20.8 seconds; the same grid with the neighbours' 1,223 rings took 485 ms.
  *
@@ -96,7 +96,7 @@ export interface TerrainInput {
   /** Footprint rings to cut out, so terrain never covers a building. */
   holes: readonly number[][]
   /**
-   * Heights from somewhere better than the contact lines — a real terrain model.
+   * Heights from somewhere better than the contact lines: a real terrain model.
    *
    * When present it replaces the interpolation entirely: `constraints` then only decide
    * whether there is anything to warp at all. This is the seam a state DGM plugs into, and
@@ -402,15 +402,15 @@ export function pointInRings(rings: readonly number[][], x: number, y: number): 
 /**
  * Outward normals at each vertex, and how far each may be pushed before the offset folds.
  *
- * The cap is the local feature size — the distance to the nearest part of the ring that is not
- * an immediate neighbour — which is what stops the inside of a tight reflex corner crossing
+ * The cap is the local feature size (the distance to the nearest part of the ring that is not
+ * an immediate neighbour), which is what stops the inside of a tight reflex corner crossing
  * itself when the ring is offset outward.
  */
 /**
  * Outward normals for offsetting a contact line, and how far each vertex may be pushed.
  *
- * The cap is the fold guard. It is *local feature size* — the distance to the nearest part of
- * the ring that is not simply the continuation of this one — because that is what an offset
+ * The cap is the fold guard. It is *local feature size* (the distance to the nearest part of
+ * the ring that is not simply the continuation of this one), because that is what an offset
  * curve collides with when it folds: the far side of a notch, or the opposite wall of an alley.
  * Measuring to the nearest non-adjacent *vertex* instead looks similar and is not: on a curve
  * sampled every few centimetres the vertex two along is centimetres away, which caps every
@@ -422,7 +422,7 @@ function offsetGeometry(ring: readonly number[], closed = true): { nx: number[];
   const ny: number[] = []
   const cap: number[] = []
   // Signed area gives a first guess at which side is "out". It is only a guess: CityGML is
-  // not consistently wound, and the two ring sources here are wound *oppositely* — a
+  // not consistently wound, and the two ring sources here are wound *oppositely*: a
   // terrain-intersection curve one way, a GroundSurface (whose normal points down) the other.
   // Trusting it alone turns the collar inward, into the building, where every quad is then
   // discarded for being under a footprint and the contact line ends up covered by nothing.
@@ -541,7 +541,7 @@ const smoothstep = (t: number) => t * t * (3 - 2 * t)
  * A regular grid carries the far field; quads whose corners fall inside a building are
  * dropped, so terrain never covers one; and a collar of offset rings carries the surface from
  * the building's contact line out to the field. The collar's innermost ring *is* the contact
- * line — the same numbers, not a resampling — so every point along it lies on the surface, not
+ * line (the same numbers, not a resampling), so every point along it lies on the surface, not
  * merely every vertex.
  */
 export function buildTerrainMesh(input: TerrainInput): TerrainMesh {
@@ -570,7 +570,7 @@ export function buildTerrainMesh(input: TerrainInput): TerrainMesh {
   /**
    * Emit a triangle unless it has no area in plan.
    *
-   * The drape is a function of x and y, so a triangle with no plan area covers no pixels — but
+   * The drape is a function of x and y, so a triangle with no plan area covers no pixels, but
    * it does reach the rasteriser, and the fold guard produces them wherever it binds and two
    * offset rings land on the same point. Dropping them here keeps that a local decision.
    */
@@ -614,7 +614,7 @@ export function buildTerrainMesh(input: TerrainInput): TerrainMesh {
     const { nx: onx, ny: ony, cap } = offsetGeometry(ring, closed)
 
     // One ring past the blend, flat on the field. Grid quads that straddle the cut boundary
-    // survive, so this apron is the band where the two surfaces overlap — and both are on the
+    // survive, so this apron is the band where the two surfaces overlap, and both are on the
     // field there, which is what makes the overlap invisible rather than a seam.
     const reaches: number[] = []
     for (let k = 0; k <= COLLAR_RINGS; k++) reaches.push(COLLAR_REACH_M * Math.pow(k / COLLAR_RINGS, 1.5))
@@ -632,7 +632,7 @@ export function buildTerrainMesh(input: TerrainInput): TerrainMesh {
         const py = ring[i * 3 + 1]!
         const pz = ring[i * 3 + 2]!
         if (k === 0) {
-          // The contact line itself, verbatim — the one place this surface is exact.
+          // The contact line itself, verbatim, the one place this surface is exact.
           current.push(push(px, py, pz))
           currentXy.push(px, py)
           rimVertices++
@@ -651,7 +651,7 @@ export function buildTerrainMesh(input: TerrainInput): TerrainMesh {
         for (let i = 0; i < n; i++) {
           if (!closed && i === n - 1) break
           const j = (i + 1) % n
-          // Where a collar runs into another building — a party wall, or a neighbour close by —
+          // Where a collar runs into another building (a party wall, or a neighbour close by),
           // it would be drawn over that building's own contact line. Its footprint wins.
           const inside =
             inHole(previousXy[i * 2]!, previousXy[i * 2 + 1]!) &&
@@ -692,7 +692,7 @@ export function buildTerrainMesh(input: TerrainInput): TerrainMesh {
       const corners: Array<[number, number]> = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]
       // Under a building, or wholly inside a collar: nothing there is ever seen. Both rules are
       // all-four-corners, so a quad on either boundary survives and overlaps rather than
-      // leaving a gap — which is exactly what the collar's apron is there to absorb.
+      // leaving a gap, which is exactly what the collar's apron is there to absorb.
       if (corners.every(([x, y]) => inHole(x, y))) continue
       if (covered.length && corners.every(([x, y]) => ringIndexContains(coveredIndex, x, y))) continue
       const a = at(ix, iy)
@@ -740,8 +740,8 @@ function toPoints(ring: readonly number[]): number[][] {
 /**
  * How much of a building the ground has climbed, given the line where they meet.
  *
- * The floor slab is level and the contact line is not, so the area between them — swept along
- * the perimeter — is wall standing in earth. It matters for an energy assessment, where buried
+ * The floor slab is level and the contact line is not, so the area between them (swept along
+ * the perimeter) is wall standing in earth. It matters for an energy assessment, where buried
  * wall loses heat quite differently from exposed wall, and `wallArea` counts them alike.
  *
  * Segments that dip below the slab contribute nothing rather than negative area: the ground
@@ -786,7 +786,7 @@ export function simplifyRing(ring: readonly number[], tolM = SIMPLIFY_TOL_M): nu
   keep[0] = 1
   keep[n - 1] = 1
 
-  // Douglas–Peucker, iterative so a long curve cannot blow the stack.
+  // Douglas-Peucker, iterative so a long curve cannot blow the stack.
   const stack: Array<[number, number]> = [[0, n - 1]]
   while (stack.length) {
     const [a, b] = stack.pop()!
@@ -815,7 +815,7 @@ const mm = (v: number): number => Math.round(v * 1000) / 1000
 
 const SIMPLIFY_TOL_M = 0.02
 
-/** Perpendicular distance in 3D from vertex `i` to the segment `a`–`b`. */
+/** Perpendicular distance in 3D from vertex `i` to the segment from `a` to `b`. */
 function pointSegmentDistance(ring: readonly number[], i: number, a: number, b: number): number {
   const px = ring[i * 3]!, py = ring[i * 3 + 1]!, pz = ring[i * 3 + 2]!
   const ax = ring[a * 3]!, ay = ring[a * 3 + 1]!, az = ring[a * 3 + 2]!

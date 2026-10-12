@@ -15,7 +15,7 @@ export function createPool(max = 8): pg.Pool {
 /**
  * Apply every migration in order, inside one transaction per file.
  * Migrations are written to be idempotent (IF NOT EXISTS / OR REPLACE), so a bare
- * filename ledger is enough — no checksums, no down-migrations. This is an
+ * filename ledger is enough: no checksums, no down-migrations. This is an
  * experiment; the platform repo owns the grown-up version.
  */
 export async function migrate(pool: pg.Pool): Promise<string[]> {

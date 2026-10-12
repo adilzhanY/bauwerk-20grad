@@ -1,5 +1,5 @@
 /**
- * Berlin — gdi.berlin.de
+ * Berlin: gdi.berlin.de
  *
  * Discovery is an INSPIRE download service: a catalogue feed that points at `0.atom`, where
  * every tile sits as a `<link rel="section">` inside a single `<entry>` (~925 of them).
@@ -8,13 +8,13 @@
  *
  * - **The feed carries no sizes.** No `<size>`, no per-file date, only one `<updated>` for the
  *   whole feed. Fetching sizes with HEAD does not scale against this server: twenty requests
- *   succeed whether sequential or parallel, but of all ~925 only 224 came back — it limits over
+ *   succeed whether sequential or parallel, but of all ~925 only 224 came back. It limits over
  *   time rather than over concurrency. So tiles are advertised with `sizeBytes: 0`, which the
  *   loader already treats as "unknown" rather than as "empty" (`load.ts`, which guards the
  *   empty-tile skip with `sizeBytes > 0`).
  * - **The archive member is `.xml`, not `.gml`**, and the CityGML inside is version 1.0 rather
  *   than 2.0. The parser classifies by namespace URI rather than by prefix or version, so it
- *   reads Berlin unchanged — verified by running it, not by reading the schema.
+ *   reads Berlin unchanged, verified by running it, not by reading the schema.
  *
  * Berlin publishes `lod2TerrainIntersection` on 2,275 of 2,279 buildings in a central tile, so
  * the ground surface is warped from the models themselves rather than from a terrain model.
@@ -22,7 +22,7 @@
  * What it does not publish is addresses: not one of those 2,279 buildings carries one. Berlin
  * buildings are therefore findable by Gebäude-ID and by clicking the map, not by street. The
  * Hauskoordinaten are a separate 10 MB download whose ids are address objects rather than
- * buildings, so wiring them up would mean a spatial join — not done here.
+ * buildings, so wiring them up would mean a spatial join, not done here.
  */
 import type { OrthophotoService, StateAdapter, TileRef } from 'lod2-core'
 
@@ -40,7 +40,7 @@ const EXTENT = { minX: 360_000, minY: 5_790_000, maxX: 425_000, maxY: 5_845_000 
  * Berlin's own TrueDOP, flown in 2026, at 20 cm ground sample distance.
  *
  * The layer is not queryable, so there is no GetFeatureInfo to ask for a flight date. The
- * vintage is in the product name instead, which is coarser than a date but true — and better
+ * vintage is in the product name instead, which is coarser than a date but true, and better
  * than the "not stated" the panel would otherwise show.
  */
 const beOrthophoto: OrthophotoService = {
@@ -77,7 +77,7 @@ export const be: StateAdapter = {
     if (!res.ok) throw new Error(`Berlin ATOM feed ${ATOM} returned ${res.status}`)
     const xml = await res.text()
 
-    // One date for the whole feed — the source offers nothing per tile, and inventing one
+    // One date for the whole feed: the source offers nothing per tile, and inventing one
     // would make change detection look sharper than it is.
     const updated = /<updated>([^<]+)<\/updated>/.exec(xml)?.[1]?.trim() ?? null
 

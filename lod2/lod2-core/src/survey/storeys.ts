@@ -5,10 +5,6 @@
  * and handed to the user to confirm.
  */
 
-/** Typical floor-to-floor height of buildings before 1949 (high ceilings) and after. */
-export const OLD_STOREY_M = 3.1
-export const NEW_STOREY_M = 2.8
-
 /**
  * How many storeys fit under the eave. `typical` is the floor-to-floor height of the age
  * class. At least one.

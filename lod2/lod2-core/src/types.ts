@@ -38,14 +38,14 @@ export interface RawAddress {
  * of German buildings, so they are first-class here rather than merged at parse time.
  */
 export interface RawBuilding {
-  /** `gml:id` — the AdV/ALKIS Gebäude-ID, e.g. "DEBE01YYK00002Gu". */
+  /** `gml:id`: the AdV/ALKIS Gebäude-ID, e.g. "DEBE01YYK00002Gu". */
   gid: string
   parentGid: string | null
   isPart: boolean
   creationDate: string | null
-  /** `bldg:function` — ALKIS Gebäudefunktion, e.g. "31001_2460". */
+  /** `bldg:function`: ALKIS Gebäudefunktion, e.g. "31001_2460". */
   functionCode: string | null
-  /** `bldg:roofType` — AdV Dachform code, e.g. "2100". */
+  /** `bldg:roofType`: AdV Dachform code, e.g. "2100". */
   roofTypeCode: string | null
   measuredHeight: number | null
   storeysAboveGround: number | null
@@ -104,7 +104,7 @@ export interface BuildingMetrics {
   /**
    * How far the terrain climbs above the floor slab at its highest point, m.
    *
-   * LoD2 models no basement — the solid starts at the slab — so this is the depth the ground
+   * LoD2 models no basement (the solid starts at the slab), so this is the depth the ground
    * reaches up the walls, not anything below them. Null where the state publishes no contact
    * line.
    */
@@ -119,14 +119,14 @@ export interface BuildingMetrics {
 /**
  * Transport/storage form of the geometry: coordinates rebased to a local origin so the
  * viewer can drop them straight into a BufferGeometry. UTM is already metric, so this is
- * a translation and nothing more — no projection maths in the browser.
+ * a translation and nothing more, no projection maths in the browser.
  */
 export interface BuildingMesh {
   origin: [number, number, number]
   /**
    * `bldg:lod2TerrainIntersection` rings, rebased on the same origin.
    *
-   * The line where the walls meet the ground — the only height information the models carry
+   * The line where the walls meet the ground, the only height information the models carry
    * about the terrain itself, and the whole basis of the ground surface in the viewer. Berlin
    * publishes it on nearly every building; not every state does.
    */
@@ -175,7 +175,7 @@ export interface OrthophotoService {
   layer: string
   /** 1.1.1 takes SRS= and 1.3.0 takes CRS=; otherwise identical for our purposes. */
   version: '1.1.1' | '1.3.0'
-  /** Native ground sample distance in metres — 0.2 for Berlin's TrueDOP. */
+  /** Native ground sample distance in metres, 0.2 for Berlin's TrueDOP. */
   gsdM: number
   /** Server-side limit on GetMap width/height. */
   maxPx: number
@@ -185,15 +185,15 @@ export interface OrthophotoService {
    *
    * Berlin's is, so roof imagery lands on the modelled roof instead of leaning outward from
    * nadir. Where it is false the roofs lean by roughly height x r/H, which is a property of
-   * the source and cannot be corrected here — so the UI says so instead.
+   * the source and cannot be corrected here, so the UI says so instead.
    */
   trueOrtho: boolean
   /**
    * Vintage of the imagery, for a service named after its flight year.
    *
    * Imagery without a date is hard to reason about: a roof may have been rebuilt, a garden
-   * paved, a whole estate finished since the flight. Berlin publishes one WMS per year —
-   * `truedop_2026` — and none of them answer GetFeatureInfo, so the year is all there is. It is
+   * paved, a whole estate finished since the flight. Berlin publishes one WMS per year
+   * (`truedop_2026`) and none of them answer GetFeatureInfo, so the year is all there is. It is
    * coarser than a per-tile date but it is true and it is known, which beats the "not stated"
    * the panel would otherwise show.
    */

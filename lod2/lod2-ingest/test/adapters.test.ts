@@ -32,7 +32,7 @@ test('Berlin: unknown sizes are reported as zero, not guessed', async (t) => {
   stubFetch(await fixture('be-index.atom'))
   t.after(() => mock.restoreAll())
 
-  // The feed has no <size>, and asking the server 924 times does not work — it answers 20
+  // The feed has no <size>, and asking the server 924 times does not work: it answers 20
   // requests happily, sequential or parallel, and drops most of a full sweep. Zero is the
   // loader's "unknown": it guards the empty-tile skip with `sizeBytes > 0`, so a zero means
   // "fetch it and see" rather than "skip it".
@@ -48,7 +48,7 @@ test('Berlin: one feed date stands in for every tile', async (t) => {
   stubFetch(await fixture('be-index.atom'))
   t.after(() => mock.restoreAll())
 
-  // The source offers nothing per file — one <updated> for the whole feed. Repeating it is
+  // The source offers nothing per file, one <updated> for the whole feed. Repeating it is
   // honest; inventing a date per tile would make change detection look sharper than it is.
   const tiles = await getAdapter('BE').listTiles()
   assert.ok(tiles.every((x) => x.sourceTs === '2026-03-26T11:55:12Z'))

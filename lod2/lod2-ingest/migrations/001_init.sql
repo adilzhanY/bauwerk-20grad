@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS tile_status (
   error          text,
   -- Hash/size of what we actually ingested, so a re-run can tell whether the
   -- upstream file changed. Some sources publish SHA-256, some only size+timestamp, and
-  -- Berlin's feed publishes neither — hence both columns, and both nullable.
+  -- Berlin's feed publishes neither, hence both columns, and both nullable.
   ingested_sha256 text,
   ingested_size   bigint,
   PRIMARY KEY (state, tile_id)
@@ -52,7 +52,7 @@ CREATE INDEX IF NOT EXISTS tile_status_status_idx ON tile_status (state, status)
 -- Buildings.
 --
 -- One row per geometry-bearing feature: a standalone bldg:Building, or a
--- bldg:BuildingPart. Parents that carry only attributes and no geometry (common —
+-- bldg:BuildingPart. Parents that carry only attributes and no geometry (common:
 -- DENW43AL00001j37 in the fixtures is exactly this) are stored too, with
 -- has_geometry = false, because they hold the function code and roof form that their
 -- parts inherit.
