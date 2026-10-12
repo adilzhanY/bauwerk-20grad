@@ -5,7 +5,7 @@ import { findConstruction } from "@/geometry/constructions";
 import { epsgForZone, toUtm } from "@/geometry/geo";
 import { bounds, edges } from "@/geometry/polygon";
 import type { Building, Storey, ConstructionCategory } from "@/geometry/types";
-import { heatingOf, priceOf } from "@/geometry/supply";
+import { heatingOf, priceWithCo2Of } from "@/geometry/supply";
 import { areaList } from "@/geometry/areaList";
 import { AREA_HEADER_KEYS, DIRECTION_KEYS, ELEMENT_KEYS } from "@/lib/areaWords";
 import { useT } from "@/i18n/useT";
@@ -274,7 +274,7 @@ function Roadmap({ building }: { building: Building }) {
         {t("scenarios.roadmapIntro")}{" "}
         {t("scenarios.costHint", {
           carrier: t(`carrier.${heatingOf(building).carrier}`),
-          price: num(priceOf(building, heatingOf(building).carrier), 2),
+          price: num(priceWithCo2Of(building, heatingOf(building).carrier), 2),
         })}
       </p>
       <table style={{ marginTop: "6pt" }}>
@@ -295,7 +295,7 @@ function Roadmap({ building }: { building: Building }) {
           {steps.map((s) => (
             <tr key={s.scenario.id}>
               <td>{s.index + 1}</td>
-              <td>{num(s.year, 0)}</td>
+              <td>{num(s.year + 1, 0)}</td>
               <td>{s.scenario.id === "full-envelope" ? t("scenarios.full") : s.scenario.name}</td>
               <td className="r">{s.energy.energyClass ?? t("energy.noClass")}</td>
               <td className="r">{num(s.energy.specificEndEnergy, 0)}</td>

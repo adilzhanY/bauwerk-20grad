@@ -26,7 +26,7 @@
 import { computeEnergy } from "./energy";
 import type { EnergySummary } from "./energy";
 import { DEFAULT_HEATING, endEnergyOf, heatingOf } from "./heating";
-import { economicsOf, livingAreaOf, priceOf, supplyOf } from "./supply";
+import { economicsOf, livingAreaOf, priceWithCo2Of, supplyOf } from "./supply";
 import type { SupplySummary } from "./supply";
 import type { Building, Construction, ConstructionCategory } from "./types";
 
@@ -202,8 +202,8 @@ export function consumptionOf(
   }
   const carrier = heatingOf(building).carrier;
   const cost =
-    expected * priceOf(building, carrier) +
-    supply.endParts.auxiliary * priceOf(building, "electric");
+    expected * priceWithCo2Of(building, carrier) +
+    supply.endParts.auxiliary * priceWithCo2Of(building, "electric");
   return { source, calculated: heat, expected, factor: heat > 0 ? expected / heat : 1, cost };
 }
 

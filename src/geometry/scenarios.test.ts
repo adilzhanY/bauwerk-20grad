@@ -89,18 +89,21 @@ describe("scenarios", () => {
     expect(full.investment).toBeGreaterThan(0);
   });
 
-  it("applyScenario does not touch the baseline and can change the roof", () => {
-    const b = building();
-    const v = applyScenario(b, {
+  it("applyScenario does not touch the baseline and ignores a roof or ΔU_WB from older files", () => {
+    const b = { ...building(), bridgeSurcharge: 0.1 };
+    const old = {
       id: "r",
       name: "Roof",
       overrides: { roof: PRESET_IDS.roofInsulated },
-      roof: { kind: "gable", pitch: 35 },
+      roof: { kind: "gable", pitch: 90 },
+      bridgeSurcharge: 5,
       bridgeDetail: "good",
-    });
+    } as Scenario;
+    const v = applyScenario(b, old);
     expect(b.roofConstructionId).toBe(PRESET_IDS.roofBare);
     expect(v.roofConstructionId).toBe(PRESET_IDS.roofInsulated);
-    expect(v.roof?.kind).toBe("gable");
+    expect(v.roof).toBeUndefined();
+    expect(v.bridgeSurcharge).toBe(0.05);
     expect(v.bridgeDetail).toBe("good");
     expect(measuresOf(b, v).reduce((sum, m) => sum + m.cost, 0)).toBeGreaterThan(0);
   });
@@ -163,6 +166,30 @@ describe("a variant that replaces the heating system", () => {
     expect(r.savingPerYear).toBeCloseTo(r.currentConsumption.cost - r.consumption.cost);
     expect(r.savingPerYear).toBeGreaterThan(0);
     expect(r.supply.co2Cost).toBe(0);
+  });
+});
+
+describe("the CO2 price", () => {
+  it("moves the cost, the saving and the payback, not only the CO2 line", () => {
+    const facade: Scenario = {
+      id: "f",
+      name: "Facade",
+      overrides: { wall: PRESET_IDS.wallInsulated },
+    };
+    const at = (co2Price: number) => {
+      const b = {
+        ...building(),
+        economics: { prices: {}, co2Price, ownerOccupied: true, dwellings: 1, isfp: false },
+      };
+      return { supply: supplyOf(b), result: evaluateScenario(b, facade) };
+    };
+    const low = at(60);
+    const high = at(160);
+    // Gas bills 0.182 kg CO2 per kWh: 100 €/t more is 0.182 x 0.1 x 1.19 € per kWh more.
+    const kWh = low.supply.endParts.heating + low.supply.endParts.hotWater;
+    expect(high.supply.cost - low.supply.cost).toBeCloseTo(kWh * 0.182 * 0.1 * 1.19, 6);
+    expect(high.result.savingPerYear).toBeGreaterThan(low.result.savingPerYear);
+    expect(high.result.payback).toBeLessThan(low.result.payback);
   });
 });
 

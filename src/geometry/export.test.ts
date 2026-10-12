@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_ASSIGNMENT, PRESET_IDS, defaultConstructions } from "./constructions";
+import { computeEnergy } from "./energy";
 import { fromJson, toJson, validateBuilding } from "./export";
 import { rect } from "./fixtures";
 import { computeRooms } from "./rooms";
+import { evaluateAll } from "./scenarios";
 import type { Building } from "./types";
 
 function sample(): Building {
@@ -108,6 +110,24 @@ describe("toJson and fromJson", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.building.storeys[0]?.rooms[0]?.area).toBe(32);
+  });
+
+  it("imports a scenario roof or ΔU_WB from an older file and ignores it", () => {
+    const raw = JSON.parse(toJson(sample())) as { building: { scenarios?: unknown[] } };
+    raw.building.scenarios = [
+      {
+        id: "x",
+        name: "Old",
+        overrides: {},
+        roof: { kind: "gable", pitch: 90 },
+        bridgeSurcharge: 1e9,
+      },
+    ];
+    const result = fromJson(JSON.stringify(raw));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const variant = evaluateAll(result.building)[1]!;
+    expect(variant.energy.heatingDemand).toBeCloseTo(computeEnergy(result.building).heatingDemand);
   });
 
   it("rejects a JSON with an overlapping opening with the right message", () => {

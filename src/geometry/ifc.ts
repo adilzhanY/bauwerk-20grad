@@ -553,26 +553,32 @@ export function toIfc(building: Building, options: IfcOptions = {}): string {
   // Renovation scenarios as a property set on the building: demand and class per variant.
   const scenarioResults = evaluateAll(building);
   if (scenarioResults.length > 0) {
-    const props = scenarioResults.flatMap((r) => [
-      w.add("IFCPROPERTYSINGLEVALUE", [
-        str(`${r.scenario.name}: heating demand`),
-        NULL,
-        typed("IFCENERGYMEASURE", real(r.energy.heatingDemand * 3.6e6)),
-        NULL,
-      ]),
-      w.add("IFCPROPERTYSINGLEVALUE", [
-        str(`${r.scenario.name}: class`),
-        NULL,
-        typed("IFCLABEL", str(r.energy.energyClass ?? "")),
-        NULL,
-      ]),
-      w.add("IFCPROPERTYSINGLEVALUE", [
-        str(`${r.scenario.name}: investment EUR`),
-        NULL,
-        typed("IFCREAL", real(r.investment)),
-        NULL,
-      ]),
-    ]);
+    // Property names must be unique in a set: a repeated scenario name gets its position.
+    const taken = new Set<string>();
+    const props = scenarioResults.flatMap((r, i) => {
+      const name = taken.has(r.scenario.name) ? `${r.scenario.name} (${i + 1})` : r.scenario.name;
+      taken.add(name);
+      return [
+        w.add("IFCPROPERTYSINGLEVALUE", [
+          str(`${name}: heating demand`),
+          NULL,
+          typed("IFCENERGYMEASURE", real(r.energy.heatingDemand * 3.6e6)),
+          NULL,
+        ]),
+        w.add("IFCPROPERTYSINGLEVALUE", [
+          str(`${name}: class`),
+          NULL,
+          typed("IFCLABEL", str(r.energy.energyClass ?? "")),
+          NULL,
+        ]),
+        w.add("IFCPROPERTYSINGLEVALUE", [
+          str(`${name}: investment EUR`),
+          NULL,
+          typed("IFCREAL", real(r.investment)),
+          NULL,
+        ]),
+      ];
+    });
     const pset = w.add("IFCPROPERTYSET", [
       guid(`${building.id}/scenarios`),
       NULL,

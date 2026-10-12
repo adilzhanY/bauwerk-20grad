@@ -81,7 +81,8 @@ describe("supplyOf", () => {
       ),
       energy,
     );
-    expect(s.cost).toBeCloseTo(900 + 150 * 0.3);
+    // The own gas price holds the CO2 price at 60 €/t: 40 €/t more on 0.182 kg per kWh.
+    expect(s.cost).toBeCloseTo(10_000 * (0.09 + (0.182 * 40 * 1.19) / 1000) + 150 * 0.3);
     expect(s.co2Cost).toBeCloseTo((10_000 * 0.182 * 100 * 1.19) / 1000);
   });
 

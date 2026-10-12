@@ -21,7 +21,7 @@ import type {
 /**
  * Renovation scenarios are override sets on top of the current building: which
  * construction each category uses, the thermal bridge detailing, and optionally
- * the roof. A change to the baseline flows into every variant.
+ * the heating system. A change to the baseline flows into every variant.
  *
  * Costs are rough gross prices for the German market in 2025, per square metre
  * of element for walls, roof, floor and windows and per piece for doors, in the
@@ -147,11 +147,10 @@ export function applyScenario(building: Building, scenario: Scenario): Building 
       for (const o of s.openings) if (o.kind === kind) o.constructionId = id;
   }
   if (scenario.bridgeDetail) b.bridgeDetail = scenario.bridgeDetail;
-  // Under the flat method good detailing lowers ΔU_WB to 0.05, never raises it.
-  if (scenario.bridgeSurcharge !== undefined) b.bridgeSurcharge = scenario.bridgeSurcharge;
-  else if (scenario.bridgeDetail === "good" && building.bridgeSurcharge !== undefined)
+  // Under the flat method good detailing lowers ΔU_WB to 0.05, never raises it. Older files
+  // may carry a scenario roof or ΔU_WB; neither is read.
+  if (scenario.bridgeDetail === "good" && building.bridgeSurcharge !== undefined)
     b.bridgeSurcharge = Math.min(bridgeSurchargeOf(building), 0.05);
-  if (scenario.roof) b.roof = { ...building.roof, ...scenario.roof };
   if (scenario.heating) b.heating = scenario.heating;
   return b;
 }
@@ -337,11 +336,10 @@ export function buildRoadmap(building: Building, yearsBetweenSteps = 3): Roadmap
   const ordered =
     own.length === 0
       ? [fullEnvelopeScenario(building)]
-      : [...own].sort(
-          (a, b) =>
-            evaluateScenario(building, a, baseline).payback -
-            evaluateScenario(building, b, baseline).payback,
-        );
+      : own
+          .map((s) => ({ s, payback: evaluateScenario(building, s, baseline).payback }))
+          .sort((a, b) => a.payback - b.payback)
+          .map((x) => x.s);
   const today = { building, supply: supplyOf(building, baseline), energy: baseline };
   const currentCost = consumptionOf(building, today.supply, baseline).cost;
   const steps: RoadmapStep[] = [];

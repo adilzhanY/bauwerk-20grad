@@ -10,6 +10,8 @@ import {
   cross,
   isCounterClockwise,
 } from "./polygon";
+import { decomposeRectilinear, isAxisAlignedRectangle, isRectilinear } from "lod2-core/survey";
+import type { Rect } from "lod2-core/survey";
 import { cleanRing } from "./rooms";
 import type { Building, Roof, Vec2 } from "./types";
 
@@ -75,6 +77,8 @@ export const DEFAULT_ROOF: Roof = {
 export const roofOf = (building: Building): Roof => ({ ...DEFAULT_ROOF, ...building.roof });
 
 const rad = (d: number) => (d * Math.PI) / 180;
+/** Axis alignment tolerance, tighter than the survey's default of 1e-6. */
+const EPS = 1e-9;
 
 /** Offsets a counter-clockwise polygon outward by `d` metres with mitred corners. */
 export function offsetPolygon(polygon: readonly Vec2[], d: number): Vec2[] {
@@ -94,14 +98,6 @@ export function offsetPolygon(polygon: readonly Vec2[], d: number): Vec2[] {
   return out;
 }
 
-function isAxisAlignedRectangle(polygon: readonly Vec2[]): boolean {
-  if (polygon.length !== 4) return false;
-  return polygon.every((p, i) => {
-    const q = polygon[(i + 1) % 4];
-    return q !== undefined && (Math.abs(p.x - q.x) < 1e-9 || Math.abs(p.y - q.y) < 1e-9);
-  });
-}
-
 /** Splits a polygon by the line through `p` with direction `d`; returns the left and right parts. */
 function splitByLine(polygon: readonly Vec2[], p: Vec2, d: Vec2): [Vec2[], Vec2[]] {
   const side = (q: Vec2) => cross(d, sub(q, p));
@@ -119,7 +115,8 @@ function splitByLine(polygon: readonly Vec2[], p: Vec2, d: Vec2): [Vec2[], Vec2[
       if (inA) out.push(a);
       if (inA !== inB) {
         const t = sa / (sa - sb);
-        out.push(add(a, scale(sub(b, a), t)));
+        // At t 0 or 1 the crossing is a or b itself, which is already in the ring.
+        if (t > 0 && t < 1) out.push(add(a, scale(sub(b, a), t)));
       }
     }
     return out;
@@ -131,19 +128,20 @@ function face(points2: readonly Vec2[], z: (p: Vec2) => number): RoofFace {
   const pts = points2.map((p) => ({ x: p.x, y: p.y, z: z(p) }));
   const planArea = area(points2);
   // A planar face over the plan: true area = plan area / cos(slope), where the slope
-  // is the face normal's angle from vertical. Compute the normal from three points.
-  let trueArea = planArea;
-  const [a, b, c] = pts;
-  if (a && b && c) {
-    const u = { x: b.x - a.x, y: b.y - a.y, z: b.z - a.z };
-    const v = { x: c.x - a.x, y: c.y - a.y, z: c.z - a.z };
-    const nx = u.y * v.z - u.z * v.y;
-    const ny = u.z * v.x - u.x * v.z;
-    const nz = u.x * v.y - u.y * v.x;
-    const len = Math.hypot(nx, ny, nz);
-    const cos = len > 0 ? Math.abs(nz) / len : 1;
-    trueArea = cos > 1e-9 ? planArea / cos : planArea;
-  }
+  // is the face normal's angle from vertical. Newell's normal over every edge, so
+  // repeated or collinear leading points cannot zero it.
+  let nx = 0;
+  let ny = 0;
+  let nz = 0;
+  pts.forEach((p, i) => {
+    const q = pts[(i + 1) % pts.length] ?? p;
+    nx += (p.y - q.y) * (p.z + q.z);
+    ny += (p.z - q.z) * (p.x + q.x);
+    nz += (p.x - q.x) * (p.y + q.y);
+  });
+  const len = Math.hypot(nx, ny, nz);
+  const cos = len > 0 ? Math.abs(nz) / len : 1;
+  const trueArea = cos > 1e-9 ? planArea / cos : planArea;
   return { points: pts, planArea, area: trueArea };
 }
 
@@ -171,12 +169,12 @@ export function buildRoof(building: Building, topElevation: number): RoofGeometr
   const eaves = offsetPolygon(fp, roof.overhang);
   const tan = Math.tan(rad(roof.pitch));
   const { min, max } = bounds(eaves);
-  const useHip = roof.kind === "hip" && isAxisAlignedRectangle(fp);
+  const useHip = roof.kind === "hip" && isAxisAlignedRectangle(fp, EPS);
   // A hip ridge runs along the longer side; a gable follows the setting.
   const alongX = useHip ? max.x - min.x >= max.y - min.y : roof.ridgeAxis === "x";
   // Cross gable: a rectilinear footprint that is not a rectangle gets one gable per
   // rectangle of its decomposition along the ridge axis, each with its own ridge.
-  if (!useHip && isRectilinear(eaves) && !isAxisAlignedRectangle(eaves)) {
+  if (!useHip && isRectilinear(eaves, EPS) && !isAxisAlignedRectangle(eaves, EPS)) {
     const rects = decomposeRectilinear(eaves, alongX ? "x" : "y");
     const faces: RoofFace[] = [];
     const ridges: { a: Vec3; b: Vec3 }[] = [];
@@ -276,73 +274,6 @@ export function buildRoof(building: Building, topElevation: number): RoofGeometr
     ridgeHeight,
     atticVolume,
   };
-}
-
-/** Every edge is axis aligned. */
-export function isRectilinear(polygon: readonly Vec2[]): boolean {
-  return polygon.every((p, i) => {
-    const q = polygon[(i + 1) % polygon.length];
-    return q !== undefined && (Math.abs(p.x - q.x) < 1e-9 || Math.abs(p.y - q.y) < 1e-9);
-  });
-}
-
-export interface Rect {
-  min: Vec2;
-  max: Vec2;
-}
-
-/**
- * Splits a rectilinear polygon into rectangles that are long along `axis`: cut it
- * into strips across the axis at every vertex coordinate, then merge neighbouring
- * strips with the same extent. An L shape gives its two wings.
- */
-export function decomposeRectilinear(polygon: readonly Vec2[], axis: "x" | "y"): Rect[] {
-  const cross = (p: Vec2) => (axis === "x" ? p.y : p.x);
-  const along = (p: Vec2) => (axis === "x" ? p.x : p.y);
-  const levels = [...new Set(polygon.map((p) => Math.round(cross(p) * 1e6) / 1e6))].sort(
-    (a, b) => a - b,
-  );
-  const strips: { c0: number; c1: number; a0: number; a1: number }[] = [];
-  for (let i = 0; i + 1 < levels.length; i++) {
-    const c0 = levels[i];
-    const c1 = levels[i + 1];
-    if (c0 === undefined || c1 === undefined) continue;
-    const mid = (c0 + c1) / 2;
-    // A line through the strip middle crosses the polygon at edges running across the axis.
-    const xs: number[] = [];
-    for (let k = 0; k < polygon.length; k++) {
-      const p = polygon[k];
-      const q = polygon[(k + 1) % polygon.length];
-      if (!p || !q) continue;
-      const lo = Math.min(cross(p), cross(q));
-      const hi = Math.max(cross(p), cross(q));
-      if (Math.abs(cross(p) - cross(q)) < 1e-9) continue;
-      if (mid > lo && mid < hi) xs.push(along(p));
-    }
-    xs.sort((a, b) => a - b);
-    for (let k = 0; k + 1 < xs.length; k += 2) {
-      const a0 = xs[k];
-      const a1 = xs[k + 1];
-      if (a0 !== undefined && a1 !== undefined) strips.push({ c0, c1, a0, a1 });
-    }
-  }
-  // Merge strips stacked across the axis with the same along-extent.
-  const merged: typeof strips = [];
-  for (const s of strips.sort((p, q) => p.a0 - q.a0 || p.c0 - q.c0)) {
-    const prev = merged.find(
-      (m) =>
-        Math.abs(m.a0 - s.a0) < 1e-9 &&
-        Math.abs(m.a1 - s.a1) < 1e-9 &&
-        Math.abs(m.c1 - s.c0) < 1e-9,
-    );
-    if (prev) prev.c1 = s.c1;
-    else merged.push({ ...s });
-  }
-  return merged.map((m) =>
-    axis === "x"
-      ? { min: { x: m.a0, y: m.c0 }, max: { x: m.a1, y: m.c1 } }
-      : { min: { x: m.c0, y: m.a0 }, max: { x: m.c1, y: m.a1 } },
-  );
 }
 
 function gableOverRectangle(r: Rect, alongX: boolean, tan: number, top: number) {

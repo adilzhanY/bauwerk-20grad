@@ -176,6 +176,12 @@ export interface Building {
    * See geometry/shared.ts.
    */
   sharedEdges?: number[];
+  /**
+   * The facade photo slot of each footprint edge, in edge order: a wall keeps its photo when
+   * corners are added or removed elsewhere, and undo brings the pairing back with the
+   * footprint. Missing (or out of step with the footprint) means slot String(edge index).
+   */
+  photoSlots?: string[];
   /** Where imported values came from, by value path. See geometry/sources.ts. */
   sources?: Record<string, ValueSource>;
   /** The heating system. Missing means a gas boiler, see geometry/supply.ts. */
@@ -294,9 +300,6 @@ export interface Scenario {
   name: string;
   overrides: Partial<Record<ConstructionCategory, Id>>;
   bridgeDetail?: "good" | "poor";
-  /** ΔU_WB after the measure, for the flat method. */
-  bridgeSurcharge?: number;
-  roof?: Partial<Roof>;
   /** A new heating system, for a variant that replaces it (gas boiler to heat pump). */
   heating?: HeatingSystem;
 }

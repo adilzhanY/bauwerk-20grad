@@ -54,8 +54,59 @@ export function isRectilinear(polygon: readonly Vec2[], eps = 1e-6): boolean {
   })
 }
 
-export function isAxisAlignedRectangle(polygon: readonly Vec2[]): boolean {
-  return polygon.length === 4 && isRectilinear(polygon)
+export function isAxisAlignedRectangle(polygon: readonly Vec2[], eps = 1e-6): boolean {
+  return polygon.length === 4 && isRectilinear(polygon, eps)
+}
+
+export interface Rect {
+  min: Vec2
+  max: Vec2
+}
+
+/**
+ * Splits a rectilinear polygon into rectangles that are long along `axis`: cut it into strips
+ * across the axis at every vertex coordinate, then merge neighbouring strips with the same
+ * extent. An L shape gives its two wings. The editor builds one gable on each.
+ */
+export function decomposeRectilinear(polygon: readonly Vec2[], axis: 'x' | 'y'): Rect[] {
+  const across = (p: Vec2) => (axis === 'x' ? p.y : p.x)
+  const along = (p: Vec2) => (axis === 'x' ? p.x : p.y)
+  const levels = [...new Set(polygon.map((p) => Math.round(across(p) * 1e6) / 1e6))].sort((a, b) => a - b)
+  const strips: { c0: number; c1: number; a0: number; a1: number }[] = []
+  for (let i = 0; i + 1 < levels.length; i++) {
+    const c0 = levels[i]!
+    const c1 = levels[i + 1]!
+    const mid = (c0 + c1) / 2
+    // A line through the strip middle crosses the polygon at edges running across the axis.
+    const xs: number[] = []
+    polygon.forEach((p, k) => {
+      const q = polygon[(k + 1) % polygon.length]!
+      if (Math.abs(across(p) - across(q)) < 1e-9) return
+      if (mid > Math.min(across(p), across(q)) && mid < Math.max(across(p), across(q))) xs.push(along(p))
+    })
+    xs.sort((a, b) => a - b)
+    for (let k = 0; k + 1 < xs.length; k += 2) strips.push({ c0, c1, a0: xs[k]!, a1: xs[k + 1]! })
+  }
+  // Merge strips stacked across the axis with the same along extent.
+  const merged: typeof strips = []
+  for (const s of strips.sort((p, q) => p.a0 - q.a0 || p.c0 - q.c0)) {
+    const prev = merged.find((m) => Math.abs(m.a0 - s.a0) < 1e-9 && Math.abs(m.a1 - s.a1) < 1e-9 && Math.abs(m.c1 - s.c0) < 1e-9)
+    if (prev) prev.c1 = s.c1
+    else merged.push({ ...s })
+  }
+  return merged.map((m) =>
+    axis === 'x' ? { min: { x: m.a0, y: m.c0 }, max: { x: m.a1, y: m.c1 } } : { min: { x: m.c0, y: m.a0 }, max: { x: m.c1, y: m.a1 } })
+}
+
+/**
+ * The span across the ridge that the pitch is measured over: the widest wing when the editor
+ * builds one gable per wing (a rectilinear outline), else the whole outline.
+ */
+export function roofSpan(planFootprint: readonly Vec2[], ridgeAxis: 'x' | 'y'): number {
+  const across = (r: Rect) => (ridgeAxis === 'x' ? r.max.y - r.min.y : r.max.x - r.min.x)
+  if (isRectilinear(planFootprint)) return Math.max(0, ...decomposeRectilinear(planFootprint, ridgeAxis).map(across))
+  const { width, depth } = bounds(planFootprint)
+  return ridgeAxis === 'x' ? depth : width
 }
 
 /**
@@ -66,7 +117,7 @@ export function isAxisAlignedRectangle(polygon: readonly Vec2[]): boolean {
 export function editorRoof(code: string | null, rise: number, planFootprint: readonly Vec2[]): EditorRoof {
   const { width, depth } = bounds(planFootprint)
   const ridgeAxis: 'x' | 'y' = width >= depth ? 'x' : 'y'
-  const span = Math.min(width, depth)
+  const span = roofSpan(planFootprint, ridgeAxis)
   const mapped = roofKindForCode(code)
   const pitch = pitchFor(rise, span)
 

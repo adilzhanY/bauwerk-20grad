@@ -185,6 +185,20 @@ describe("toIfc", () => {
     expect(text).not.toMatch(/[^\x20-\x7e\n]/);
   });
 
+  it("gives scenarios with the same name distinct property names", () => {
+    const b = house();
+    b.scenarios = [
+      { id: "a", name: "Walls", overrides: {} },
+      { id: "b", name: "Walls", overrides: {} },
+    ];
+    const names = [...toIfc(b).matchAll(/IFCPROPERTYSINGLEVALUE\('([^']*): class'/g)].map(
+      (m) => m[1],
+    );
+    expect(names).toHaveLength(3);
+    expect(new Set(names).size).toBe(3);
+    expect(names).toContain("Walls");
+  });
+
   it("skips invalid openings and handles the L-shaped block", () => {
     resetIds();
     const block = exampleBlock("en");

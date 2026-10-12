@@ -270,11 +270,6 @@ export function validateBuilding(b: Building): ImportError | null {
         !(sc.heating.hotWater >= 0))
     )
       return { code: "invalidStructure", path: `${sp}.heating` };
-    if (
-      sc.bridgeSurcharge !== undefined &&
-      !(Number.isFinite(sc.bridgeSurcharge) && sc.bridgeSurcharge >= 0 && sc.bridgeSurcharge <= 1)
-    )
-      return { code: "invalidStructure", path: `${sp}.bridgeSurcharge` };
     for (const id of Object.values(sc.overrides) as (string | undefined)[]) {
       if (id !== undefined && !constructionIds.has(id))
         return { code: "unknownConstruction", path: sp };

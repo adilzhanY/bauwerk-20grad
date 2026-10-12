@@ -187,12 +187,17 @@ export function facesOfSegments(segments: readonly Segment[]): Vec2[][] {
     else if (signed < -1e-9) holes.push(cleaned);
   }
   // A loop of walls touching nothing else walks out as a clockwise ring: a hole in the face
-  // around it. Joined to that face by a slit, so its floor is not counted twice.
+  // around it. Joined to that face by a slit, so its floor is not counted twice. The outer
+  // boundary of the plan is clockwise too, but no face is larger than it, so it takes none.
   for (const hole of holes) {
     const first = hole[0];
     if (!first) continue;
+    const holeArea = Math.abs(signedArea(hole));
     const around = faces
-      .filter((f) => !f.some((p) => equals(p, first, 1e-7)) && pointInPolygon(first, f))
+      .filter(
+        (f) =>
+          area(f) > holeArea && !f.some((p) => equals(p, first, 1e-7)) && pointInPolygon(first, f),
+      )
       .sort((p, q) => area(p) - area(q))[0];
     if (around) faces[faces.indexOf(around)] = withHole(around, hole, holes);
   }

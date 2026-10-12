@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_ASSIGNMENT, defaultConstructions } from "./constructions";
 import { lShape, rect } from "./fixtures";
 import { area } from "./polygon";
-import { buildRoof, decomposeRectilinear, isRectilinear, offsetPolygon } from "./roof";
+import { decomposeRectilinear, editorRoof, isRectilinear } from "lod2-core/survey";
+import { buildRoof, offsetPolygon } from "./roof";
 import type { Building, Roof } from "./types";
 
 const b = (roof: Partial<Roof>, footprint = rect): Building => ({
@@ -52,6 +53,22 @@ describe("gable roof", () => {
     expect(r.area).toBeCloseTo(99 / Math.cos(deg(30)));
   });
 
+  it("a footprint vertex on the ridge keeps the sloped area and no duplicate points", () => {
+    const pentagon = [
+      { x: 0, y: 0 },
+      { x: 10, y: 0 },
+      { x: 12, y: 4 },
+      { x: 10, y: 8 },
+      { x: 0, y: 8 },
+    ];
+    const r = buildRoof(b({ kind: "gable", pitch: 45, overhang: 0, ridgeAxis: "x" }, pentagon), 0);
+    expect(r.area).toBeCloseTo(88 / Math.cos(deg(45)));
+    for (const f of r.faces) {
+      const keys = f.points.map((p) => `${p.x}:${p.y}`);
+      expect(new Set(keys).size).toBe(keys.length);
+    }
+  });
+
   it("ridge axis y swaps the span", () => {
     const r = buildRoof(b({ kind: "gable", pitch: 45, overhang: 0, ridgeAxis: "y" }), 0);
     expect(r.ridgeHeight).toBeCloseTo(5);
@@ -97,6 +114,38 @@ describe("gable roof", () => {
         { x: 0, y: 3 },
       ]),
     ).toBe(false);
+  });
+});
+
+describe("the survey and the editor agree on an L", () => {
+  it("the pitch the survey takes from a 5 m rise gives the editor a 5 m ridge", () => {
+    // A 20 by 20 box with 10 m wings: one gable per wing, each 10 m across.
+    const l = [
+      { x: 0, y: 0 },
+      { x: 20, y: 0 },
+      { x: 20, y: 10 },
+      { x: 10, y: 10 },
+      { x: 10, y: 20 },
+      { x: 0, y: 20 },
+    ];
+    const surveyed = editorRoof("3100", 5, l);
+    const r = buildRoof(
+      b({ kind: "gable", pitch: surveyed.pitch, overhang: 0, ridgeAxis: surveyed.ridgeAxis }, l),
+      0,
+    );
+    expect(r.ridgeHeight).toBeCloseTo(5, 1);
+  });
+
+  it("a footprint a tenth of a micrometre off square is no rectangle to the editor", () => {
+    const skewed = [
+      { x: 0, y: 0 },
+      { x: 10, y: 0 },
+      { x: 10, y: 8 },
+      { x: 1e-7, y: 8 },
+    ];
+    expect(buildRoof(b({ kind: "hip", pitch: 30, overhang: 0 }, skewed), 0).builtKind).toBe(
+      "gable",
+    );
   });
 });
 

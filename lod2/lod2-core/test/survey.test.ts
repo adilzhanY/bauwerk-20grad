@@ -8,14 +8,18 @@ import {
   ageClassForYear,
   constructionsFor,
   dominantAngle,
+  decomposeRectilinear,
   editorRoof,
   estimateStoreys,
+  isAxisAlignedRectangle,
+  isRectilinear,
   isSimplePolygon,
   matchEdge,
   pitchFor,
   planFrameFor,
   polygonArea,
   ringToPlan,
+  roofSpan,
   rowsOf,
   sharedEdges,
   signedArea,
@@ -186,6 +190,27 @@ test('roof codes map to the editor kinds, with a note when simplified', () => {
   assert.deepEqual(editorRoof('5000', 4, rect).messages, [{ key: 'survey.roof.mixedAsGable' }])
   // The ridge runs along the longer side.
   assert.equal(editorRoof('3100', 4, rect).ridgeAxis, 'x')
+})
+
+test('an L takes its pitch over the widest wing, as the editor builds one gable per wing', () => {
+  // A 20 by 20 box with 10 m wings: the editor puts a 10 m span gable on each wing.
+  const l: Vec2[] = [{ x: 0, y: 0 }, { x: 20, y: 0 }, { x: 20, y: 10 }, { x: 10, y: 10 }, { x: 10, y: 20 }, { x: 0, y: 20 }]
+  assert.equal(roofSpan(l, 'x'), 10)
+  assert.ok(near(editorRoof('3100', 5, l).pitch, 45, 0.05))
+  assert.deepEqual(decomposeRectilinear(l, 'x'), [
+    { min: { x: 0, y: 0 }, max: { x: 20, y: 10 } },
+    { min: { x: 0, y: 10 }, max: { x: 10, y: 20 } },
+  ])
+  // A rectangle, or an outline that is not rectilinear, spans its bounding box across the ridge.
+  assert.equal(roofSpan(square(10).map((p) => ({ x: p.x * 1.5, y: p.y })), 'x'), 10)
+  assert.equal(roofSpan([{ x: 0, y: 0 }, { x: 12, y: 0 }, { x: 10, y: 8 }, { x: 0, y: 8 }], 'x'), 8)
+})
+
+test('rectilinear tests take a tolerance', () => {
+  const skewed: Vec2[] = [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 8 }, { x: 1e-7, y: 8 }]
+  assert.equal(isAxisAlignedRectangle(skewed), true)
+  assert.equal(isAxisAlignedRectangle(skewed, 1e-9), false)
+  assert.equal(isRectilinear(skewed, 1e-9), false)
 })
 
 test('pitch comes from the rise over half the span', () => {

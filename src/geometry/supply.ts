@@ -14,15 +14,7 @@ import { CARRIERS, endEnergyOf, factorSetOf, heatingOf, primaryFactor } from "./
 import type { EndEnergy } from "./heating";
 import type { Building, Economics, EnergyCarrier, HeatingSystem } from "./types";
 
-export {
-  CARRIERS,
-  CARRIER_ORDER,
-  DEFAULT_HEATING,
-  FACTOR_SETS,
-  HOT_WATER_PER_M2,
-  heatingOf,
-} from "./heating";
-export type { CarrierData } from "./heating";
+export { CARRIERS, CARRIER_ORDER, DEFAULT_HEATING, heatingOf } from "./heating";
 
 /** Euro per tonne, the middle of the BEHG corridor for 2026. */
 export const CO2_PRICE = 60;
@@ -44,6 +36,15 @@ export function economicsOf(building: Building): Economics {
 /** Euro per kWh for a carrier: the building's own price, or the 2026 average. */
 export function priceOf(building: Building, carrier: EnergyCarrier): number {
   return economicsOf(building).prices[carrier] ?? CARRIERS[carrier].price;
+}
+
+/**
+ * Euro per kWh the yearly cost counts: the price moved by the CO2 price setting. Carrier
+ * prices, own or default, are taken to include the CO2 price at CO2_PRICE.
+ */
+export function priceWithCo2Of(building: Building, carrier: EnergyCarrier): number {
+  const extra = economicsOf(building).co2Price - CO2_PRICE;
+  return priceOf(building, carrier) + ((CARRIERS[carrier].billedCo2 * extra) / 1000) * (1 + VAT);
 }
 
 /** CO2KostAufG annex: upper bounds in kg CO2 per m² and year, landlord share below each. */
@@ -137,8 +138,8 @@ export function supplyOf(
     co2PerM2: perM2(co2),
     energyClass: energy.referenceArea > 0 ? energyClass(perM2(parts.total)) : null,
     cost:
-      inCarrier * priceOf(building, heating.carrier) +
-      parts.auxiliary * priceOf(building, "electric"),
+      inCarrier * priceWithCo2Of(building, heating.carrier) +
+      parts.auxiliary * priceWithCo2Of(building, "electric"),
     co2Cost,
     billedCo2PerM2,
     landlordShare: economics.ownerOccupied ? 0 : landlordCo2Share(billedCo2PerM2),

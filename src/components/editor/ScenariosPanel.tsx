@@ -9,7 +9,7 @@ import { Copy, Eye, Plus, Trash2 } from "lucide-react";
 import { buildRoadmap, evaluateAll, evaluateScenario } from "@/geometry/scenarios";
 import type { Measure, ScenarioResult } from "@/geometry/scenarios";
 import type { ConstructionCategory, Scenario } from "@/geometry/types";
-import { CARRIERS, CARRIER_ORDER, heatingOf, priceOf } from "@/geometry/supply";
+import { CARRIERS, CARRIER_ORDER, heatingOf, priceWithCo2Of } from "@/geometry/supply";
 import { useT } from "@/i18n/useT";
 import type { MessageKey } from "@/i18n";
 import { formatNumber } from "@/lib/format";
@@ -56,7 +56,7 @@ export function ScenariosPanel() {
       <Hint>
         {t("scenarios.costHint", {
           carrier: t(`carrier.${heatingOf(building).carrier}`),
-          price: num(priceOf(building, heatingOf(building).carrier), 2),
+          price: num(priceWithCo2Of(building, heatingOf(building).carrier), 2),
         })}
       </Hint>
       <div className="overflow-x-auto">

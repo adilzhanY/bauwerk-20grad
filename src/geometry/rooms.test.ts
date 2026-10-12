@@ -85,6 +85,30 @@ describe("extractFaces", () => {
     expect(inside.map((f) => area(f))).toEqual([4]);
   });
 
+  describe("an L footprint split by one wall, from every starting vertex", () => {
+    const l = [
+      { x: 10, y: 4 },
+      { x: 4, y: 4 },
+      { x: 4, y: 8 },
+      { x: 0, y: 8 },
+      { x: 0, y: 0 },
+      { x: 10, y: 0 },
+    ];
+    const cases: [Segment, number[]][] = [
+      [{ a: { x: 4, y: 4 }, b: { x: 0, y: 4 } }, [16, 40]],
+      [{ a: { x: 4, y: 4 }, b: { x: 4, y: 0 } }, [24, 32]],
+    ];
+    for (const [wall, expected] of cases) {
+      for (let k = 0; k < l.length; k++) {
+        it(`wall (${wall.a.x},${wall.a.y})-(${wall.b.x},${wall.b.y}), start ${k}`, () => {
+          const footprint = [...l.slice(k), ...l.slice(0, k)];
+          const faces = extractFaces(footprint, [wall]);
+          expect(faces.map((f) => area(f)).sort((a, b) => a - b)).toEqual(expected);
+        });
+      }
+    }
+  });
+
   it("a wall fully outside the footprint is ignored", () => {
     expect(clipSegmentToPolygon({ a: { x: 20, y: 0 }, b: { x: 20, y: 8 } }, rect)).toEqual([]);
     expect(extractFaces(rect, [{ a: { x: 20, y: 0 }, b: { x: 20, y: 8 } }])).toHaveLength(1);
