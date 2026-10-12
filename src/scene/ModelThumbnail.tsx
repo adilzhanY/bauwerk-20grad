@@ -4,7 +4,7 @@ import { pictureView, streetEdge } from "@/geometry/pictureView";
 import { buildRoof } from "@/geometry/roof";
 import type { Building } from "@/geometry/types";
 import { selectTotalHeight, storeyElevation } from "@/store/selectors";
-import { useEditorStore } from "@/store/building";
+import { useEditorStore, wallPhotoSlots } from "@/store/building";
 import { PictureMode } from "./hover";
 import { Roof } from "./Roof";
 import { Storey } from "./Storey";
@@ -27,7 +27,10 @@ export function ModelThumbnail({ onPicture }: { onPicture: (blob: Blob | null) =
   const top = useEditorStore(selectTotalHeight);
   // The walls with a facade photo: the street side, which the picture looks at.
   const photos = useEditorStore((s) => s.facadePhotos);
-  const photoEdges = useMemo(() => Object.keys(photos).map(Number), [photos]);
+  const photoEdges = useMemo(
+    () => wallPhotoSlots(building).flatMap((slot, edge) => (photos[slot] ? [edge] : [])),
+    [building, photos],
+  );
   const view = useMemo(() => {
     const ridge = building.storeys.length > 0 ? buildRoof(building, top).ridgeHeight : 0;
     const front = streetEdge(building, photoEdges);

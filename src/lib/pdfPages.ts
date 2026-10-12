@@ -13,16 +13,28 @@ export interface PdfPage {
   text: string;
 }
 
-/** The pages of `file`, drawn one after another. */
-export async function pdfPages(file: Blob, maxSide = 2400): Promise<PdfPage[]> {
+/** The most pages drawn: each is a 2400 px picture drawn on the main thread. */
+export const MAX_PDF_PAGES = 20;
+
+/**
+ * The first `MAX_PDF_PAGES` pages of `file`, drawn one after another, and how many the PDF
+ * has. `signal` stops it between pages, with the signal's reason as the error.
+ */
+export async function pdfPages(
+  file: Blob,
+  signal?: AbortSignal,
+  maxSide = 2400,
+): Promise<{ pages: PdfPage[]; total: number }> {
   const pdfjs = await import("pdfjs-dist");
   const worker = await import("pdfjs-dist/build/pdf.worker.min.mjs?url");
   pdfjs.GlobalWorkerOptions.workerSrc = worker.default;
+  signal?.throwIfAborted();
   const task = pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) });
-  const doc = await task.promise;
   try {
+    const doc = await task.promise;
     const pages: PdfPage[] = [];
-    for (let n = 1; n <= doc.numPages; n++) {
+    for (let n = 1; n <= Math.min(doc.numPages, MAX_PDF_PAGES); n++) {
+      signal?.throwIfAborted();
       const page = await doc.getPage(n);
       const base = page.getViewport({ scale: 1 });
       const viewport = page.getViewport({ scale: maxSide / Math.max(base.width, base.height) });
@@ -41,7 +53,7 @@ export async function pdfPages(file: Blob, maxSide = 2400): Promise<PdfPage[]> {
       pages.push({ image, width: canvas.width, height: canvas.height, text });
       page.cleanup();
     }
-    return pages;
+    return { pages, total: doc.numPages };
   } finally {
     void task.destroy();
   }

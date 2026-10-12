@@ -147,7 +147,12 @@ export async function savePhoto(
     },
     body: blob,
   });
-  if (!res.ok) throw new Error(`Saving picture ${slot} failed: ${res.status}`);
+  if (!res.ok) {
+    // The status tells the caller whether trying again can help (photoSync.ts).
+    throw Object.assign(new Error(`Saving picture ${slot} failed: ${res.status}`), {
+      status: res.status,
+    });
+  }
 }
 
 export async function removePhoto(ref: ProjectRef, slot: string): Promise<void> {

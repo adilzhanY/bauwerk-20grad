@@ -1,14 +1,14 @@
 /**
- * Keeps the editor's pictures with the open project: the facade photo on each wall (slot "0",
- * "1", ...) and the floor plan image each storey was read from (slot "plan-<storey id>").
+ * Keeps the editor's pictures with the open project: the facade photo on each wall (its photo
+ * slot "0", "1", ..., Building.photoSlots, which stays with the wall through footprint edits
+ * and undo) and the floor plan image each storey was read from (slot "plan-<storey id>").
  *
  * Before a project is saved its pictures live in this tab only. The first Save uploads every
  * one of them into the new project, and from then on each new picture goes up as it is put
  * on; opening a project brings its pictures back. Removing a photo from a wall is done where
  * the user removes it (RightPanel), not here: a new building clears the pictures too, and
- * that must not delete them from the project it came from. The one removal here is a photo
- * that moved to another wall number (a footprint edit): its old slot goes once it is stored
- * under the new one.
+ * that must not delete them from the project it came from. The one removal here is a picture
+ * that moved to another slot: its old slot goes once it is stored under the new one.
  */
 import type { createEditorStore, FacadePhoto } from "@/store/building";
 import {
@@ -31,8 +31,8 @@ export const PHOTO_RETRY_MS = 30_000;
 
 export function startPhotoSync(store: Store): () => void {
   // Picture URLs that came from the project or went to it, with the slot they are stored in:
-  // nothing to upload for those, unless the picture moved to another slot (a wall renumbered
-  // by a footprint edit), when it is stored under its new slot and the old one is removed.
+  // nothing to upload for those, unless the picture moved to another slot, when it is stored
+  // under its new slot and the old one is removed.
   const slotOf = new Map<string, string>();
   let open: ProjectRef | null = null;
   // When each slot's picture in the project was put there, as last read. A slot that was
@@ -51,8 +51,8 @@ export function startPhotoSync(store: Store): () => void {
     seen = new Map(slots.map((s) => [s.slot, s.updatedAt ?? ""]));
     if (follow) {
       const state = store.getState();
-      for (const edge of Object.keys(state.facadePhotos)) {
-        if (before.has(edge) && !seen.has(edge)) state.setFacadePhoto(Number(edge), null);
+      for (const slot of Object.keys(state.facadePhotos)) {
+        if (before.has(slot) && !seen.has(slot)) state.setFacadePhotoSlot(slot, null);
       }
       for (const storeyId of Object.keys(state.floorPlanImages)) {
         const slot = PLAN_SLOT + storeyId;
@@ -60,12 +60,12 @@ export function startPhotoSync(store: Store): () => void {
       }
     }
     for (const { slot, width, height, updatedAt } of slots) {
-      const edge = /^\d+$/.test(slot) ? Number(slot) : null;
+      const facade = /^\d+$/.test(slot);
       const storeyId = slot.startsWith(PLAN_SLOT) ? slot.slice(PLAN_SLOT.length) : null;
-      if (edge === null && storeyId === null) continue;
+      if (!facade && storeyId === null) continue;
       const replaced = follow && before.has(slot) && before.get(slot) !== (updatedAt ?? "");
       const state = store.getState();
-      if (!replaced && edge !== null && state.facadePhotos[edge]) continue;
+      if (!replaced && facade && state.facadePhotos[slot]) continue;
       if (!replaced && storeyId !== null && state.floorPlanImages[storeyId]) continue;
       const url = await photoUrl(ref, slot);
       if (!url) continue;
@@ -75,7 +75,7 @@ export function startPhotoSync(store: Store): () => void {
         return;
       }
       slotOf.set(url, slot);
-      if (edge !== null) store.getState().setFacadePhoto(edge, { url, width, height });
+      if (facade) store.getState().setFacadePhotoSlot(slot, { url, width, height });
       else if (storeyId !== null)
         store.getState().setFloorPlanImage(storeyId, { url, width, height });
     }
@@ -91,8 +91,8 @@ export function startPhotoSync(store: Store): () => void {
 
   /** Every picture of the editor as its slot, facade photos first (they make the card picture). */
   const pictures = (state: ReturnType<Store["getState"]>) => [
-    ...Object.entries(state.facadePhotos).map(([edge, photo]) => ({
-      slot: edge,
+    ...Object.entries(state.facadePhotos).map(([slot, photo]) => ({
+      slot,
       photo,
       card: true,
     })),
@@ -122,6 +122,13 @@ export function startPhotoSync(store: Store): () => void {
           // change, or on the next try after a pause.
           if (stored === undefined) slotOf.delete(photo.url);
           else slotOf.set(photo.url, stored);
+          // Only offline, a server error or an expired sign in can pass on a later try; a
+          // refusal for good (a viewer, too big) would upload the picture every pause forever.
+          const status = (error as { status?: number } | null)?.status;
+          if (status !== undefined && status < 500 && status !== 401) {
+            console.warn("A picture was refused:", error);
+            return false;
+          }
           console.warn("A picture was not saved, trying again:", error);
           retry ??= setTimeout(() => {
             retry = null;

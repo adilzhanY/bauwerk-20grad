@@ -11,7 +11,7 @@ import { cx } from "@/components/shared/cx";
 import { useDismiss } from "@/components/shared/useDismiss";
 import type { MessageKey } from "@/i18n";
 import { useT } from "@/i18n/useT";
-import { useEditorStore } from "@/store/building";
+import { useEditorStore, wallPhotoSlots } from "@/store/building";
 import { CustomField, CustomFieldGroup } from "@/components/shared/CustomField";
 import { CustomSegmented } from "@/components/shared/CustomSegmented";
 import { CustomSlider } from "@/components/shared/CustomSlider";
@@ -137,7 +137,9 @@ function ViewMenu() {
   const hasOrigin = useEditorStore((s) => s.building.origin !== undefined);
   const photos = useEditorStore((s) => s.showFacadePhotos);
   const setPhotos = useEditorStore((s) => s.setShowFacadePhotos);
-  const hasPhotos = useEditorStore((s) => Object.keys(s.facadePhotos).length > 0);
+  const hasPhotos = useEditorStore((s) =>
+    wallPhotoSlots(s.building).some((slot) => s.facadePhotos[slot]),
+  );
   const bridges = useEditorStore((s) => s.showBridges);
   const setBridges = useEditorStore((s) => s.setShowBridges);
   const otherStoreys = useEditorStore((s) => s.otherStoreys);

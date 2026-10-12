@@ -1,12 +1,15 @@
-import { beforeEach, describe, expect, it } from "vitest";
-import { createEditorStore, createDefaultBuilding } from "./building";
-import type { EditorStore } from "./building";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createEditorStore, createDefaultBuilding, wallPhotoSlot } from "./building";
+import type { EditorState, EditorStore } from "./building";
 import { HISTORY_LIMIT } from "./history";
 import { isCounterClockwise } from "@/geometry/polygon";
 import { resetIds } from "@/lib/ids";
 import { exampleAltbau } from "@/lib/examples";
 import { PRESET_IDS } from "@/geometry/constructions";
 import type { Building } from "@/geometry/types";
+
+/** The photo drawn on footprint edge `edge`. */
+const photoAt = (s: EditorState, edge: number) => s.facadePhotos[wallPhotoSlot(s.building, edge)];
 
 type Store = ReturnType<typeof createEditorStore>;
 
@@ -343,7 +346,9 @@ describe("store behaviour", () => {
 
   it("translates the building and re-centres the origin onto it", () => {
     store.getState().setOrigin({ lat: 52.5, lon: 13.4, rotation: 0 });
-    store.getState().translateBuilding({ x: 10, y: 0 });
+    store
+      .getState()
+      .setFootprint(store.getState().building.footprint.map((p) => ({ x: p.x + 10, y: p.y })));
     expect(store.getState().building.footprint[0]).toEqual({ x: 10, y: 0 });
     store.getState().recentreOrigin();
     const b = store.getState().building;
@@ -581,10 +586,46 @@ describe("footprint editing and deleteSelection", () => {
     store.getState().insertFootprintVertex(0);
     const s = store.getState();
     expect(s.building.notes?.[0]?.target).toEqual({ kind: "wall", wallIndex: 3 });
-    expect(s.facadePhotos[3]?.url).toBe("blob:north");
-    expect(s.facadePhotos[0]?.url).toBe("blob:south");
-    expect(s.facadePhotos[2]).toBeUndefined();
+    expect(photoAt(s, 3)?.url).toBe("blob:north");
+    expect(photoAt(s, 0)?.url).toBe("blob:south");
+    expect(photoAt(s, 2)).toBeUndefined();
     expect(s.photoWall).toBe(4);
+  });
+
+  it("undo after a split puts each photo back on its own facade, under the same slot", () => {
+    store.getState().setFacadePhoto(2, { url: "blob:north", width: 1, height: 1 });
+    const slot = wallPhotoSlot(store.getState().building, 2);
+    store.getState().insertFootprintVertex(0);
+    expect(wallPhotoSlot(store.getState().building, 3)).toBe(slot);
+    store.getState().undo();
+    const s = store.getState();
+    expect(photoAt(s, 2)?.url).toBe("blob:north");
+    expect(photoAt(s, 3)).toBeUndefined();
+    expect(Object.keys(s.facadePhotos)).toEqual([slot]);
+    store.getState().redo();
+    expect(photoAt(store.getState(), 3)?.url).toBe("blob:north");
+  });
+
+  it("a new corner never takes a slot an undo step still uses", () => {
+    store.getState().insertFootprintVertex(0);
+    const added = wallPhotoSlot(store.getState().building, 1);
+    store.getState().removeFootprintVertex(1);
+    store.getState().insertFootprintVertex(2);
+    expect(wallPhotoSlot(store.getState().building, 3)).not.toBe(added);
+  });
+
+  it("undo after two walls merged brings both photos back", () => {
+    const revoke = vi.fn();
+    URL.revokeObjectURL = revoke;
+    store.getState().insertFootprintVertex(0); // edges 0 and 1 are the two halves of the south
+    store.getState().setFacadePhoto(0, { url: "blob:a", width: 1, height: 1 });
+    store.getState().setFacadePhoto(1, { url: "blob:b", width: 1, height: 1 });
+    store.getState().removeFootprintVertex(1);
+    expect(photoAt(store.getState(), 0)?.url).toBe("blob:a");
+    store.getState().undo();
+    expect(photoAt(store.getState(), 0)?.url).toBe("blob:a");
+    expect(photoAt(store.getState(), 1)?.url).toBe("blob:b");
+    expect(revoke).not.toHaveBeenCalled();
   });
 
   it("moves wall notes, photos and radiators down when a vertex is removed", () => {
@@ -602,8 +643,8 @@ describe("footprint editing and deleteSelection", () => {
     store.getState().removeFootprintVertex(1);
     const s = store.getState();
     expect(s.building.notes?.[0]?.target).toEqual({ kind: "wall", wallIndex: 3 });
-    expect(s.facadePhotos[2]?.url).toBe("blob:north");
-    expect(s.facadePhotos[3]).toBeUndefined();
+    expect(photoAt(s, 2)?.url).toBe("blob:north");
+    expect(photoAt(s, 3)).toBeUndefined();
     expect(s.building.storeys[0]!.radiators?.find((r) => r.id === rad)?.wallIndex).toBe(2);
   });
 
@@ -793,6 +834,30 @@ describe("duplicateStorey", () => {
     expect(store.getState().activeStoreyId).toBe(copy?.id);
     store.getState().undo();
     expect(store.getState().building.storeys).toHaveLength(1);
+  });
+
+  it("names the copy with a storey name the house does not have yet", () => {
+    const sid = storeyId();
+    store.getState().addStorey();
+    store.getState().duplicateStorey(sid);
+    expect(store.getState().building.storeys.map((s) => s.name)).toEqual([
+      "Ground floor",
+      "2nd floor",
+      "1st floor",
+    ]);
+  });
+});
+
+describe("addStorey", () => {
+  it("never repeats a storey name already in the house", () => {
+    store.getState().duplicateStorey(storeyId());
+    store.getState().renameStorey(store.getState().building.storeys[1]?.id ?? "", "2nd floor");
+    store.getState().addStorey();
+    expect(store.getState().building.storeys.map((s) => s.name)).toEqual([
+      "Ground floor",
+      "2nd floor",
+      "3rd floor",
+    ]);
   });
 });
 
@@ -1038,6 +1103,25 @@ describe("replaceWindows", () => {
     expect(box()?.name).toBe("Kastenfenster, zwei Einfachscheiben");
     s().setLanguage("en");
     expect(box()?.name).toBe("Box window, two single panes");
+  });
+});
+
+describe("underlay", () => {
+  it("frees the old picture when it is replaced, removed or another building loads", () => {
+    const revoke = vi.fn();
+    URL.revokeObjectURL = revoke;
+    const base = { widthMetres: 10, aspect: 1, x: 0, y: 0, opacity: 0.5 };
+    store.getState().setUnderlay({ ...base, url: "blob:a" });
+    store.getState().setUnderlay({ ...base, url: "blob:a", opacity: 0.3 });
+    expect(revoke).not.toHaveBeenCalled();
+    store.getState().setUnderlay({ ...base, url: "blob:b" });
+    expect(revoke).toHaveBeenLastCalledWith("blob:a");
+    store.getState().setUnderlay(null);
+    expect(revoke).toHaveBeenLastCalledWith("blob:b");
+    store.getState().setUnderlay({ ...base, url: "blob:c" });
+    store.getState().loadBuilding(exampleAltbau("en"));
+    expect(revoke).toHaveBeenLastCalledWith("blob:c");
+    expect(revoke).toHaveBeenCalledTimes(3);
   });
 });
 

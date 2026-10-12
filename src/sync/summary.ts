@@ -58,7 +58,13 @@ function kindOf(op: Op): { kind: ChangeKind; id: string } {
     return { kind: "storeys", id: storey };
   }
   const key = typeof first === "string" ? first : "";
-  if (key === "footprint" || key === "origin" || key === "wallThickness" || key === "sharedEdges")
+  if (
+    key === "footprint" ||
+    key === "origin" ||
+    key === "wallThickness" ||
+    key === "sharedEdges" ||
+    key === "photoSlots"
+  )
     return { kind: "outline", id: key };
   if (key === "roof" || key === "roofConstructionId") return { kind: "roof", id: "roof" };
   if (key === "scenarios")

@@ -110,12 +110,6 @@ describe("diffBuilding and applyOps", () => {
         st.duplicateStorey(storey());
       },
       (st) => {
-        st.translateBuilding({ x: 1, y: 2 });
-      },
-      (st) => {
-        st.rotateBuilding(15);
-      },
-      (st) => {
         st.setOrigin(undefined);
       },
       (st) => {

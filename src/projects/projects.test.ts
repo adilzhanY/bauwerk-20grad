@@ -19,4 +19,13 @@ describe("server pictures", () => {
     await expect(savePhoto(ref, "0", new Blob(["x"]), 10, 10)).rejects.toThrow();
     await expect(removePhoto(ref, "0")).rejects.toThrow();
   });
+
+  it("a refused save says the status, so a refusal for good is not tried again", async () => {
+    vi.stubGlobal("fetch", () => Promise.resolve(new Response(null, { status: 403 })));
+    const { savePhoto } = await import("./projects");
+    const ref = { kind: "server", id: "p1" } as const;
+    await expect(savePhoto(ref, "0", new Blob(["x"]), 10, 10)).rejects.toMatchObject({
+      status: 403,
+    });
+  });
 });

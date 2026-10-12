@@ -21,7 +21,7 @@ import { devMode } from "@/lib/devMode";
 import { formatMetres, formatNumber } from "@/lib/format";
 import { useFloorplanAvailable } from "@/lod2/api/floorplan";
 import { can } from "@/projects/roles";
-import { useEditorStore } from "@/store/building";
+import { useEditorStore, wallPhotoSlot } from "@/store/building";
 import { ElementTree } from "./ElementTree";
 import { FilePreview } from "./FilePreview";
 import type { PreviewItem } from "./FilePreview";
@@ -432,7 +432,7 @@ function EnvelopeSurvey({ onPreview }: { onPreview: (item: PreviewItem) => void 
       <ul aria-label={t("survey.envelope")} className="-mx-2 flex flex-col">
         {walls.map((wall) => {
           const n = wall.index + 1;
-          const photo = photos[wall.index];
+          const photo = photos[wallPhotoSlot(building, wall.index)];
           const isShared = shared.includes(wall.index);
           const side = t(`survey.side.${orientationOf(wall.normal, rotation)}`);
           return (

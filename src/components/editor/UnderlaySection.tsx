@@ -27,7 +27,6 @@ export function UnderlaySection({ collapsible = false }: { collapsible?: boolean
     const url = URL.createObjectURL(file);
     const img = new window.Image();
     img.onload = () => {
-      if (underlay) URL.revokeObjectURL(underlay.url);
       setUnderlay({
         url,
         widthMetres: 20,
@@ -70,7 +69,6 @@ export function UnderlaySection({ collapsible = false }: { collapsible?: boolean
             variant="quiet"
             icon={<Trash2 size={14} />}
             onClick={() => {
-              URL.revokeObjectURL(underlay.url);
               setUnderlay(null);
             }}
           >

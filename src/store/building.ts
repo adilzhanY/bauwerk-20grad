@@ -16,7 +16,7 @@ import {
 import type { EdgeChange } from "@/geometry/shared";
 import { planToLatLon } from "@/geometry/geo";
 import { resizeRectangle } from "@/geometry/box";
-import { buildingCentre, rotateBuilding, translateBuilding } from "@/geometry/transform";
+import { buildingCentre, translateBuilding } from "@/geometry/transform";
 import { immer } from "zustand/middleware/immer";
 import type {
   Building,
@@ -133,10 +133,11 @@ export interface EditorState {
   /** The footprint edge whose facade is open in the photo editor, or null. */
   photoWall: number | null;
   /**
-   * Straightened facade photos by footprint edge, drawn on the walls in 3D. Only for this
-   * browser session: an image is not part of the building and is not shared.
+   * Straightened facade photos by photo slot (wallPhotoSlot), drawn on the walls in 3D. Not
+   * part of the building: projects/photoSync.ts keeps them with the project. A photo whose
+   * slot no wall has (two walls merged) stays until another building loads, for undo.
    */
-  facadePhotos: Record<number, FacadePhoto>;
+  facadePhotos: Record<string, FacadePhoto>;
   /**
    * The floor plan image each storey was read from, by storey id: kept with the project like
    * the facade photos. UI state, not part of the building file.
@@ -291,10 +292,6 @@ export interface EditorActions {
   setFootprint: (footprint: Vec2[], origin?: GeoOrigin) => void;
   /** Resizes a rectangular footprint about its centre; openings are clamped into their walls. */
   resizeFootprint: (width: number, depth: number) => void;
-  /** Slides the whole building on the plan; the geo origin stays. */
-  translateBuilding: (delta: Vec2) => void;
-  /** Turns the whole building about its footprint centre. */
-  rotateBuilding: (degrees: number) => void;
   /** Makes the building centre the new plan origin and moves the geo origin with it. */
   recentreOrigin: () => void;
   addOpening: (storeyId: Id, opening: NewOpening) => Id;
@@ -349,7 +346,10 @@ export interface EditorActions {
   removeNote: (id: Id) => void;
   setPhotoWall: (edge: number | null) => void;
   /** Keeps (or with null forgets) the straightened photo of a facade. Frees the replaced one. */
+  /** Puts a photo on footprint edge `edge` (in its photo slot), or removes it with null. */
   setFacadePhoto: (edge: number, photo: FacadePhoto | null) => void;
+  /** The same by photo slot (Building.photoSlots), as the server stores it. */
+  setFacadePhotoSlot: (slot: string, photo: FacadePhoto | null) => void;
   setFloorPlanImage: (storeyId: Id, image: FacadePhoto | null) => void;
   /** Drops every facade photo and floor plan image: a new project starts without any. */
   clearProjectMedia: () => void;
@@ -407,6 +407,14 @@ export type ConstructionTarget =
   | { kind: "opening"; storeyId: Id; id: Id };
 
 export type EditorStore = EditorState & EditorActions & HistorySlice;
+
+/** The first default storey name from position `from` up that no storey of `storeys` has yet. */
+function freeStoreyName(storeys: Storey[], from: number, language: Language): string {
+  const taken = new Set(storeys.map((s) => s.name));
+  let index = from;
+  while (taken.has(defaultStoreyName(index, language))) index++;
+  return defaultStoreyName(index, language);
+}
 
 export function createStorey(index: number, language: Language): Storey {
   return {
@@ -473,24 +481,56 @@ function refreshAllRooms(building: Building, language: Language): void {
   for (const storey of building.storeys) refreshRooms(storey, building.footprint, language);
 }
 
+/** The facade photo slot of every footprint edge (Building.photoSlots), in edge order. */
+export function wallPhotoSlots(building: Building): string[] {
+  const slots = building.photoSlots;
+  return slots?.length === building.footprint.length
+    ? slots
+    : building.footprint.map((_, i) => String(i));
+}
+
+/** The facade photo slot of footprint edge `edge`: the key of its photo and its server slot. */
+export function wallPhotoSlot(building: Building, edge: number): string {
+  return wallPhotoSlots(building)[edge] ?? String(edge);
+}
+
 /**
- * Carries what points at a footprint edge along with an edit that renumbers the edges: wall
- * notes, facade photos, the wall open in the photo editor, the lit wall and a selected wall.
+ * Carries what points at a footprint edge along with an edit that renumbers the edges: the
+ * photo slots, wall notes, the wall open in the photo editor, the lit wall and a selected wall.
  * Openings and radiators are placed by the edit itself, since their offsets matter too.
+ * `before` is the store before the edit: a new slot is one no building undo or redo can bring
+ * back uses, so a photo never lands on another wall.
  */
-function remapEdgeRefs(state: EditorState, change: EdgeChange): void {
+function remapEdgeRefs(
+  state: EditorState,
+  change: EdgeChange,
+  before: Pick<EditorStore, "building" | "past" | "future">,
+): void {
   const to = (i: number) => remapEdgeIndex(i, change).index;
   for (const note of state.building.notes ?? []) {
     if (note.target.kind === "wall") note.target.wallIndex = to(note.target.wallIndex);
   }
-  const photos: Record<number, FacadePhoto> = {};
-  for (const [edge, photo] of Object.entries(state.facadePhotos)) {
-    const i = to(Number(edge));
-    // Two walls merged into one: the first photo stays, the other goes.
-    if (photos[i]) URL.revokeObjectURL(photo.url);
-    else photos[i] = photo;
+  const slots = [...wallPhotoSlots(before.building)];
+  if (change.kind === "split") {
+    const used = new Set([
+      ...slots,
+      ...Object.keys(state.facadePhotos),
+      ...[...before.past, ...before.future].flatMap(wallPhotoSlots),
+    ]);
+    let free = 0;
+    while (used.has(String(free))) free++;
+    slots.splice(change.edge + 1, 0, String(free));
+  } else {
+    const { vertex, count } = change;
+    const previous = (vertex - 1 + count) % count;
+    // Two walls merged into one: it shows the photo of the first that has one. The other
+    // photo stays in facadePhotos, unseen, for an undo to bring back.
+    const merged = [previous, vertex].sort((a, b) => a - b).map((i) => slots[i] ?? String(i));
+    slots[previous] =
+      merged.find((slot) => state.facadePhotos[slot]) ?? slots[previous] ?? String(previous);
+    slots.splice(vertex, 1);
   }
-  state.facadePhotos = photos;
+  state.building.photoSlots = slots;
   if (state.photoWall !== null) state.photoWall = to(state.photoWall);
   if (state.highlightedWall !== null) state.highlightedWall = to(state.highlightedWall);
   if (state.selection?.kind === "wall") state.selection.wallIndex = to(state.selection.wallIndex);
@@ -604,7 +644,11 @@ export function createEditorStore(initial?: Partial<EditorState>) {
                   edgeIndex,
                 );
               }
-              remapEdgeRefs(state, { kind: "split", edge: edgeIndex });
+              remapEdgeRefs(
+                state,
+                { kind: "split", edge: edgeIndex },
+                get() as unknown as EditorStore,
+              );
               state.selection = { kind: "vertex", index: edgeIndex + 1 };
               refreshAllRooms(state.building, state.language);
             });
@@ -629,7 +673,7 @@ export function createEditorStore(initial?: Partial<EditorState>) {
                 storey.openings = storey.openings.flatMap((o) => (o.interior ? [o] : place(o)));
                 if (storey.radiators) storey.radiators = storey.radiators.flatMap(place);
               }
-              remapEdgeRefs(state, change);
+              remapEdgeRefs(state, change, get() as unknown as EditorStore);
               if (state.building.sharedEdges) {
                 state.building.sharedEdges = sharedAfterRemove(
                   state.building.sharedEdges,
@@ -695,6 +739,11 @@ export function createEditorStore(initial?: Partial<EditorState>) {
           addStorey: () => {
             set((state) => {
               const storey = createStorey(state.building.storeys.length, state.language);
+              storey.name = freeStoreyName(
+                state.building.storeys,
+                state.building.storeys.length,
+                state.language,
+              );
               refreshRooms(storey, state.building.footprint, state.language);
               state.building.storeys.push(storey);
               state.activeStoreyId = storey.id;
@@ -946,18 +995,6 @@ export function createEditorStore(initial?: Partial<EditorState>) {
             });
           },
 
-          translateBuilding: (delta) => {
-            set((state) => {
-              state.building = translateBuilding(state.building, delta);
-            });
-          },
-
-          rotateBuilding: (degrees) => {
-            set((state) => {
-              state.building = rotateBuilding(state.building, degrees);
-            });
-          },
-
           recentreOrigin: () => {
             set((state) => {
               const b = state.building;
@@ -996,6 +1033,7 @@ export function createEditorStore(initial?: Partial<EditorState>) {
                 if (storey.radiators) storey.radiators = [];
               }
               delete state.building.sharedEdges;
+              delete state.building.photoSlots;
               for (const note of state.building.notes ?? []) {
                 if (note.target.kind === "wall") note.target = { kind: "building" };
               }
@@ -1319,6 +1357,8 @@ export function createEditorStore(initial?: Partial<EditorState>) {
                 ...Object.values(get().floorPlanImages),
               ])
                 URL.revokeObjectURL(photo.url);
+            const underlay = get().underlay;
+            if (underlay) URL.revokeObjectURL(underlay.url);
             set((state) => {
               if (other) {
                 state.facadePhotos = {};
@@ -1383,7 +1423,7 @@ export function createEditorStore(initial?: Partial<EditorState>) {
               if (!source) return;
               const copy: Storey = {
                 id: createId("storey"),
-                name: defaultStoreyName(index + 1, state.language),
+                name: freeStoreyName(state.building.storeys, index + 1, state.language),
                 height: source.height,
                 openings: source.openings.map((o) => ({ ...o, id: createId("opening") })),
                 interiorWalls: source.interiorWalls.map((w) => ({
@@ -1415,6 +1455,8 @@ export function createEditorStore(initial?: Partial<EditorState>) {
           },
 
           setUnderlay: (underlay) => {
+            const previous = get().underlay;
+            if (previous && previous.url !== underlay?.url) URL.revokeObjectURL(previous.url);
             set((state) => {
               state.underlay = underlay;
             });
@@ -1478,13 +1520,17 @@ export function createEditorStore(initial?: Partial<EditorState>) {
           },
 
           setFacadePhoto: (edge, photo) => {
-            const previous = get().facadePhotos[edge];
+            get().setFacadePhotoSlot(wallPhotoSlot(get().building, edge), photo);
+          },
+
+          setFacadePhotoSlot: (slot, photo) => {
+            const previous = get().facadePhotos[slot];
             if (previous && previous.url !== photo?.url) URL.revokeObjectURL(previous.url);
             set((state) => {
-              if (photo) state.facadePhotos[edge] = photo;
+              if (photo) state.facadePhotos[slot] = photo;
               else {
                 state.facadePhotos = Object.fromEntries(
-                  Object.entries(state.facadePhotos).filter(([key]) => Number(key) !== edge),
+                  Object.entries(state.facadePhotos).filter(([key]) => key !== slot),
                 );
               }
             });
@@ -1670,7 +1716,6 @@ export function createEditorStore(initial?: Partial<EditorState>) {
                 name,
                 overrides: { ...from?.overrides },
                 bridgeDetail: from?.bridgeDetail,
-                roof: from?.roof,
                 ...(from?.heating ? { heating: { ...from.heating } } : {}),
               });
             });
@@ -1684,7 +1729,6 @@ export function createEditorStore(initial?: Partial<EditorState>) {
               if (patch.name !== undefined) s.name = patch.name;
               if (patch.overrides !== undefined) s.overrides = { ...patch.overrides };
               if ("bridgeDetail" in patch) s.bridgeDetail = patch.bridgeDetail;
-              if ("roof" in patch) s.roof = patch.roof;
               if ("heating" in patch) {
                 if (patch.heating) s.heating = { ...patch.heating };
                 else delete s.heating;

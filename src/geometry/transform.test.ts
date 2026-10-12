@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { area, isCounterClockwise } from "./polygon";
+import { area } from "./polygon";
 import { exampleHouse } from "@/lib/examples";
-import { buildingCentre, rotateBuilding, translateBuilding } from "./transform";
+import { buildingCentre, translateBuilding } from "./transform";
 
-describe("translateBuilding and rotateBuilding", () => {
+describe("translateBuilding", () => {
   it("moves every plan coordinate and nothing else", () => {
     const b = exampleHouse("en");
     b.heatPumps = [{ id: "hp", position: { x: -2, y: 1 }, power: 8, kind: "air" }];
@@ -31,36 +31,5 @@ describe("translateBuilding and rotateBuilding", () => {
     expect(moved.storeys[0]?.openings).toEqual(b.storeys[0]?.openings);
     expect(moved.origin).toBe(b.origin);
     expect(translateBuilding(b, { x: 0, y: 0 })).toBe(b);
-  });
-
-  it("rotates about the centre and keeps the footprint counter-clockwise", () => {
-    const b = exampleHouse("en");
-    const turned = rotateBuilding(b, 90);
-    expect(buildingCentre(turned).x).toBeCloseTo(buildingCentre(b).x);
-    expect(buildingCentre(turned).y).toBeCloseTo(buildingCentre(b).y);
-    expect(isCounterClockwise(turned.footprint)).toBe(true);
-    expect(area(turned.footprint)).toBeCloseTo(80);
-    b.storeys[0]!.pipes = [
-      {
-        id: "pipe",
-        points: [
-          { x: 6, y: 4 },
-          { x: 7, y: 4 },
-        ],
-      },
-    ];
-    const pipesTurned = rotateBuilding(b, 90);
-    expect(pipesTurned.storeys[0]?.pipes?.[0]?.points).toEqual([
-      { x: 5, y: 5 },
-      { x: 5, y: 6 },
-    ]);
-    // A 10 by 8 box turned by 90 degrees spans 8 by 10.
-    const xs = turned.footprint.map((p) => p.x);
-    expect(Math.max(...xs) - Math.min(...xs)).toBeCloseTo(8);
-    const back = rotateBuilding(turned, -90);
-    back.footprint.forEach((p, i) => {
-      expect(p.x).toBeCloseTo(b.footprint[i]?.x ?? NaN, 5);
-      expect(p.y).toBeCloseTo(b.footprint[i]?.y ?? NaN, 5);
-    });
   });
 });

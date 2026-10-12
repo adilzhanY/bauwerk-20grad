@@ -73,13 +73,13 @@ export function PhotoStage({
     return clampToImage(screenToPhoto(screen, fit), photoSize.width, photoSize.height);
   };
 
-  const startDrag = (index: number) => (event: React.PointerEvent<HTMLDivElement>) => {
+  const startDrag = (index: number) => (event: React.PointerEvent<HTMLButtonElement>) => {
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
     setDragging(index);
   };
 
-  const moveDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+  const moveDrag = (event: React.PointerEvent<HTMLButtonElement>) => {
     if (dragging === null || !corners) return;
     const point = mouseToPhoto(event);
     if (!point) return;
@@ -90,6 +90,22 @@ export function PhotoStage({
 
   const endDrag = () => {
     setDragging(null);
+  };
+
+  /** The arrow keys move a dot by one screen pixel, ten with Shift. */
+  const nudge = (index: number, corner: Point2) => (event: React.KeyboardEvent) => {
+    const arrow = ARROWS[event.key];
+    if (!arrow || !fit || !photoSize || !corners) return;
+    event.preventDefault();
+    const step = event.shiftKey ? 10 : 1;
+    const screen = photoToScreen(corner, fit);
+    const next = [...corners] as Quad;
+    next[index] = clampToImage(
+      screenToPhoto({ x: screen.x + arrow.x * step, y: screen.y + arrow.y * step }, fit),
+      photoSize.width,
+      photoSize.height,
+    );
+    onCornersChange(next);
   };
 
   const draggedCorner = dragging === null || !corners ? null : corners[dragging];
@@ -140,23 +156,33 @@ export function PhotoStage({
         corners?.map((corner, index) => {
           const screen = photoToScreen(corner, fit);
           return (
-            <div
+            <button
+              type="button"
               key={index}
               className={`corner-dot corner-${index}${dragging === index ? " dragging" : ""}${dotsProposed ? " proposed" : ""}`}
               style={{ left: screen.x, top: screen.y }}
               title={t(cornerLabel(index))}
+              aria-label={t("photo.cornerMove", { corner: t(cornerLabel(index)) })}
+              onKeyDown={nudge(index, corner)}
               onPointerDown={startDrag(index)}
               onPointerMove={moveDrag}
               onPointerUp={endDrag}
               onPointerCancel={endDrag}
             >
               {index + 1}
-            </div>
+            </button>
           );
         })}
     </div>
   );
 }
+
+const ARROWS: Record<string, Point2 | undefined> = {
+  ArrowLeft: { x: -1, y: 0 },
+  ArrowRight: { x: 1, y: 0 },
+  ArrowUp: { x: 0, y: -1 },
+  ArrowDown: { x: 0, y: 1 },
+};
 
 /**
  * Zoomed view of the photo around the dot being dragged, with a crosshair on the exact

@@ -1,6 +1,6 @@
-import { Suspense } from "react";
-import { useLoader } from "@react-three/fiber";
-import { TextureLoader } from "three";
+import { useEffect, useState } from "react";
+import { SRGBColorSpace, TextureLoader } from "three";
+import type { Texture } from "three";
 import { useEditorStore } from "@/store/building";
 import type { Underlay as UnderlayData } from "@/store/building";
 
@@ -8,15 +8,27 @@ import type { Underlay as UnderlayData } from "@/store/building";
 export function Underlay() {
   const underlay = useEditorStore((s) => s.underlay);
   if (!underlay) return null;
-  return (
-    <Suspense fallback={null}>
-      <UnderlayPlane key={underlay.url} underlay={underlay} />
-    </Suspense>
-  );
+  return <UnderlayPlane key={underlay.url} underlay={underlay} />;
 }
 
 function UnderlayPlane({ underlay }: { underlay: UnderlayData }) {
-  const texture = useLoader(TextureLoader, underlay.url);
+  const [texture, setTexture] = useState<Texture | null>(null);
+  // Loaded by hand and disposed on unmount: useLoader would cache every picture for good.
+  useEffect(() => {
+    let live = true;
+    let loaded: Texture | null = null;
+    new TextureLoader().load(underlay.url, (t) => {
+      t.colorSpace = SRGBColorSpace;
+      loaded = t;
+      if (live) setTexture(t);
+      else t.dispose();
+    });
+    return () => {
+      live = false;
+      loaded?.dispose();
+    };
+  }, [underlay.url]);
+  if (!texture) return null;
   const w = underlay.widthMetres;
   const h = w * underlay.aspect;
   return (

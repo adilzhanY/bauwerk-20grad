@@ -16,7 +16,7 @@ import { useT } from "@/i18n/useT";
 import { BOX_LIMITS, rectangleOf } from "@/geometry/box";
 import type { MessageKey } from "@/i18n";
 import { formatArea, formatMetres, formatNumber } from "@/lib/format";
-import { useEditorStore } from "@/store/building";
+import { useEditorStore, wallPhotoSlot } from "@/store/building";
 import type { Selection } from "@/store/building";
 import { CustomButton } from "@/components/shared/CustomButton";
 import { CustomSlider } from "@/components/shared/CustomSlider";
@@ -769,7 +769,9 @@ function WallProperties({ storeyId, wallIndex }: { storeyId: string; wallIndex: 
 function WallPhotoControls({ wallIndex }: { wallIndex: number }) {
   const t = useT();
   const language = useEditorStore((s) => s.language);
-  const hasPhoto = useEditorStore((s) => s.facadePhotos[wallIndex] !== undefined);
+  const hasPhoto = useEditorStore(
+    (s) => s.facadePhotos[wallPhotoSlot(s.building, wallIndex)] !== undefined,
+  );
   const transparency = useEditorStore((s) => s.facadePhotoTransparency);
   const setTransparency = useEditorStore((s) => s.setFacadePhotoTransparency);
   const setFacadePhoto = useEditorStore((s) => s.setFacadePhoto);

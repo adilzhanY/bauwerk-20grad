@@ -14,18 +14,28 @@ const reading = readFileSync(
   "utf8",
 );
 
+/** The signal the dialog drew the pages with, and how many pages the PDF says it has. */
+const drawing = vi.hoisted(() => ({ signal: null as AbortSignal | null, total: 2 }));
+
 /** A PDF of two pages, the upper floor first: the titles say which storey each shows. */
 vi.mock("@/lib/pdfPages", () => ({
   isPdf: () => true,
-  pdfPages: () =>
-    Promise.resolve([
-      { image: new Blob(["p1"]), width: 800, height: 600, text: "Grundriss 1. Obergeschoss" },
-      { image: new Blob(["p2"]), width: 800, height: 600, text: "Grundriss Erdgeschoss" },
-    ]),
+  MAX_PDF_PAGES: 2,
+  pdfPages: (_file: Blob, signal: AbortSignal) => {
+    drawing.signal = signal;
+    return Promise.resolve({
+      pages: [
+        { image: new Blob(["p1"]), width: 800, height: 600, text: "Grundriss 1. Obergeschoss" },
+        { image: new Blob(["p2"]), width: 800, height: 600, text: "Grundriss Erdgeschoss" },
+      ],
+      total: drawing.total,
+    });
+  },
 }));
 
 let urls = 0;
 beforeEach(() => {
+  drawing.total = 2;
   resetIds();
   useEditorStore.setState({ language: "en" });
   useEditorStore.getState().loadBuilding(exampleHouse("en"));
@@ -114,5 +124,16 @@ describe("floor plans from a PDF", () => {
     const after = useEditorStore.getState();
     expect(after.floorPlanImages[ground?.id ?? ""]).toBeTruthy();
     expect(after.building.storeys[0]?.interiorWalls.length).toBe(ground?.interiorWalls.length);
+  });
+
+  it("says when a long PDF shows only its first pages, and stops drawing when closed", async () => {
+    drawing.total = 30;
+    const { unmount } = render(
+      <PdfImportDialog file={new File(["%PDF"], "plans.pdf")} onClose={() => undefined} />,
+    );
+    expect(await screen.findByText("Only the first 2 of the 30 pages are shown.")).toBeTruthy();
+    expect(drawing.signal?.aborted).toBe(false);
+    unmount();
+    expect(drawing.signal?.aborted).toBe(true);
   });
 });

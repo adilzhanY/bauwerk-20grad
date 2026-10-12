@@ -3,7 +3,7 @@ import { Check, Square } from "lucide-react";
 import { useT } from "@/i18n/useT";
 import { aiOffText } from "@/lib/aiHost";
 import { formatNumber } from "@/lib/format";
-import { pdfPages } from "@/lib/pdfPages";
+import { MAX_PDF_PAGES, pdfPages } from "@/lib/pdfPages";
 import { storeysForPages } from "@/lib/storeyFromText";
 import { errorText } from "@/lod2/api/errors";
 import { readFloorPlan, useFloorplanAvailable } from "@/lod2/api/floorplan";
@@ -17,6 +17,7 @@ import { CustomButton } from "@/components/shared/CustomButton";
 import { CustomDialog } from "@/components/shared/CustomDialog";
 import { CustomSelect } from "@/components/shared/CustomSelect";
 import { Hint } from "@/components/shared/Hint";
+import { Notice } from "@/components/shared/Notice";
 import { Presence } from "@/components/shared/Presence";
 import { Spinner } from "@/components/shared/Spinner";
 import { useElapsed } from "@/components/shared/useElapsed";
@@ -59,6 +60,8 @@ export function PdfImportDialog({ file, onClose }: { file: File; onClose: () => 
   const available = useFloorplanAvailable();
   const [pages, setPages] = useState<Page[] | null>(null);
   const [failed, setFailed] = useState(false);
+  // How many pages the PDF has when only the first MAX_PDF_PAGES were drawn.
+  const [cut, setCut] = useState<number | null>(null);
   const [run, setRun] = useState<{ startedAt: number; ahead: number } | null>(null);
   // The page just read, its walls drawing in while the next one is read.
   const [shown, setShown] = useState<Shown | null>(null);
@@ -68,12 +71,14 @@ export function PdfImportDialog({ file, onClose }: { file: File; onClose: () => 
 
   useEffect(() => {
     let live = true;
+    const drawing = new AbortController();
     const made: string[] = [];
     const keep = kept.current;
     const ids = useEditorStore.getState().building.storeys.map((s) => s.id);
-    pdfPages(file)
-      .then((drawn) => {
+    pdfPages(file, drawing.signal)
+      .then(({ pages: drawn, total }) => {
         if (!live) return;
+        setCut(total > drawn.length ? total : null);
         const assigned = storeysForPages(
           drawn.map((p) => p.text),
           ids,
@@ -99,6 +104,7 @@ export function PdfImportDialog({ file, onClose }: { file: File; onClose: () => 
       });
     return () => {
       live = false;
+      drawing.abort();
       stop.current?.abort();
       for (const url of made) if (!keep.has(url)) URL.revokeObjectURL(url);
     };
@@ -213,6 +219,13 @@ export function PdfImportDialog({ file, onClose }: { file: File; onClose: () => 
           {(list) => (
             <div className="flex flex-col gap-3">
               <Hint>{t("pdfImport.hint")}</Hint>
+              <Presence value={cut}>
+                {(total) => (
+                  <Notice tone="warning">
+                    {t("pdfImport.capped", { shown: MAX_PDF_PAGES, total })}
+                  </Notice>
+                )}
+              </Presence>
               <ul className="flex flex-col gap-2">
                 {list.map((page) => (
                   <li key={page.n}>

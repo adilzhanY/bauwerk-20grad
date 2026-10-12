@@ -6,7 +6,7 @@ import { buildWalls } from "@/geometry/walls";
 import type { Wall } from "@/geometry/walls";
 import type { Building } from "@/geometry/types";
 import { colors } from "@/lib/colors";
-import { useEditorStore } from "@/store/building";
+import { useEditorStore, wallPhotoSlots } from "@/store/building";
 import type { FacadePhoto as Photo } from "@/store/building";
 import { yawFor } from "./three";
 import { WALL_PX_PER_METRE } from "@/components/photo-editor/constants";
@@ -30,10 +30,11 @@ export function FacadePhotos() {
   if (!show) return null;
   return (
     <>
-      {Object.entries(photos).map(([edge, photo]) => {
-        const wall = walls[Number(edge)];
-        return wall ? (
-          <FacadePhoto key={edge} wall={wall} photo={photo} building={building} />
+      {wallPhotoSlots(building).map((slot, edge) => {
+        const wall = walls[edge];
+        const photo = photos[slot];
+        return wall && photo ? (
+          <FacadePhoto key={slot} wall={wall} photo={photo} building={building} />
         ) : null;
       })}
     </>
