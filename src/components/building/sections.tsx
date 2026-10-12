@@ -1,6 +1,7 @@
 import { SectionLabel } from "@/components/shared/PageTitle";
 import { ageClassName, buildingFunctionName, roofTypeName } from "@/lod2/messages";
 import type { EnergySummary } from "@/geometry/energy";
+import { CustomSelect } from "@/components/shared/CustomSelect";
 import { Hint } from "@/components/shared/Hint";
 import type { ReactNode } from "react";
 import type { BuildingDetail } from "lod2-core/api";
@@ -104,21 +105,20 @@ export function GeneralSection({
           "-"}
       </DataRow>
       <DataRow label={t("building.ageClass")} info={t("building.ageClassInfo")}>
-        <select
-          aria-label={t("building.ageClass")}
-          value={age.id}
-          onChange={(e) => {
-            const next = AGE_CLASSES.find((c) => c.id === e.target.value);
-            if (next) setFacts(detail.buildingGid, { ageClass: next.id, ageClassConfirmed: true });
-          }}
-          className="rounded-soft bg-transparent text-right font-medium text-ink hover:bg-paper"
-        >
-          {AGE_CLASSES.map((c) => (
-            <option key={c.id} value={c.id}>
-              {ageClassName(c.id, language)}
-            </option>
-          ))}
-        </select>
+        <div className="w-44">
+          <CustomSelect
+            label={t("building.ageClass")}
+            hideLabel
+            value={age.id}
+            options={AGE_CLASSES.map((c) => ({
+              value: c.id,
+              label: ageClassName(c.id, language),
+            }))}
+            onChange={(ageClass) => {
+              setFacts(detail.buildingGid, { ageClass, ageClassConfirmed: true });
+            }}
+          />
+        </div>
       </DataRow>
       <DataRow label={t("building.storeys")} info={t("building.storeysInfo")}>
         {building.storeys.length}

@@ -5,8 +5,6 @@ import type { MessageKey, Messages } from "./en";
 export type Language = "en" | "de";
 export type { MessageKey };
 
-export const LANGUAGES: readonly Language[] = ["en", "de"];
-
 const messages: Record<Language, Messages> = { en, de };
 
 export type Params = Record<string, string | number>;

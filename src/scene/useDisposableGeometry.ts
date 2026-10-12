@@ -10,13 +10,3 @@ export function useDisposableGeometry(geometry: BufferGeometry | null): void {
     [geometry],
   );
 }
-
-/** Releases a generated geometry collection when it is replaced or unmounted. */
-export function useDisposableGeometries(geometries: readonly BufferGeometry[]): void {
-  useEffect(
-    () => () => {
-      for (const geometry of geometries) geometry.dispose();
-    },
-    [geometries],
-  );
-}

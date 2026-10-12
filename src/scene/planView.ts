@@ -44,16 +44,3 @@ export function planCamera(
   const z = -cz - (insets.top - insets.bottom) / 2 / zoom;
   return { position: [x, elevation + 50, z], zoom, target: [x, elevation, z] };
 }
-
-/** Maps a screen pixel to a plan point under the orthographic plan camera. */
-export function planPointFromScreen(
-  camera: PlanCamera,
-  viewport: { width: number; height: number },
-  px: number,
-  py: number,
-): Vec2 {
-  const dx = (px - viewport.width / 2) / camera.zoom;
-  const dy = (py - viewport.height / 2) / camera.zoom;
-  // Screen down is world +z, which is plan -y: north is up on the screen.
-  return { x: camera.position[0] + dx, y: -(camera.position[2] + dy) };
-}

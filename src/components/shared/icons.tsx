@@ -22,14 +22,6 @@ export const WindowFrame = createLucideIcon("WindowFrame", [
   ["path", { d: "M3 21h18", key: "windowframe-3" }],
 ]);
 
-/** A door as drawn in a plan: a wall break with the leaf and its swing. */
-export const DoorPlan = createLucideIcon("DoorPlan", [
-  ["path", { d: "M2 15h5v6H2", key: "doorplan-0" }],
-  ["path", { d: "M22 15h-7v6h7", key: "doorplan-1" }],
-  ["path", { d: "M7 15V7", key: "doorplan-2" }],
-  ["path", { d: "M7 7a8 8 0 0 1 8 8", key: "doorplan-3" }],
-]);
-
 /** An exterior wall: masonry hatching, as in a German plan. */
 export const WallHatched = createLucideIcon("WallHatched", [
   ["rect", { x: "3", y: "7", width: "18", height: "10", rx: "2", key: "wallhatched-0" }],
@@ -94,12 +86,4 @@ export const FloorPlan = createLucideIcon("FloorPlan", [
   ["path", { d: "M3 13h4", key: "floorplan-2" }],
   ["path", { d: "M11 13h10", key: "floorplan-3" }],
   ["path", { d: "M15 13v8", key: "floorplan-4" }],
-]);
-
-/** The whole building shown solid: a house with its storeys. */
-export const WholeBuilding = createLucideIcon("WholeBuilding", [
-  ["path", { d: "M3 10.5 12 4l9 6.5", key: "wholebuilding-0" }],
-  ["path", { d: "M5 9v12h14V9", key: "wholebuilding-1" }],
-  ["path", { d: "M5 13.5h14", key: "wholebuilding-2" }],
-  ["path", { d: "M5 17.5h14", key: "wholebuilding-3" }],
 ]);

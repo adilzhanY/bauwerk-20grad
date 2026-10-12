@@ -12,7 +12,7 @@ import {
   evaluateAll,
   evaluateScenario,
   fullEnvelopeScenario,
-  investmentOf,
+  measuresOf,
 } from "./scenarios";
 import type { Building, Opening, Scenario } from "./types";
 
@@ -102,7 +102,7 @@ describe("scenarios", () => {
     expect(v.roofConstructionId).toBe(PRESET_IDS.roofInsulated);
     expect(v.roof?.kind).toBe("gable");
     expect(v.bridgeDetail).toBe("good");
-    expect(investmentOf(b, v)).toBeGreaterThan(0);
+    expect(measuresOf(b, v).reduce((sum, m) => sum + m.cost, 0)).toBeGreaterThan(0);
   });
 
   it("evaluateAll lists the built-in variant first and the saved ones after", () => {

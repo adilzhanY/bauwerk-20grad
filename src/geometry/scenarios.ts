@@ -295,11 +295,6 @@ export function measuresOf(
   return measures;
 }
 
-/** Euro for everything the variant changes. */
-export function investmentOf(baseline: Building, variant: Building): number {
-  return Math.round(measuresOf(baseline, variant).reduce((sum, m) => sum + m.cost, 0));
-}
-
 export function evaluateAll(building: Building): ScenarioResult[] {
   const baseline = computeEnergy(building);
   const list = [fullEnvelopeScenario(building), ...(building.scenarios ?? [])];

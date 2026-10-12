@@ -46,8 +46,6 @@ export const PASSWORD_RULES = [
   { key: "auth.rule.passwordSymbol", test: (p: string) => /[^\p{L}\p{N}\s]/u.test(p) },
 ] as const;
 
-export type PasswordRule = (typeof PASSWORD_RULES)[number]["key"];
-
 export const password = z
   .string()
   .max(PASSWORD_MAX, { error: "auth.rule.passwordLong" })

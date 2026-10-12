@@ -40,5 +40,3 @@ export const ZONE_COLORS = [
   "#6c8ef5",
   "#b084cc",
 ] as const;
-
-export const INACTIVE_OPACITY = 0.25;
