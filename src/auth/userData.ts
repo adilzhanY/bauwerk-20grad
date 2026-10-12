@@ -6,6 +6,8 @@
  * On signing in the two are merged: what the server has wins, and what only this browser has
  * goes up, so nothing typed before signing in is lost. From then on every change is sent.
  * Failed sends are not retried on their own; the next change to the same thing sends it again.
+ * Signing out first sends what is still waiting; what still does not get there is kept for
+ * that account only, and goes up when it signs in again.
  */
 import { z } from "zod";
 import { useEditorStore } from "@/store/building";
@@ -18,6 +20,10 @@ const BOOKMARKS_KEY = "bauwerk.bookmarks";
 const NOTE_KEY = "bauwerk.notes.";
 const VIEW_KEY = "bauwerk.projectsView";
 const SURVEY_KEY = "lod2.survey.v1";
+/** Per account: the notes and surveys a sign out could not send (`unsent.<user id>`). */
+const UNSENT_KEY = "bauwerk.unsent.";
+
+const surveySchema = z.custom<BuildingSurvey>((v) => typeof v === "object" && v !== null);
 
 /** The reply of GET /me. A survey is taken as the server stored it, an object. */
 const serverDataSchema = z.object({
@@ -31,45 +37,82 @@ const serverDataSchema = z.object({
     z.object({
       gid: z.string(),
       note: z.string().nullable(),
-      survey: z.custom<BuildingSurvey>((v) => typeof v === "object" && v !== null).nullable(),
+      survey: surveySchema.nullable(),
     }),
   ),
 });
 
 type ServerData = z.infer<typeof serverDataSchema>;
 
+const unsentSchema = z.object({
+  notes: z.record(z.string(), z.string()),
+  surveys: z.record(z.string(), surveySchema.nullable()),
+});
+type Unsent = z.infer<typeof unsentSchema>;
+
 const signedIn = () => useAuth.getState().status === "signedIn" && apiBase() !== null;
 
-async function send(method: "PUT" | "DELETE", path: string, body?: unknown): Promise<void> {
+/**
+ * Sends a change while signed in. `headers` are the ones taken when the change was made: a
+ * send held back by `later` may go after signing out, when the token is gone. False when it
+ * did not get there.
+ */
+async function send(
+  method: "PUT" | "DELETE",
+  path: string,
+  body?: unknown,
+  headers?: Promise<Record<string, string>>,
+): Promise<boolean> {
   const base = apiBase();
-  if (!base || !signedIn()) return;
+  if (!base || (!headers && !signedIn())) return true;
   try {
-    await fetch(`${base}${path}`, {
+    const res = await fetch(`${base}${path}`, {
       method,
       headers: {
         ...(body === undefined ? {} : { "content-type": "application/json" }),
-        ...(await authHeaders()),
+        ...(await (headers ?? authHeaders())),
       },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
+    return res.ok;
   } catch {
     // Offline: the next change sends it again.
+    return false;
   }
 }
 
 /** Waits a moment after the last call per key, so typing sends once and not per key press. */
-const timers = new Map<string, ReturnType<typeof setTimeout>>();
-function later(key: string, run: () => void, ms = 600) {
-  const old = timers.get(key);
-  if (old) clearTimeout(old);
-  timers.set(
-    key,
-    setTimeout(() => {
-      timers.delete(key);
-      run();
-    }, ms),
-  );
+const timers = new Map<
+  string,
+  { timer: ReturnType<typeof setTimeout>; run: () => Promise<void> }
+>();
+const running = new Set<Promise<void>>();
+function start(run: () => Promise<void>) {
+  const done = run().finally(() => running.delete(done));
+  running.add(done);
 }
+function later(key: string, run: () => Promise<void>, ms = 600) {
+  const old = timers.get(key);
+  if (old) clearTimeout(old.timer);
+  const timer = setTimeout(() => {
+    timers.delete(key);
+    start(run);
+  }, ms);
+  timers.set(key, { timer, run });
+}
+/** Sends at once what waits for typing to stop, and waits for every send on its way. */
+async function flush(): Promise<void> {
+  for (const { timer, run } of timers.values()) {
+    clearTimeout(timer);
+    start(run);
+  }
+  timers.clear();
+  await Promise.all(running);
+}
+
+/** The notes and surveys whose last send failed, by building: a sign out keeps them. */
+const unsentNotes = new Map<string, string>();
+const unsentSurveys = new Map<string, BuildingSurvey | null>();
 
 const read = (key: string): string | null => {
   try {
@@ -93,10 +136,13 @@ export function syncBookmark(gid: string, on: boolean): void {
 }
 
 export function syncNote(gid: string, note: string): void {
-  later(`note:${gid}`, () => {
-    void send("PUT", `/me/buildings/${encodeURIComponent(gid)}`, {
-      note: note === "" ? null : note,
-    });
+  if (!signedIn()) return;
+  const headers = authHeaders();
+  later(`note:${gid}`, async () => {
+    const path = `/me/buildings/${encodeURIComponent(gid)}`;
+    if (await send("PUT", path, { note: note === "" ? null : note }, headers))
+      unsentNotes.delete(gid);
+    else unsentNotes.set(gid, note);
   });
 }
 
@@ -105,8 +151,11 @@ export function syncProjectsView(view: string): void {
 }
 
 function syncSurvey(gid: string, survey: BuildingSurvey | null): void {
-  later(`survey:${gid}`, () => {
-    void send("PUT", `/me/buildings/${encodeURIComponent(gid)}`, { survey });
+  const headers = authHeaders();
+  later(`survey:${gid}`, async () => {
+    if (await send("PUT", `/me/buildings/${encodeURIComponent(gid)}`, { survey }, headers))
+      unsentSurveys.delete(gid);
+    else unsentSurveys.set(gid, survey);
   });
 }
 
@@ -159,7 +208,7 @@ export async function mergeUserData(): Promise<void> {
 
   // Notes and surveys, building by building.
   const onServer = new Map(data.buildings.map((b) => [b.gid, b]));
-  const surveys = { ...useSurvey.getState().buildings };
+  let surveys = { ...useSurvey.getState().buildings };
   for (const b of data.buildings) {
     if (b.note !== null) write(NOTE_KEY + b.gid, b.note);
     if (b.survey !== null) surveys[b.gid] = b.survey;
@@ -173,6 +222,23 @@ export async function mergeUserData(): Promise<void> {
   }
   for (const [gid, survey] of Object.entries(useSurvey.getState().buildings))
     if (!onServer.get(gid)?.survey) syncSurvey(gid, survey);
+
+  // What this account's last sign out could not send: newer than the server's, so it wins.
+  const id = useAuth.getState().account?.id;
+  const unsent = id ? readUnsent(id) : null;
+  if (id && unsent) {
+    for (const [gid, note] of Object.entries(unsent.notes)) {
+      write(NOTE_KEY + gid, note);
+      syncNote(gid, note);
+    }
+    for (const [gid, survey] of Object.entries(unsent.surveys)) {
+      surveys = survey
+        ? { ...surveys, [gid]: survey }
+        : Object.fromEntries(Object.entries(surveys).filter(([key]) => key !== gid));
+      syncSurvey(gid, survey);
+    }
+    localStorage.removeItem(UNSENT_KEY + id);
+  }
   merging = true;
   useSurvey.setState({ buildings: surveys });
   merging = false;
@@ -183,11 +249,22 @@ export async function mergeUserData(): Promise<void> {
   }
 }
 
+function readUnsent(userId: string): Unsent | null {
+  try {
+    const parsed = unsentSchema.safeParse(JSON.parse(read(UNSENT_KEY + userId) ?? "null"));
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
- * Signing out leaves none of the account's bookmarks, notes and surveys in this browser: the
- * next sign in, maybe someone else's, would take them up into that account.
+ * Signing out leaves none of the account's bookmarks, notes and surveys where the next sign
+ * in, maybe someone else's, would take them up into that account. What still waits to be sent
+ * goes first; what does not get there is kept under this account's id only, as it is nowhere
+ * else, and goes up when the same account signs in again.
  */
-function clearUserData(): void {
+async function clearUserData(userId: string | undefined): Promise<void> {
   try {
     const keys: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
@@ -199,6 +276,18 @@ function clearUserData(): void {
     // Blocked storage: nothing was kept.
   }
   useSurvey.setState({ buildings: {} });
+  await flush();
+  if (!userId || (unsentNotes.size === 0 && unsentSurveys.size === 0)) return;
+  const kept = readUnsent(userId) ?? { notes: {}, surveys: {} };
+  write(
+    UNSENT_KEY + userId,
+    JSON.stringify({
+      notes: { ...kept.notes, ...Object.fromEntries(unsentNotes) },
+      surveys: { ...kept.surveys, ...Object.fromEntries(unsentSurveys) },
+    }),
+  );
+  unsentNotes.clear();
+  unsentSurveys.clear();
 }
 
 // --- Following changes ---------------------------------------------------------------------------
@@ -212,7 +301,8 @@ export function startUserData(): void {
   started = true;
   useAuth.subscribe((state, prev) => {
     if (state.status === "signedIn" && prev.status !== "signedIn") void mergeUserData();
-    if (state.status === "signedOut" && prev.status === "signedIn") clearUserData();
+    if (state.status === "signedOut" && prev.status === "signedIn")
+      void clearUserData(prev.account?.id);
   });
   useEditorStore.subscribe((state, prev) => {
     if (!signedIn()) return;

@@ -3,7 +3,7 @@ import { useEditorStore } from "@/store/building";
 import { useSurvey } from "@/lod2/state/survey";
 import type { BuildingSurvey } from "@/lod2/state/survey";
 import { signOut, useAuth } from "./store";
-import { mergeUserData, startUserData, syncBookmark } from "./userData";
+import { mergeUserData, startUserData, syncBookmark, syncNote } from "./userData";
 
 const survey = (storeys: number): BuildingSurvey => ({
   walls: {},
@@ -114,16 +114,78 @@ describe("a user's data between browser and server", () => {
   });
 
   // Last: it starts following the sign in for the rest of the file.
-  it("forgets the bookmarks, notes and surveys on sign out, so the next account does not get them", () => {
+  it("forgets the bookmarks, notes and surveys on sign out, so the next account does not get them", async () => {
     startUserData();
     localStorage.setItem("bauwerk.bookmarks", JSON.stringify(["A"]));
     localStorage.setItem("bauwerk.notes.A", "mine");
     localStorage.setItem("lod2.survey.v1", JSON.stringify({ A: survey(3) }));
     useSurvey.setState({ buildings: { A: survey(3) } });
     signOut();
+    await vi.advanceTimersByTimeAsync(0);
     expect(localStorage.getItem("bauwerk.bookmarks")).toBeNull();
     expect(localStorage.getItem("bauwerk.notes.A")).toBeNull();
     expect(localStorage.getItem("lod2.survey.v1")).toBeNull();
     expect(useSurvey.getState().buildings).toEqual({});
+  });
+
+  it("sends a note typed just before signing out, with the token it was typed under, then forgets it", async () => {
+    const calls = server({ settings: {}, bookmarks: [], buildings: [] });
+    localStorage.setItem("bauwerk.notes.B", "typed");
+    syncNote("B", "typed");
+    signOut();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(calls).toContainEqual({
+      method: "PUT",
+      path: "/me/buildings/B",
+      body: { note: "typed" },
+    });
+    expect(vi.mocked(fetch).mock.calls.at(-1)?.[1]?.headers).toMatchObject({
+      authorization: "Bearer t.o.k",
+    });
+    expect(localStorage.getItem("bauwerk.notes.B")).toBeNull();
+  });
+
+  it("keeps an unsent note for its own account only, and sends it when that account signs in again", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => Promise.reject(new TypeError("offline"))),
+    );
+    const ada = useAuth.getState().account;
+    if (!ada) throw new Error("fixture");
+    localStorage.setItem("bauwerk.notes.C", "offline note");
+    localStorage.setItem("bauwerk.notes.D", "pending offline");
+    syncNote("C", "offline note");
+    await vi.advanceTimersByTimeAsync(700);
+    syncNote("D", "pending offline");
+    signOut();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(localStorage.getItem("bauwerk.notes.C")).toBeNull();
+    expect(localStorage.getItem("bauwerk.notes.D")).toBeNull();
+
+    // Someone else signs in on this browser: they get none of it.
+    let calls = server({ settings: {}, bookmarks: [], buildings: [] });
+    useAuth.setState({ status: "signedIn", account: { ...ada, id: "other" } });
+    await vi.advanceTimersByTimeAsync(700);
+    expect(calls.some((c) => c.path.startsWith("/me/buildings/"))).toBe(false);
+    expect(localStorage.getItem("bauwerk.notes.C")).toBeNull();
+    signOut();
+    await vi.advanceTimersByTimeAsync(0);
+
+    // The same account again: both go up, and the kept copy is gone.
+    calls = server({ settings: {}, bookmarks: [], buildings: [] });
+    useAuth.setState({ status: "signedIn", account: ada });
+    await vi.advanceTimersByTimeAsync(700);
+    expect(calls).toContainEqual({
+      method: "PUT",
+      path: "/me/buildings/C",
+      body: { note: "offline note" },
+    });
+    expect(calls).toContainEqual({
+      method: "PUT",
+      path: "/me/buildings/D",
+      body: { note: "pending offline" },
+    });
+    expect(localStorage.getItem("bauwerk.notes.C")).toBe("offline note");
+    expect(localStorage.getItem("bauwerk.unsent.u")).toBeNull();
   });
 });
