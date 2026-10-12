@@ -1,5 +1,5 @@
 import { withoutGuessedOpenings } from "@/geometry/sources";
-import { EXPORT_VERSION, fromJson } from "@/geometry/export";
+import { EXPORT_VERSION, checkBuildingShape, migrate } from "@/geometry/export";
 import type { ExportFile } from "@/geometry/export";
 import type { Building } from "@/geometry/types";
 import type { Language } from "@/i18n";
@@ -39,9 +39,19 @@ const LEGACY_KEY = "bauwerk.building";
 
 function readFile(text: string | null): Building | null {
   if (!text) return null;
-  const result = fromJson(text);
+  let file: Partial<ExportFile> | null;
+  try {
+    file = JSON.parse(text) as Partial<ExportFile> | null;
+  } catch {
+    return null;
+  }
+  if (file?.format !== "bauwerk" || file.version !== EXPORT_VERSION) return null;
+  // Not fromJson: its invariant check refuses what the editor allows and only warns about (a
+  // window past its wall after a corner moved), and such a project must survive a reload.
+  if (checkBuildingShape(file.building, "building")) return null;
+  const building = migrate(file.building as Parameters<typeof migrate>[0], "en");
   // A building saved before facades without a photo stopped getting guessed windows.
-  return result.ok ? withoutGuessedOpenings(result.building) : null;
+  return withoutGuessedOpenings(building);
 }
 
 /** Keeps a saved project's building; does nothing for a building that is not one. */
