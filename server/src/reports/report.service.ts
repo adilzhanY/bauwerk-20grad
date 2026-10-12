@@ -49,10 +49,20 @@ export class ReportService implements OnModuleDestroy {
   }
 
   private async print(building: Building, language: "en" | "de", baseUrl: string) {
-    this.browser ??= chromium.launch().catch((error: unknown) => {
-      this.browser = null;
-      throw error;
-    });
+    this.browser ??= chromium.launch().then(
+      (browser) => {
+        // A browser that crashed or was closed is started again by the next print.
+        const launched = this.browser;
+        browser.on("disconnected", () => {
+          if (this.browser === launched) this.browser = null;
+        });
+        return browser;
+      },
+      (error: unknown) => {
+        this.browser = null;
+        throw error;
+      },
+    );
     const context = await (await this.browser).newContext();
     try {
       await context.addInitScript(
