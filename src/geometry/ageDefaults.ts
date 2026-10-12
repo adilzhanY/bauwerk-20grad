@@ -6,6 +6,7 @@
  * windows. The consultant picks the year and the kind of wall and window; every element gets
  * the value of its age class until a layer stack or a measurement replaces it.
  */
+import { AGE_ROWS, DOOR_U, WOOD_DOUBLE_G } from "lod2-core/survey";
 import type { Construction, ConstructionCategory } from "./types";
 
 /** The nine age classes, by their last year; the last one runs on. */
@@ -22,9 +23,9 @@ type Row = readonly (number | null)[];
 export const WALL_KINDS = {
   brickSolidThin: [2.8, 2.8, 2.8, null, null, null, null, null, null],
   brickSolidMedium: [1.8, 1.8, 1.8, null, null, null, null, null, null],
-  brickSolidThick: [1.5, 1.5, 1.5, null, null, null, null, null, null],
+  brickSolidThick: AGE_ROWS.wallSolidBrick,
   brickHollow: [1.4, 1.4, 1.4, 1.4, 1.0, 0.8, 0.6, 0.5, 0.4],
-  cavity: [1.3, 1.3, 1.3, 1.4, 1.0, 0.8, 0.6, 0.5, 0.4],
+  cavity: AGE_ROWS.wallCavity,
   timberFrame: [2.0, 2.0, 2.0, null, null, null, null, null, null],
   timberPanel: [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.4, 0.4, 0.3],
 } as const satisfies Record<string, Row>;
@@ -33,20 +34,19 @@ export type WallKind = keyof typeof WALL_KINDS;
 /** Windows, table 3 (U_w), with the glazing g⊥ of each age. */
 export const WINDOW_KINDS = {
   woodSingle: { u: [5.0, 5.0, 5.0, 5.0, 5.0, null, null, null, null], g: 0.87 },
-  woodDouble: { u: [2.7, 2.7, 2.7, 2.7, 2.7, 2.7, 2.7, 1.6, 1.5], g: 0.75 },
+  woodDouble: { u: AGE_ROWS.windowWoodDouble, g: WOOD_DOUBLE_G },
   plastic: { u: [3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0, 1.9, 1.5], g: 0.75 },
   metal: { u: [4.3, 4.3, 4.3, 4.3, 4.3, 4.3, 3.2, 1.9, 1.5], g: 0.75 },
 } as const satisfies Record<string, { u: Row; g: number }>;
 export type WindowKind = keyof typeof WINDOW_KINDS;
 
-/** Pitched roof of timber, table 2 (also walls between a heated and an unheated loft). */
-const ROOF_TIMBER: Row = [2.6, 1.4, 1.4, 1.4, 0.8, 0.7, 0.5, 0.3, 0.2];
-/** Top floor ceiling as a timber beam ceiling, under a cold attic. */
-const CEILING_TIMBER: Row = [1.0, 1.0, 0.8, 0.7, 0.6, 0.4, 0.3, 0.3, 0.2];
+/** Pitched roof of timber and the top floor ceiling under a cold attic, the survey's own rows. */
+const ROOF_TIMBER: Row = AGE_ROWS.roofTimber;
+const CEILING_TIMBER: Row = AGE_ROWS.ceilingTimber;
 /** Floor on the ground, solid reinforced concrete. */
 const FLOOR_CONCRETE: Row = [1.6, 1.6, 2.3, 1.2, 1.2, 0.8, 0.6, 0.6, 0.5];
 /** Doors of wood, wood based panels or plastic; metal doors are 4.0. */
-const DOOR_WOOD = 2.9;
+const DOOR_WOOD = DOOR_U;
 
 export interface AgeChoice {
   year: number;

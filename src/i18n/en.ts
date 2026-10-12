@@ -626,6 +626,7 @@ export const en = {
   "survey.construction.oldWall": "Solid brick over 30 cm, uninsulated",
   "survey.construction.cavityWall": "Cavity masonry, uninsulated",
   "survey.construction.roof": "Roof, timber structure, existing",
+  "survey.construction.ceiling": "Top floor ceiling, timber beams, existing",
   "survey.construction.floor": "Basement ceiling, brick or hollow block, existing",
   "survey.construction.door": "Door, wood or plastic, existing",
   "survey.construction.windowDouble": "Wooden window, two panes",

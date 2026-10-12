@@ -8,7 +8,7 @@
  */
 import type { BuildingDetail } from '../api.ts'
 import { wallGroundLevel, wallToPlane } from '../wall.ts'
-import { ageClassById, type AgeClassId } from './ageclass.ts'
+import { ageClassById, WOOD_DOUBLE_G, type AgeClassId } from './ageclass.ts'
 import {
   planFrameFor,
   polygonArea,
@@ -54,6 +54,8 @@ export interface BauwerkConstruction {
   name: string
   category: 'wall' | 'window' | 'door' | 'floor' | 'roof'
   uValue: number
+  /** Windows: g of the glazing. */
+  gValue?: number
 }
 
 export type SourceKind = 'lod2' | 'photo' | 'catalogue' | 'estimate' | 'typed'
@@ -236,7 +238,8 @@ export function surveyToBauwerk(input: SurveyInput): SurveyResult {
   sources.sharedEdges = source('lod2', message('survey.sharedEdges', { count: shared.length }))
 
   // Constructions for the age class.
-  const constructions = constructionsFor(input.facts.ageClass)
+  // The survey never heats the attic, so only a flat roof is itself the envelope.
+  const constructions = constructionsFor(input.facts.ageClass, roof.kind === 'flat')
   const ageClass = { ageClass: age.id }
   sources.constructions = source('catalogue', message(input.facts.ageClassConfirmed ? 'survey.constructions' : 'survey.constructions.assumed', ageClass))
   if (!input.facts.ageClassConfirmed) warnings.push(message('survey.warning.ageClassAssumed', ageClass))
@@ -439,13 +442,15 @@ function siblingFootprints(building: BuildingDetail, partGid: string): Neighbour
     }))
 }
 
-export function constructionsFor(ageClass: AgeClassId): BauwerkConstruction[] {
+/** The default constructions; the roof slot is the top floor ceiling unless the roof is the envelope. */
+export function constructionsFor(ageClass: AgeClassId, roofIsEnvelope: boolean): BauwerkConstruction[] {
   const age = ageClassById(ageClass)
+  const top = roofIsEnvelope ? 'roof' : 'ceiling'
   return [
     { id: 'lod2-wall', name: age.names.wall, category: 'wall', uValue: age.u.wall },
-    { id: 'lod2-roof', name: age.names.roof, category: 'roof', uValue: age.u.roof },
+    { id: 'lod2-roof', name: age.names[top], category: 'roof', uValue: age.u[top] },
     { id: 'lod2-floor', name: age.names.floor, category: 'floor', uValue: age.u.floor },
-    { id: 'lod2-window', name: age.names.window, category: 'window', uValue: age.u.window },
+    { id: 'lod2-window', name: age.names.window, category: 'window', uValue: age.u.window, gValue: WOOD_DOUBLE_G },
     { id: 'lod2-door', name: age.names.door, category: 'door', uValue: age.u.door },
   ]
 }

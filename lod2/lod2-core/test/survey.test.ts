@@ -6,6 +6,7 @@ import {
   AGE_CLASSES,
   ageClassById,
   ageClassForYear,
+  constructionsFor,
   dominantAngle,
   editorRoof,
   estimateStoreys,
@@ -227,13 +228,25 @@ test('BOo and Atr share their party wall', () => {
 test('the age classes carry the table values of the 2020 Bekanntmachung', () => {
   assert.equal(AGE_CLASSES.length, 9)
   const old = ageClassById('bis1918')
-  assert.deepEqual(old.u, { wall: 1.5, roof: 2.6, floor: 1.2, window: 2.7, door: 2.9 })
-  assert.deepEqual(ageClassById('1969-1978').u, { wall: 1.0, roof: 0.8, floor: 1.0, window: 2.7, door: 2.9 })
-  assert.deepEqual(ageClassById('ab2002').u, { wall: 0.4, roof: 0.2, floor: 0.5, window: 1.5, door: 2.9 })
+  assert.deepEqual(old.u, { wall: 1.5, roof: 2.6, ceiling: 1.0, floor: 1.2, window: 2.7, door: 2.9 })
+  assert.deepEqual(ageClassById('1969-1978').u, { wall: 1.0, roof: 0.8, ceiling: 0.6, floor: 1.0, window: 2.7, door: 2.9 })
+  assert.deepEqual(ageClassById('ab2002').u, { wall: 0.4, roof: 0.2, ceiling: 0.2, floor: 0.5, window: 1.5, door: 2.9 })
   assert.equal(ageClassForYear(1905), 'bis1918')
   assert.equal(ageClassForYear(1918), 'bis1918')
   assert.equal(ageClassForYear(1960), '1958-1968')
   assert.equal(ageClassForYear(2010), 'ab2002')
+})
+
+test('under a cold attic the roof slot is the top floor ceiling, and the window carries its g', () => {
+  const pitched = constructionsFor('bis1918', false)
+  const flat = constructionsFor('bis1918', true)
+  const u = (list: typeof pitched, id: string) => list.find((c) => c.id === id)!.uValue
+  assert.equal(u(pitched, 'lod2-roof'), 1.0)
+  assert.equal(u(flat, 'lod2-roof'), 2.6)
+  assert.equal(pitched.find((c) => c.id === 'lod2-window')!.gValue, 0.75)
+  const { building } = build('DEBE02YY40000BOo').file
+  const roof = building.constructions.find((c) => c.id === 'lod2-roof')!
+  assert.equal(roof.uValue, building.roof.kind === 'flat' ? 2.6 : 1.0)
 })
 
 test('UTM zone 33 back to latitude and longitude matches PROJ to a few millimetres', () => {

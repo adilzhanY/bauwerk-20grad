@@ -58,6 +58,7 @@ export const SURVEY_DE = {
   'survey.construction.oldWall': 'Vollziegel über 30 cm, ungedämmt',
   'survey.construction.cavityWall': 'Mauerwerk zweischalig, ungedämmt',
   'survey.construction.roof': 'Dach, Holzkonstruktion, Bestand',
+  'survey.construction.ceiling': 'Oberste Geschossdecke, Holzbalkendecke, Bestand',
   'survey.construction.floor': 'Kellerdecke Ziegel/Hohlstein, Bestand',
   'survey.construction.door': 'Tür Holz/Kunststoff, Bestand',
   'survey.construction.windowDouble': 'Holzfenster zwei Scheiben',

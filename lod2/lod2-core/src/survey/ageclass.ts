@@ -7,7 +7,8 @@
  *
  *   wall    Außenwand massiv, zweischalig ohne Dämmschicht; before 1958 the solid brick row
  *           "Vollziegel, über 30 cm" instead, the typical Berlin tenement wall
- *   roof    Dach, Holzkonstruktion
+ *   roof    Dach, Holzkonstruktion, when the roof is the envelope (flat or a heated attic)
+ *   ceiling Oberste Geschossdecke, Holzbalkendecke, under a cold attic
  *   floor   Kellerdecke, Ziegel oder Hohlstein
  *   window  Holz, zwei Scheiben (Kastenfenster or Verbundfenster, the Berlin old-stock window)
  *   door    Türen, Holz, Holzwerkstoff oder Kunststoff, 2.9 for every class
@@ -32,50 +33,72 @@ export interface AgeClass {
   id: AgeClassId
   label: string
   /** Default U-values in W/(m²K). */
-  u: { wall: number; roof: number; floor: number; window: number; door: number }
+  u: { wall: number; roof: number; ceiling: number; floor: number; window: number; door: number }
   /** Floor-to-floor height typical for the class, metres. */
   storeyHeight: number
   /** Short names of the assumed constructions, in German; the keys are in messages.ts. */
-  names: { wall: string; roof: string; floor: string; window: string; door: string }
+  names: { wall: string; roof: string; ceiling: string; floor: string; window: string; door: string }
 }
 
-const DOOR_U = 2.9
+/**
+ * The table rows by age class, in the order of AGE_CLASSES; null where the table has no value.
+ * Bauwerk's own age defaults (src/geometry/ageDefaults.ts) read the same rows.
+ */
+export const AGE_ROWS = {
+  /** Außenwand Vollziegel über 30 cm. */
+  wallSolidBrick: [1.5, 1.5, 1.5, null, null, null, null, null, null],
+  /** Außenwand massiv, zweischalig ohne Dämmschicht. */
+  wallCavity: [1.3, 1.3, 1.3, 1.4, 1.0, 0.8, 0.6, 0.5, 0.4],
+  /** Dach, Holzkonstruktion (also walls between a heated and an unheated loft). */
+  roofTimber: [2.6, 1.4, 1.4, 1.4, 0.8, 0.7, 0.5, 0.3, 0.2],
+  /** Oberste Geschossdecke, Holzbalkendecke, under a cold attic. */
+  ceilingTimber: [1.0, 1.0, 0.8, 0.7, 0.6, 0.4, 0.3, 0.3, 0.2],
+  /** Kellerdecke, Ziegel oder Hohlstein. */
+  basementCeiling: [1.2, 1.2, 1.5, 1.0, 1.0, 0.8, 0.6, 0.6, 0.5],
+  /** Fenster Holz, zwei Scheiben, U_w. */
+  windowWoodDouble: [2.7, 2.7, 2.7, 2.7, 2.7, 2.7, 2.7, 1.6, 1.5],
+} as const
+
+/** g of the glazing of a wooden two pane window. */
+export const WOOD_DOUBLE_G = 0.75
+/** Türen, Holz, Holzwerkstoff oder Kunststoff, every class. */
+export const DOOR_U = 2.9
 const OLD_WALL = SURVEY_DE['survey.construction.oldWall']
 const CAVITY_WALL = SURVEY_DE['survey.construction.cavityWall']
 const DOUBLE = SURVEY_DE['survey.construction.windowDouble']
 const INSULATED = SURVEY_DE['survey.construction.windowInsulated']
 const ROOF = SURVEY_DE['survey.construction.roof']
+const CEILING = SURVEY_DE['survey.construction.ceiling']
 const FLOOR = SURVEY_DE['survey.construction.floor']
 const DOOR = SURVEY_DE['survey.construction.door']
 
 export const AGE_CLASSES: readonly AgeClass[] = [
-  ageClass('bis1918', 1.5, 2.6, 1.2, 2.7, 3.1, OLD_WALL, DOUBLE),
-  ageClass('1919-1948', 1.5, 1.4, 1.2, 2.7, 3.1, OLD_WALL, DOUBLE),
-  ageClass('1949-1957', 1.5, 1.4, 1.5, 2.7, 2.8, OLD_WALL, DOUBLE),
-  ageClass('1958-1968', 1.4, 1.4, 1.0, 2.7, 2.8, CAVITY_WALL, DOUBLE),
-  ageClass('1969-1978', 1.0, 0.8, 1.0, 2.7, 2.8, CAVITY_WALL, DOUBLE),
-  ageClass('1979-1983', 0.8, 0.7, 0.8, 2.7, 2.8, CAVITY_WALL, DOUBLE),
-  ageClass('1984-1994', 0.6, 0.5, 0.6, 2.7, 2.8, CAVITY_WALL, DOUBLE),
-  ageClass('1995-2001', 0.5, 0.3, 0.6, 1.6, 2.8, CAVITY_WALL, INSULATED),
-  ageClass('ab2002', 0.4, 0.2, 0.5, 1.5, 2.8, CAVITY_WALL, INSULATED),
+  ageClass('bis1918', 0, 3.1, OLD_WALL, DOUBLE),
+  ageClass('1919-1948', 1, 3.1, OLD_WALL, DOUBLE),
+  ageClass('1949-1957', 2, 2.8, OLD_WALL, DOUBLE),
+  ageClass('1958-1968', 3, 2.8, CAVITY_WALL, DOUBLE),
+  ageClass('1969-1978', 4, 2.8, CAVITY_WALL, DOUBLE),
+  ageClass('1979-1983', 5, 2.8, CAVITY_WALL, DOUBLE),
+  ageClass('1984-1994', 6, 2.8, CAVITY_WALL, DOUBLE),
+  ageClass('1995-2001', 7, 2.8, CAVITY_WALL, INSULATED),
+  ageClass('ab2002', 8, 2.8, CAVITY_WALL, INSULATED),
 ]
 
-function ageClass(
-  id: AgeClassId,
-  wall: number,
-  roof: number,
-  floor: number,
-  window: number,
-  storeyHeight: number,
-  wallName: string,
-  windowName: string,
-): AgeClass {
+function ageClass(id: AgeClassId, index: number, storeyHeight: number, wallName: string, windowName: string): AgeClass {
+  const r = AGE_ROWS
   return {
     id,
     label: SURVEY_DE[`survey.ageClass.${id}`],
-    u: { wall, roof, floor, window, door: DOOR_U },
+    u: {
+      wall: r.wallSolidBrick[index] ?? r.wallCavity[index]!,
+      roof: r.roofTimber[index]!,
+      ceiling: r.ceilingTimber[index]!,
+      floor: r.basementCeiling[index]!,
+      window: r.windowWoodDouble[index]!,
+      door: DOOR_U,
+    },
     storeyHeight,
-    names: { wall: wallName, roof: ROOF, floor: FLOOR, window: windowName, door: DOOR },
+    names: { wall: wallName, roof: ROOF, ceiling: CEILING, floor: FLOOR, window: windowName, door: DOOR },
   }
 }
 
