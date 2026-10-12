@@ -10,7 +10,10 @@ import type { INestApplication } from "@nestjs/common";
 import type { Pool } from "pg";
 import { createAppModule } from "./app.module";
 import { ensureSchema } from "./db";
+import { AuthService, Unauthenticated } from "./auth/auth.service";
 import type { AuthConfig } from "./auth/auth.service";
+import { bearer } from "./auth/auth.guard";
+import type { NextFunction, Request, Response } from "express";
 
 /** The built client, served alongside the API so the PDF endpoint can print it. */
 const DIST = fileURLToPath(new URL("../../dist/", import.meta.url));
@@ -32,12 +35,32 @@ export async function createApp(
   // the real address, which the sign in limits count. Only proxies on local and private
   // networks are believed, so a client cannot fake its address from outside.
   app.set("trust proxy", "loopback, linklocal, uniquelocal");
+  // Before anything else, so a refusal below still carries the CORS headers the browser needs.
+  app.enableCors({ origin: true, exposedHeaders: ["ETag"] });
   app.useBodyParser("json", { limit: "5mb" });
   // Project files (photos, plans, PDFs, documents), sent as the raw file; 50 MB as Supabase's
   // free plan allows. What each route accepts is checked there.
-  app.useBodyParser("raw", { type: ["image/*", ...FILE_TYPES], limit: "50mb" });
+  const files = ["image/*", ...FILE_TYPES];
+  // Up to 50 MB held in memory is only read for a signed in user: the token is checked before
+  // the body (the guard checks the route itself later, as for every request).
+  const auth = app.get(AuthService);
+  app.use((request: Request, response: Response, next: NextFunction) => {
+    if (!auth.enabled || !request.is(files)) {
+      next();
+      return;
+    }
+    auth.verify(bearer(request.headers.authorization)).then(
+      () => {
+        next();
+      },
+      (error: unknown) => {
+        if (error instanceof Unauthenticated) response.status(401).json({ error: "signIn" });
+        else next(error);
+      },
+    );
+  });
+  app.useBodyParser("raw", { type: files, limit: "50mb" });
   app.useWebSocketAdapter(new IoAdapter(app));
-  app.enableCors({ origin: true, exposedHeaders: ["ETag"] });
   if (clientServed()) app.useStaticAssets(DIST);
   return app;
 }

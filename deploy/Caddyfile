@@ -11,6 +11,11 @@
 
 {$DOMAIN::80} {
 	encode zstd gzip
+	# The largest project file the server takes (50 MB, as Supabase's free plan allows); Caddy
+	# refuses anything bigger before it reaches a service.
+	request_body {
+		max_size 50MiB
+	}
 
 	# The LoD2 API: tiles, building detail, search.
 	handle_path /api/* {
@@ -29,6 +34,8 @@
 		reverse_proxy {$VISION_URL:http://127.0.0.1:9} {
 			header_up Host {upstream_hostport}
 			header_up X-Vision-Key {$VISION_KEY:none}
+			# The user's token was checked above; the rented card never sees it.
+			header_up -Authorization
 		}
 	}
 
@@ -39,6 +46,8 @@
 		reverse_proxy {$FLOORPLAN_URL:http://127.0.0.1:9} {
 			header_up Host {upstream_hostport}
 			header_up X-Vision-Key {$VISION_KEY:none}
+			# The user's token was checked above; the rented card never sees it.
+			header_up -Authorization
 		}
 	}
 

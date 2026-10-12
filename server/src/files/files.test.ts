@@ -1,4 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { randomUUID } from "node:crypto";
+import { request } from "node:http";
 import type { Server } from "node:http";
 import { Pool } from "pg";
 import type { INestApplication } from "@nestjs/common";
@@ -128,6 +130,24 @@ describe("project files", () => {
         })
       ).status,
     ).toBe(403);
+  });
+
+  it("turns away an upload without a valid token before reading its body", async () => {
+    // Only the headers go out: a server that waits for the 60 MB body would never answer, one
+    // that reads it first answers 413.
+    const status = await new Promise<number | undefined>((resolve, reject) => {
+      const req = request(`${base}/projects/${randomUUID()}/files`, {
+        method: "POST",
+        headers: { "content-type": "image/jpeg", "content-length": "60000000" },
+      });
+      req.on("response", (res) => {
+        resolve(res.statusCode);
+        req.destroy();
+      });
+      req.on("error", reject);
+      req.flushHeaders();
+    });
+    expect(status).toBe(401);
   });
 
   it("refuses scripts, empty files and files without a name", async () => {
