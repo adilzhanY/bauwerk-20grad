@@ -51,10 +51,13 @@ export class SupabaseStore implements FileStore {
         }),
       });
       if (!made.ok && made.status !== 409) {
-        this.ready = null;
         throw new Error(`storage bucket: ${String(made.status)} ${await made.text()}`);
       }
-    })();
+    })().catch((error: unknown) => {
+      // Any failure, a refused request or a network error, is tried again on the next use.
+      this.ready = null;
+      throw error;
+    });
     return this.ready;
   }
 
