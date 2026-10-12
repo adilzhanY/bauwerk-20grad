@@ -192,14 +192,16 @@ export function validateRadiator(rad: Radiator, storey: Storey, wallLength: numb
 export const DEFAULT_RADIATOR = { width: 1.0, height: 0.6, power: 1000 };
 
 /**
- * Design heat load of the whole building in watts, DIN EN 12831 in its simplest form: the
- * transmission and ventilation loss coefficients times the design temperature difference,
- * 20 °C inside against the Berlin design outdoor temperature. Works without drawn rooms.
+ * Design heat load of the whole building in watts, with the rule of the room loads: the
+ * transmission loss plus HEAT_LOAD_AIR_CHANGE on the heated volume, times the design
+ * temperature difference, 20 °C inside against the Berlin design outdoor temperature. Works
+ * without drawn rooms and equals the sum of the room loads when every room is at 20 °C.
  */
 export function buildingHeatLoad(
-  energy: Pick<EnergySummary, "transmissionLoss" | "ventilationLoss">,
+  energy: Pick<EnergySummary, "transmissionLoss" | "heatedVolume">,
 ): number {
-  return (energy.transmissionLoss + energy.ventilationLoss) * (20 - DESIGN_OUTDOOR_TEMPERATURE);
+  const ventilation = AIR_HEAT_CAPACITY * HEAT_LOAD_AIR_CHANGE * energy.heatedVolume;
+  return (energy.transmissionLoss + ventilation) * (20 - DESIGN_OUTDOOR_TEMPERATURE);
 }
 
 /**

@@ -37,6 +37,22 @@ describe("areaList", () => {
     }
   });
 
+  it("lists a top floor ceiling under a cold attic as horizontal, not at the roof pitch", () => {
+    resetIds();
+    const b = exampleHouse("en");
+    b.roof = {
+      kind: "gable",
+      pitch: 40,
+      overhang: 0.3,
+      ridgeAxis: "x",
+      parapet: 0,
+      heatedAttic: false,
+    };
+    const roofs = areaList(b).filter((r) => r.element === "roof");
+    expect(roofs.length).toBeGreaterThan(0);
+    expect(roofs.every((r) => r.tilt === 0)).toBe(true);
+  });
+
   it("splits the facades of the house by direction, windows counted", () => {
     resetIds();
     const b = exampleHouse("en");

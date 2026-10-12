@@ -82,7 +82,7 @@ export function areaList(
     const fx = e.uValue > 0 ? e.loss / (e.uValue * e.area) : 1;
     const direction = e.azimuth === undefined ? null : directionOf(e.azimuth);
     const element: AreaElement = e.category;
-    const tilt = element === "roof" ? pitch : element === "floor" ? 0 : 90;
+    const tilt = element === "roof" ? (e.ceiling ? 0 : pitch) : element === "floor" ? 0 : 90;
     add(
       { element, direction, tilt, area: e.area, uValue: e.uValue, fx, ht: e.loss },
       element === "window" || element === "door" ? 1 : 0,

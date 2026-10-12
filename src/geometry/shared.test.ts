@@ -98,7 +98,9 @@ describe("energy with shared walls", () => {
 });
 
 describe("whole-building heat load", () => {
-  it("is the loss coefficients times 34 K", () => {
-    expect(buildingHeatLoad({ transmissionLoss: 1000, ventilationLoss: 500 })).toBe(1500 * 34);
+  it("is transmission plus 0.5 air changes of the heated volume, times 34 K", () => {
+    expect(buildingHeatLoad({ transmissionLoss: 1000, heatedVolume: 500 })).toBeCloseTo(
+      (1000 + 0.34 * 0.5 * 500) * 34,
+    );
   });
 });

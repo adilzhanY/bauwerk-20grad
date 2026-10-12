@@ -3,6 +3,7 @@ import { DEFAULT_ASSIGNMENT, PRESET_IDS, defaultConstructions } from "./construc
 import { computeEnergy } from "./energy";
 import { rect } from "./fixtures";
 import {
+  buildingHeatLoad,
   heatPumpReadiness,
   radiatorOutputFactor,
   requiredFlowTemperature,
@@ -101,6 +102,8 @@ describe("roomEnvelopeLoss and roomHeatLoads", () => {
     expect(energy.heatedVolume).toBeGreaterThan(80 * 3);
     const total = roomHeatLoads(b).reduce((sum, room) => sum + room.load, 0);
     expect(total).toBeCloseTo((energy.transmissionLoss + 0.34 * 0.5 * energy.heatedVolume) * 34, 3);
+    // The building page, which has no rooms, gets the same number.
+    expect(buildingHeatLoad(energy)).toBeCloseTo(total, 3);
   });
 
   it("counts a wall on both halves of an edge split by a collinear vertex", () => {
