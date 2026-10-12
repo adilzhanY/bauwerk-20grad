@@ -7,6 +7,7 @@
  * goes up, so nothing typed before signing in is lost. From then on every change is sent.
  * Failed sends are not retried on their own; the next change to the same thing sends it again.
  */
+import { z } from "zod";
 import { useEditorStore } from "@/store/building";
 import { useSurvey } from "@/lod2/state/survey";
 import type { BuildingSurvey } from "@/lod2/state/survey";
@@ -16,16 +17,26 @@ import { useAuth } from "./store";
 const BOOKMARKS_KEY = "bauwerk.bookmarks";
 const NOTE_KEY = "bauwerk.notes.";
 const VIEW_KEY = "bauwerk.projectsView";
+const SURVEY_KEY = "lod2.survey.v1";
 
-interface ServerData {
-  settings: {
-    language?: "en" | "de" | null;
-    theme?: "light" | "dark" | "system" | null;
-    projectsView?: string | null;
-  };
-  bookmarks: string[];
-  buildings: { gid: string; note: string | null; survey: BuildingSurvey | null }[];
-}
+/** The reply of GET /me. A survey is taken as the server stored it, an object. */
+const serverDataSchema = z.object({
+  settings: z.object({
+    language: z.enum(["en", "de"]).nullish(),
+    theme: z.enum(["light", "dark", "system"]).nullish(),
+    projectsView: z.string().nullish(),
+  }),
+  bookmarks: z.array(z.string()),
+  buildings: z.array(
+    z.object({
+      gid: z.string(),
+      note: z.string().nullable(),
+      survey: z.custom<BuildingSurvey>((v) => typeof v === "object" && v !== null).nullable(),
+    }),
+  ),
+});
+
+type ServerData = z.infer<typeof serverDataSchema>;
 
 const signedIn = () => useAuth.getState().status === "signedIn" && apiBase() !== null;
 
@@ -115,7 +126,9 @@ async function pull(): Promise<ServerData | null> {
   if (!base) return null;
   try {
     const res = await fetch(`${base}/me`, { headers: await authHeaders() });
-    return res.ok ? ((await res.json()) as ServerData) : null;
+    if (!res.ok) return null;
+    const data = serverDataSchema.safeParse(await res.json());
+    return data.success ? data.data : null;
   } catch {
     return null;
   }
@@ -164,10 +177,28 @@ export async function mergeUserData(): Promise<void> {
   useSurvey.setState({ buildings: surveys });
   merging = false;
   try {
-    localStorage.setItem("lod2.survey.v1", JSON.stringify(surveys));
+    localStorage.setItem(SURVEY_KEY, JSON.stringify(surveys));
   } catch {
     // Blocked storage: the server keeps it.
   }
+}
+
+/**
+ * Signing out leaves none of the account's bookmarks, notes and surveys in this browser: the
+ * next sign in, maybe someone else's, would take them up into that account.
+ */
+function clearUserData(): void {
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key === BOOKMARKS_KEY || key === SURVEY_KEY || key?.startsWith(NOTE_KEY)) keys.push(key);
+    }
+    for (const key of keys) localStorage.removeItem(key);
+  } catch {
+    // Blocked storage: nothing was kept.
+  }
+  useSurvey.setState({ buildings: {} });
 }
 
 // --- Following changes ---------------------------------------------------------------------------
@@ -181,6 +212,7 @@ export function startUserData(): void {
   started = true;
   useAuth.subscribe((state, prev) => {
     if (state.status === "signedIn" && prev.status !== "signedIn") void mergeUserData();
+    if (state.status === "signedOut" && prev.status === "signedIn") clearUserData();
   });
   useEditorStore.subscribe((state, prev) => {
     if (!signedIn()) return;

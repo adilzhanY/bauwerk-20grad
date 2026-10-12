@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useEditorStore } from "@/store/building";
 import { useSurvey } from "@/lod2/state/survey";
 import type { BuildingSurvey } from "@/lod2/state/survey";
-import { useAuth } from "./store";
-import { mergeUserData, syncBookmark } from "./userData";
+import { signOut, useAuth } from "./store";
+import { mergeUserData, startUserData, syncBookmark } from "./userData";
 
 const survey = (storeys: number): BuildingSurvey => ({
   walls: {},
@@ -105,5 +105,25 @@ describe("a user's data between browser and server", () => {
     syncBookmark("DEBE02YY40000BOo", true);
     await vi.advanceTimersByTimeAsync(10);
     expect(calls).toHaveLength(2);
+  });
+
+  it("ignores a /me reply that is not the expected shape", async () => {
+    server({ settings: {}, bookmarks: "not a list", buildings: [] });
+    await mergeUserData();
+    expect(localStorage.getItem("bauwerk.bookmarks")).toBeNull();
+  });
+
+  // Last: it starts following the sign in for the rest of the file.
+  it("forgets the bookmarks, notes and surveys on sign out, so the next account does not get them", () => {
+    startUserData();
+    localStorage.setItem("bauwerk.bookmarks", JSON.stringify(["A"]));
+    localStorage.setItem("bauwerk.notes.A", "mine");
+    localStorage.setItem("lod2.survey.v1", JSON.stringify({ A: survey(3) }));
+    useSurvey.setState({ buildings: { A: survey(3) } });
+    signOut();
+    expect(localStorage.getItem("bauwerk.bookmarks")).toBeNull();
+    expect(localStorage.getItem("bauwerk.notes.A")).toBeNull();
+    expect(localStorage.getItem("lod2.survey.v1")).toBeNull();
+    expect(useSurvey.getState().buildings).toEqual({});
   });
 });
