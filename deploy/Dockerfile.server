@@ -10,6 +10,10 @@ COPY server/tsconfig.json ./
 COPY server/migrations ./migrations
 COPY server/src ./src
 COPY src /repo/src
+# The shared maths imports lod2-core (the survey's roof and age tables), linked by path as in the app.
+COPY lod2/lod2-core /repo/lod2/lod2-core
+RUN npm --prefix /repo/lod2/lod2-core ci --omit=dev \
+ && ln -s /repo/lod2/lod2-core /repo/server/node_modules/lod2-core
 # The app's code in /repo/src imports packages too (zod for the shared account rules); Node looks
 # for them in /repo/node_modules, beside it, so that points at the server's installed packages.
 RUN ln -s /repo/server/node_modules /repo/node_modules
