@@ -29,6 +29,7 @@ import os
 import sys
 import threading
 import time
+import traceback
 import warnings
 from contextlib import asynccontextmanager
 from dataclasses import asdict
@@ -73,7 +74,7 @@ Image.MAX_IMAGE_PIXELS = 40_000_000
 warnings.simplefilter("error", Image.DecompressionBombWarning)
 
 from gpu_queue import Abandoned, GpuLine, Jobs  # noqa: E402
-from pipeline import Sam3, find_openings, find_wall  # noqa: E402
+from pipeline import Sam3, find_openings, find_wall, shrink  # noqa: E402
 
 # Loopback on the development PC. On a rented GPU instance the provider's proxy has to reach
 # it: LOD2_VISION_HOST=0.0.0.0 there, and then VISION_KEY must be set (below).
@@ -182,10 +183,16 @@ async def validation_error(_: Request, exc: RequestValidationError) -> JSONRespo
 
 @app.exception_handler(Exception)
 async def unexpected_error(_: Request, exc: Exception) -> JSONResponse:
-    return JSONResponse(status_code=500, content={"detail": f"Internal error: {type(exc).__name__}: {exc}"})
+    # The details (paths, library internals) go to the log, not to whoever sent the request.
+    traceback.print_exception(exc)
+    return JSONResponse(status_code=500, content={"detail": "Internal error"})
 
 
-def read_image(upload: UploadFile) -> Image.Image:
+def read_image(upload: UploadFile) -> tuple[Image.Image, float]:
+    """
+    The upload decoded and reduced to the pipeline's working size, and the scale applied. SAM 3
+    sees 1008 px anyway, so a waiting job holds a few megapixels instead of up to 40.
+    """
     data = upload.file.read()
     try:
         image = Image.open(io.BytesIO(data))
@@ -193,7 +200,7 @@ def read_image(upload: UploadFile) -> Image.Image:
     except Exception as exc:
         raise HTTPException(400, f"Not an image: {exc}") from exc
     # Phone photos carry their rotation in Exif; the viewer shows them rotated, so match it.
-    return ImageOps.exif_transpose(image)
+    return shrink(ImageOps.exif_transpose(image))
 
 
 def release_gpu_cache() -> None:
@@ -282,7 +289,9 @@ def corners(
     x_job_id: str | None = Header(None),
     prefer: str | None = Header(None),
 ):
-    image = read_image(photo)
+    # Corners and the painted photo come back in the reduced photo's pixels; the browser
+    # rectifies from that painted photo, so the two always match.
+    image, _ = read_image(photo)
 
     def work() -> dict:
         try:
@@ -313,7 +322,8 @@ def openings(
     x_job_id: str | None = Header(None),
     prefer: str | None = Header(None),
 ):
-    rectified = read_image(image)
+    rectified, scale = read_image(image)
+    pixelsPerMetre *= scale
 
     def work() -> dict:
         found = run_model(x_job_id, find_openings, rectified, pixelsPerMetre)

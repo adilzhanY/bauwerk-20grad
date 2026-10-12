@@ -27,6 +27,7 @@ import re
 import tempfile
 import threading
 import time
+import traceback
 import uuid
 from contextlib import contextmanager
 from pathlib import Path
@@ -162,7 +163,11 @@ class Jobs:
             # HTTPException carries its own status and text; anything else is a 500.
             status = int(getattr(exc, "status_code", 500))
             detail = getattr(exc, "detail", None)
-            body = {"detail": detail if detail is not None else f"Internal error: {type(exc).__name__}: {exc}"}
+            if detail is None:
+                # The details (paths, library internals) go to the log, not to the browser.
+                traceback.print_exc()
+                detail = "Internal error"
+            body = {"detail": detail}
         with self._lock:
             self._running.discard(job_id)
             self._done[job_id] = (time.monotonic(), status, body)
@@ -184,6 +189,7 @@ class Jobs:
 
     def finished(self, job_id: str) -> bool:
         with self._lock:
+            self._expire()
             return job_id in self._done
 
     def collect(self, job_id: str) -> tuple[int, object] | None:

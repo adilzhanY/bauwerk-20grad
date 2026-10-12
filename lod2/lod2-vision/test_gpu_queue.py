@@ -168,14 +168,15 @@ def test_a_failed_job_answers_with_its_status() -> None:
         raise HTTPException(503, "The GPU ran out of memory.")
 
     def broken() -> dict:
-        raise ValueError("bad plan")
+        raise ValueError("bad plan in /home/someone/secret/plan.png")
 
     jobs.start("job-oom-00000", refused)
     jobs.start("job-broken-000", broken)
     wait_until(lambda: jobs.finished("job-oom-00000") and jobs.finished("job-broken-000"))
     assert jobs.collect("job-oom-00000") == (503, {"detail": "The GPU ran out of memory."})
     status, body = jobs.collect("job-broken-000")
-    assert status == 500 and "bad plan" in body["detail"]
+    # The details stay in the log: the browser gets no paths or exception names.
+    assert (status, body) == (500, {"detail": "Internal error"})
 
 
 def test_a_flood_is_turned_away() -> None:
