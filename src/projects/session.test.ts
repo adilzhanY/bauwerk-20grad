@@ -6,8 +6,11 @@ import type { Building } from "@/geometry/types";
 import { exampleHouse } from "@/lib/examples";
 import { listProjectCopies } from "@/lib/storage";
 import { useEditorStore } from "@/store/building";
+import { startPersistence } from "@/store/persist";
+import { listProjectCards } from "./projects";
 import type { ProjectCard } from "./projects";
 import {
+  deleteProject,
   isUnsaved,
   openBuilding,
   openForWork,
@@ -171,6 +174,21 @@ describe("unsaved work", () => {
   });
 });
 
+describe("deleting a project", () => {
+  it("the one open in the editor is let go, so an edit does not save it again", async () => {
+    const stop = startPersistence(useEditorStore);
+    await openForWork(boo(), undefined, { fresh: true });
+    await saveProject();
+    const [card] = await listProjectCards();
+    if (!card) throw new Error("the project was saved");
+    expect(await deleteProject(card)).toBe(true);
+    useEditorStore.getState().setWallThickness(0.4);
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    stop();
+    expect(listProjectCopies()).toEqual([]);
+  });
+});
+
 describe("saving by itself", () => {
   let stopAutoSave: () => void = () => undefined;
   beforeEach(() => {
@@ -201,6 +219,23 @@ describe("saving by itself", () => {
     useEditorStore.getState().setWallThickness(0.4);
     await Promise.resolve();
     expect(listProjectCopies()).toHaveLength(1);
+  });
+
+  it("undo after the first save takes back the edit, not the save", async () => {
+    stopAutoSave = startAutoSave();
+    const store = useEditorStore.getState;
+    const before = store().building.wallThickness;
+    store().setWallThickness(0.4);
+    await expect.poll(() => listProjectCopies()).toHaveLength(1);
+    store().setWallThickness(0.45);
+    store().undo();
+    store().undo();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(store().building.wallThickness).toBe(before);
+    expect(isUnsaved()).toBe(false);
+    expect(listProjectCopies()).toHaveLength(1);
+    store().redo();
+    expect(store().building.wallThickness).toBe(0.4);
   });
 
   it("waits for the sign-in state before it saves", async () => {

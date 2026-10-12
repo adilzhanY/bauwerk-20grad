@@ -14,8 +14,8 @@ import { PROJECT_STAGES } from "@/geometry/project";
 import type { ProjectStage } from "@/geometry/types";
 import { useT } from "@/i18n/useT";
 import { formatNumber, formatRelative } from "@/lib/format";
-import { deleteProjectCard, listProjectCards } from "@/projects/projects";
-import { openProjectCard } from "@/projects/session";
+import { listProjectCards } from "@/projects/projects";
+import { deleteProject, openProjectCard } from "@/projects/session";
 import type { ProjectCard } from "@/projects/projects";
 import { useEditorStore } from "@/store/building";
 import { syncEnabled } from "@/sync/useSync";
@@ -96,7 +96,7 @@ export function ProjectsPage() {
   );
 
   const remove = (card: ProjectCard) => {
-    void deleteProjectCard(card).then(load);
+    void deleteProject(card).then(load);
   };
 
   const shown = useMemo(() => {

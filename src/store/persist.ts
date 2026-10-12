@@ -25,10 +25,20 @@ export function startPersistence(store: ReturnType<typeof createEditorStore>): (
     }
     if (state.building !== previous.building) {
       const id = state.building.project?.localId ?? null;
-      if (id !== (previous.building.project?.localId ?? null)) rememberOpenProject(id);
+      if (id !== (previous.building.project?.localId ?? null)) {
+        rememberOpenProject(id);
+        // The project left keeps its last change now: a save still waiting could otherwise
+        // bring it back after it was deleted (projects/session.ts deleteProject).
+        if (timer) {
+          clearTimeout(timer);
+          timer = null;
+          saveProjectCopy(previous.building);
+        }
+      }
       if (!id) return;
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
+        timer = null;
         saveProjectCopy(state.building);
       }, SAVE_DELAY_MS);
     }

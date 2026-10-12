@@ -14,7 +14,7 @@ import { create } from "zustand";
 import type { Route } from "@/app/router";
 import { setLeaveGuard } from "@/app/router";
 import { useAuth } from "@/auth/store";
-import type { Building } from "@/geometry/types";
+import type { Building, ProjectInfo } from "@/geometry/types";
 import { randomId } from "@/lib/ids";
 import { loadProjectCopy, saveProjectCopy } from "@/lib/storage";
 import { createDefaultBuilding, useEditorStore } from "@/store/building";
@@ -26,7 +26,13 @@ import {
   syncEnabled,
   whenJoined,
 } from "@/sync/useSync";
-import { currentProjectRef, projectRefOf, sameRef } from "./projects";
+import {
+  currentProjectRef,
+  deleteProjectCard,
+  projectRefOf,
+  sameRef,
+  withProject,
+} from "./projects";
 import type { ProjectCard } from "./projects";
 
 type EditorState = ReturnType<typeof useEditorStore.getState>;
@@ -74,6 +80,16 @@ export function discardProject(): void {
 }
 
 /**
+ * Deletes a project with its pictures. When it is the one open in the editor, the editor lets
+ * it go first: its next edit would save it again.
+ */
+export async function deleteProject(card: ProjectCard): Promise<boolean> {
+  // First, so its last change is kept before the copy goes, not after (store/persist.ts).
+  if (sameRef(currentProjectRef(), card.ref)) discardProject();
+  return deleteProjectCard(card);
+}
+
+/**
  * Saves the work as a project: on the server, where it syncs live from now on, or in this
  * browser under its own id. The photos and floor plan images go with it (photoSync.ts).
  * Resolves false when the server refused, and the work stays unsaved.
@@ -92,10 +108,10 @@ async function save(): Promise<boolean> {
   const store = useEditorStore.getState();
   if (projectRefOf(store) !== null) return true;
   // The project facts mark a building as a project, also one drawn by hand.
-  if (!store.building.project) store.setProjectInfo({});
+  if (!store.building.project) markProject({});
   if (syncEnabled) {
     // A copy kept in this browser becomes the server project and stops being kept here.
-    if (store.building.project?.localId) store.setProjectInfo({ localId: undefined });
+    if (store.building.project?.localId) markProject({ localId: undefined });
     const id = await createProject().catch(() => null);
     if (!id) return false;
     openProject(id);
@@ -103,9 +119,18 @@ async function save(): Promise<boolean> {
     useEditorStore.getState().setProjectId(id);
     return true;
   }
-  store.setProjectInfo({ localId: randomId() });
+  markProject({ localId: randomId() });
   saveProjectCopy(useEditorStore.getState().building);
   return true;
+}
+
+/**
+ * Sets project facts outside the undo history and on every undo and redo step: undo takes
+ * back edits, never the save (it would make the work unsaved and save it again under a new id).
+ */
+function markProject(info: ProjectInfo): void {
+  const store = useEditorStore.getState();
+  store.applyRemoteBuilding(withProject(store.building, info), (b) => withProject(b, info));
 }
 
 /**
