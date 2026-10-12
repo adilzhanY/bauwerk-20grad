@@ -137,6 +137,35 @@ describe("SyncClient", () => {
     expectConverged(a);
   });
 
+  it("sends a drag once, when it ends, keeping someone else's edit that came during it", () => {
+    const a = openTab("a");
+    const b = openTab("b");
+    hub.flush();
+    const before = opening(hub.building, 1).offset;
+    a.store.getState().beginBatch();
+    move(a, 1, 0.3);
+    move(a, 1, 0.4);
+    expect(a.client.unconfirmed).toBe(0);
+    // Someone else's edit arrives mid drag: the drag stays where it is.
+    move(b, 2, 8);
+    hub.flush();
+    expect(opening(a.store.getState().building, 1).offset).toBe(0.4);
+    expect(opening(a.store.getState().building, 2).offset).toBe(8);
+    move(a, 1, 0.5);
+    a.store.getState().endBatch();
+    expect(a.client.unconfirmed).toBe(1);
+    hub.flush();
+    expect(opening(hub.building, 1).offset).toBe(0.5);
+    expect(opening(hub.building, 2).offset).toBe(8);
+    expectConverged(a, b);
+    // One undo step, and undo sends it back.
+    a.store.getState().undo();
+    hub.flush();
+    expect(opening(hub.building, 1).offset).toBe(before);
+    expect(opening(hub.building, 2).offset).toBe(8);
+    expectConverged(a, b);
+  });
+
   it("keeps both edits when two people move different windows at the same moment", () => {
     const a = openTab("a");
     const b = openTab("b");

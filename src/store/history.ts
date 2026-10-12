@@ -21,6 +21,8 @@ export interface HistorySlice {
    */
   beginBatch: () => void;
   endBatch: () => void;
+  /** Whether a gesture is open: the sync client sends its changes once it closes. */
+  gesture: boolean;
   /**
    * Forgets every undo and redo step. When another project opens: undo must never bring back
    * the building of the project before.
@@ -149,6 +151,7 @@ const historyImpl: HistoryImpl = (initializer) => (set, get, api) => {
     ...base,
     past: [],
     future: [],
+    gesture: false,
     undo: () => {
       restore("undo");
     },
@@ -156,20 +159,24 @@ const historyImpl: HistoryImpl = (initializer) => (set, get, api) => {
       restore("redo");
     },
     beginBatch: () => {
-      if (batchDepth === 0) batchRecorded = false;
       batchDepth += 1;
+      if (batchDepth > 1) return;
+      batchRecorded = false;
+      set({ gesture: true } as Partial<S>);
     },
     endBatch: () => {
       if (batchDepth === 0) return;
       batchDepth -= 1;
-      if (batchDepth === 0) batchRecorded = false;
+      if (batchDepth > 0) return;
+      batchRecorded = false;
+      set({ gesture: false } as Partial<S>);
     },
     clearHistory: () => {
       // A gesture whose end never came (a handle gone mid drag) must not swallow every
       // later edit into one undo step.
       batchDepth = 0;
       batchRecorded = false;
-      set({ past: [], future: [] } as unknown as Partial<S>);
+      set({ past: [], future: [], gesture: false } as unknown as Partial<S>);
     },
     withoutHistory: (fn) => {
       const previous = restoring;

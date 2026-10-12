@@ -25,7 +25,8 @@ const PRESENCE_MS = 50;
  * building with the queue replayed on top, so a local edit shows at once.
  *
  * Local edits: every change to the store's building is diffed into operations (ops.ts),
- * queued as one batch with the next sequence number, and sent.
+ * queued as one batch with the next sequence number, and sent. A gesture (a drag, a slider)
+ * is sent once, when it ends, not every frame of it.
  *
  * Remote edits: the server sends every applied batch to every tab in version order, the
  * sender included. The client applies it to the confirmed building and replays its queue
@@ -342,7 +343,7 @@ export class SyncClient {
     });
 
     this.unsubscribe = this.store.subscribe((state, prev) => {
-      if (state.building !== this.shown && !this.applying) {
+      if (state.building !== this.shown && !this.applying && !state.gesture) {
         // A language switch only translates the names the app made, on this screen: it is
         // nobody's edit, and the project keeps its names for everyone else.
         if (state.language !== prev.language) this.shown = state.building;
@@ -600,13 +601,21 @@ export class SyncClient {
     }
     let building = this.confirmed;
     for (const batch of this.pending) building = applyOps(building, batch.ops).value;
+    // A gesture still open (a drag) keeps its changes on top; they are sent when it ends.
+    const state = this.store.getState();
+    const unsent =
+      state.gesture && this.shown && state.building !== this.shown
+        ? diffBuilding(this.shown, state.building)
+        : [];
     this.applying = true;
     try {
       this.store.getState().applyRemoteBuilding(building, rebase);
+      this.shown = this.store.getState().building;
+      if (unsent.length > 0)
+        this.store.getState().applyRemoteBuilding(applyOps(this.shown, unsent).value);
     } finally {
       this.applying = false;
     }
-    this.shown = this.store.getState().building;
   }
 }
 
