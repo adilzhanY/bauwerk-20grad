@@ -449,6 +449,22 @@ describe("a user's own data", () => {
     expect((await call("GET", "/me")).status).toBe(401);
   });
 
+  it("keeps both a note and a survey saved at the same moment for a new building", async () => {
+    const token = (await signUp(ada)).token;
+    const gids = Array.from({ length: 10 }, (_, i) => `DEBE02YY4000${String(i).padStart(4, "0")}`);
+    await Promise.all(
+      gids.flatMap((gid) => [
+        call("PUT", `/me/buildings/${gid}`, token, { note: "Keller feucht" }),
+        call("PUT", `/me/buildings/${gid}`, token, { survey }),
+      ]),
+    );
+    const mine = (await (await call("GET", "/me", token)).json()) as {
+      buildings: { note: string | null; survey: unknown }[];
+    };
+    expect(mine.buildings).toHaveLength(10);
+    for (const b of mine.buildings) expect(b).toMatchObject({ note: "Keller feucht", survey });
+  });
+
   it("refuses data of the wrong shape", async () => {
     const token = (await signUp(ada)).token;
     expect((await call("PUT", "/me/settings", token, { language: "fr" })).status).toBe(400);

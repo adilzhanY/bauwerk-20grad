@@ -91,6 +91,9 @@ export class MeService {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
+      // FOR UPDATE locks nothing while the row does not exist yet: two first saves (a note and
+      // a survey) would both insert and one would be lost.
+      await client.query("SELECT pg_advisory_xact_lock(hashtext($1 || '/' || $2))", [userId, gid]);
       const current = await client.query<{ note: string | null; survey: Survey | null }>(
         "SELECT note, survey FROM app.user_buildings WHERE user_id = $1 AND gid = $2 FOR UPDATE",
         [userId, gid],
