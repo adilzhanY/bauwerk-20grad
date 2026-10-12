@@ -318,51 +318,64 @@ export class ThreadsService implements OnModuleInit {
 
   /**
    * The notes kept in buildings before threads existed move into threads once, with their
-   * author and time; then they leave the building in one ordinary change (a version).
+   * author and time; then they leave the building in one ordinary change (a version). At
+   * start for the projects already stored; a project made later goes through `moveNotes`.
    */
   async onModuleInit() {
     const res = await this.pool.query<{ id: string; building: Building; version: number }>(
       "SELECT id, building, version FROM app.projects WHERE jsonb_array_length(COALESCE(building->'notes', '[]'::jsonb)) > 0",
     );
     for (const row of res.rows) {
-      const notes: Note[] = row.building.notes ?? [];
-      // The notes leave the building first, as one ordinary change. Only once that worked do
-      // they become threads, so a refused change can never make them twice on the next start.
-      const ops = diffBuilding(row.building, { ...row.building, notes: [] });
-      const moved = await this.projects.applyBatch(
-        row.id,
-        // The project's version as the sequence: new for every attempt, so never taken for a
-        // batch already applied, and it fits the integer column.
-        { clientId: "bauwerk-notes", seq: row.version, ops, valid: true },
-        "Bauwerk",
-      );
-      if (!moved.ok) {
-        this.log.warn(`notes of project ${row.id} not moved: ${moved.reason}`);
-        continue;
-      }
-      for (const note of notes) {
-        const target = Target.safeParse(note.target);
-        if (!target.success || !note.text.trim()) continue;
-        const threadId = randomUUID();
-        await this.pool.query(
-          `INSERT INTO app.threads (id, project_id, target, version, created_at, resolved_at)
-           VALUES ($1, $2, $3, (SELECT version FROM app.projects WHERE id = $2), $4,
-                   CASE WHEN $5 THEN $4::timestamptz ELSE NULL END)`,
-          [threadId, row.id, JSON.stringify(target.data), note.createdAt, note.done === true],
-        );
-        await this.pool.query(
-          `INSERT INTO app.comments (id, thread_id, author_name, text, created_at)
-           VALUES ($1, $2, $3, $4, $5)`,
-          [
-            randomUUID(),
-            threadId,
-            note.author.slice(0, 120) || "?",
-            note.text.slice(0, 5000),
-            note.createdAt,
-          ],
-        );
-      }
-      this.log.log(`moved ${String(notes.length)} notes of project ${row.id} into threads`);
+      // One project that fails must not stop the server from starting, nor the others.
+      await this.moveNotes(row).catch((error: unknown) => {
+        this.log.error(`notes of project ${row.id} not moved: ${String(error)}`);
+      });
     }
+  }
+
+  /** Moves one project's notes into threads, when it has any. */
+  async moveNotes(project: { id: string; building: Building; version: number }) {
+    const notes: Note[] = project.building.notes ?? [];
+    if (notes.length === 0) return;
+    // The notes leave the building first, as one ordinary change. Only once that worked do
+    // they become threads, so a refused change can never make them twice on the next start.
+    const ops = diffBuilding(project.building, { ...project.building, notes: [] });
+    const moved = await this.projects.applyBatch(
+      project.id,
+      // The project's version as the sequence: new for every attempt, so never taken for a
+      // batch already applied, and it fits the integer column.
+      { clientId: "bauwerk-notes", seq: project.version, ops, valid: true },
+      "Bauwerk",
+    );
+    if (!moved.ok) {
+      this.log.warn(`notes of project ${project.id} not moved: ${moved.reason}`);
+      return;
+    }
+    for (const note of notes) {
+      const target = Target.safeParse(note.target);
+      if (!target.success || !note.text.trim()) continue;
+      // A time the database cannot read would lose the note: it is kept, dated now.
+      const parsed = Date.parse(note.createdAt);
+      const createdAt = Number.isNaN(parsed) ? new Date() : new Date(parsed);
+      const threadId = randomUUID();
+      await this.pool.query(
+        `INSERT INTO app.threads (id, project_id, target, version, created_at, resolved_at)
+         VALUES ($1, $2, $3, (SELECT version FROM app.projects WHERE id = $2), $4,
+                 CASE WHEN $5 THEN $4::timestamptz ELSE NULL END)`,
+        [threadId, project.id, JSON.stringify(target.data), createdAt, note.done === true],
+      );
+      await this.pool.query(
+        `INSERT INTO app.comments (id, thread_id, author_name, text, created_at)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [
+          randomUUID(),
+          threadId,
+          note.author.slice(0, 120) || "?",
+          note.text.slice(0, 5000),
+          createdAt,
+        ],
+      );
+    }
+    this.log.log(`moved ${String(notes.length)} notes of project ${project.id} into threads`);
   }
 }

@@ -27,6 +27,7 @@ import { LiveProjects } from "./live.service";
 import { send } from "../files/files.controller";
 import { FILE_TYPES, FilesService } from "../files/files.service";
 import { MAX_FILE_BYTES } from "../files/store";
+import { ThreadsService } from "../threads/threads.service";
 import { PHOTO_SLOT, ProjectsService } from "./projects.service";
 import type { Access, BatchResult, WriteResult } from "./projects.service";
 import type { ProjectAction } from "@/projects/roles";
@@ -94,6 +95,7 @@ export class ProjectsController {
     @Inject(ProjectsService) private readonly projects: ProjectsService,
     @Inject(LiveProjects) private readonly live: LiveProjects,
     @Inject(FilesService) private readonly files: FilesService,
+    @Inject(ThreadsService) private readonly threads: ThreadsService,
   ) {}
 
   /** The person's role, or a 404 (no such project) or 403 (`notMember`, `notAllowed`). */
@@ -137,9 +139,14 @@ export class ProjectsController {
     @Req() request: AuthedRequest,
     @Headers("x-actor") actor?: string,
   ) {
-    return unwrap(
+    const project = unwrap(
       await this.projects.create(buildingOf(body), nameOf(request, actor), request.user?.id),
     );
+    // A project made in the browser before threads existed brings its notes: they become
+    // threads at once, not at the next start of the server.
+    if (!project.building.notes?.length) return project;
+    await this.threads.moveNotes(project);
+    return (await this.projects.get(project.id)) ?? project;
   }
 
   /** The same as the socket's "ops" message, for clients without a socket. */

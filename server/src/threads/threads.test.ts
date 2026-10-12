@@ -299,12 +299,24 @@ describe("threads", () => {
           createdAt: "2026-09-21T10:00:00.000Z",
           done: true,
         },
+        {
+          id: "n3",
+          target: { kind: "building" },
+          text: "Undated",
+          author: "Tom",
+          createdAt: "last week",
+        },
       ],
     };
-    const { id } = (await (await call("POST", "/projects", ada.token, { building })).json()) as {
+    // Saved to the server, the notes are threads at once; a start later moves nothing again.
+    const created = (await (await call("POST", "/projects", ada.token, { building })).json()) as {
       id: string;
+      version: number;
+      building: { notes?: unknown[] };
     };
-    await app.get(ThreadsService).onModuleInit();
+    const id = created.id;
+    expect(created).toMatchObject({ version: 2 });
+    expect(created.building.notes ?? []).toEqual([]);
     await app.get(ThreadsService).onModuleInit();
     const list = await threads(id, ada.token);
     expect(
@@ -312,6 +324,7 @@ describe("threads", () => {
     ).toEqual([
       ["Gas boiler from 1998", "Lena 42", false],
       ["Crack", "Tom", true],
+      ["Undated", "Tom", false],
     ]);
     const project = (await (await call("GET", `/projects/${id}`, ada.token)).json()) as {
       building: { notes?: unknown[] };
