@@ -41,6 +41,7 @@ export default defineConfig(({ mode }) => {
         "/floorplan": {
           target: `http://127.0.0.1:${env.LOD2_FLOORPLAN_PORT || "8791"}`,
           rewrite: (p: string) => p.replace(/^\/floorplan/, ""),
+          headers: visionKey ? { "X-Vision-Key": visionKey } : {},
         },
         "/vision": {
           target: `http://127.0.0.1:${visionPort}`,

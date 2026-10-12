@@ -26,7 +26,6 @@ class Label:
     confidence: float
     x: float  # pixels of the image read, the middle of the words
     y: float
-    height: float  # pixels, the letters' height
 
 
 def available() -> bool:
@@ -34,7 +33,7 @@ def available() -> bool:
 
 
 def read_words(image: Image.Image) -> list[Label]:
-    """Lines of words as Tesseract groups them, each with its middle and its letter height."""
+    """Lines of words as Tesseract groups them, each with its middle. Empty when Tesseract is missing or too slow."""
     if not available():
         return []
     # Small print on a plan reads better three times the size: a room stamp on a 2400 px A3
@@ -44,10 +43,14 @@ def read_words(image: Image.Image) -> list[Label]:
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "plan.png"
         big.save(path)
-        out = subprocess.run(
-            ["tesseract", str(path), "stdout", "-l", "deu+eng", "--psm", "11", "tsv"],
-            capture_output=True, text=True, timeout=120, check=False,
-        ).stdout
+        try:
+            out = subprocess.run(
+                ["tesseract", str(path), "stdout", "-l", "deu+eng", "--psm", "11", "tsv"],
+                capture_output=True, text=True, timeout=120, check=False,
+            ).stdout
+        except subprocess.TimeoutExpired:
+            # A plan whose words take this long is still read, only without them.
+            return []
     lines: dict[tuple, list[tuple]] = {}
     for row in out.splitlines()[1:]:
         cells = row.split("\t")
@@ -67,5 +70,5 @@ def read_words(image: Image.Image) -> list[Label]:
         y1 = max(w[1] + w[3] for w in words)
         text = " ".join(w[5] for w in words)
         conf = sum(w[4] for w in words) / len(words)
-        labels.append(Label(text, conf, (x0 + x1) / 2, (y0 + y1) / 2, y1 - y0))
+        labels.append(Label(text, conf, (x0 + x1) / 2, (y0 + y1) / 2))
     return labels

@@ -20,9 +20,15 @@ import numpy as np
 from PIL import Image
 from shapely.geometry import LineString
 
+import pytest
+
 import pipeline
 import room_model
 import server
+
+# The real plans need the room model on the graphics card (setup.sh); without it they are skipped.
+# `npm run check:lod2` leaves them out too: they take over a minute of GPU time.
+pytestmark = pytest.mark.skipif(not room_model.available(), reason="room model not installed (setup.sh)")
 
 HERE = Path(__file__).resolve().parent
 PLANS = HERE.parent / "sample-plans"

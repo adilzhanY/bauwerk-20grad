@@ -22,7 +22,7 @@
  * No dependency: plain child processes.
  */
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -180,6 +180,14 @@ if (dbUp) {
   console.log(`${label("collab")} Skipped without the database. Editing stays local.`);
 }
 
+// The key the hosted site's proxy and vite.config.ts send to the AI services (deploy/.env.pc).
+// The home PC's tunnel reaches these ports, so with the key set they refuse anyone without it.
+const pcEnv = join(root, "deploy", ".env.pc");
+const visionKey = existsSync(pcEnv)
+  ? /^VISION_KEY=(.+)$/m.exec(readFileSync(pcEnv, "utf8"))?.[1]?.trim()
+  : undefined;
+const keyEnv = visionKey ? { VISION_KEY: visionKey } : {};
+
 // 4. Vision service, when it is installed.
 const configuredPython = process.env.LOD2_VISION_PYTHON;
 const visionPython = configuredPython
@@ -200,7 +208,7 @@ if (visionRunning) {
   // The always-on service of the hosted site (deploy/README.md, "From this PC"): share it.
   console.log(`${label("vision")} Already running on port ${visionPort}, using that one.`);
 } else if (existsSync(visionPython)) {
-  start("vision", "node", ["lod2/scripts/vision.mjs"]);
+  start("vision", "node", ["lod2/scripts/vision.mjs"], keyEnv);
 } else {
   console.log(
     `${label("vision")} Not installed, skipped. Automatic window detection stays off (lod2/docs/LOD2.md, steps 6 to 8).`,
@@ -218,7 +226,7 @@ const floorplanPython =
     process.platform === "win32" ? "Scripts/python.exe" : "bin/python",
   );
 if (existsSync(floorplanPython)) {
-  start("plans", floorplanPython, ["lod2/lod2-floorplan/server.py"]);
+  start("plans", floorplanPython, ["lod2/lod2-floorplan/server.py"], keyEnv);
 } else {
   console.log(
     `${label("plans")} Not installed, skipped. Floor plan import stays off (lod2/lod2-floorplan/README.md).`,

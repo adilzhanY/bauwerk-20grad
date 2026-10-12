@@ -12,8 +12,9 @@ Local vision service for the LoD2 viewer: SAM 3 behind two routes.
 SAM 3 is loaded for the first job and let go after LOD2_VISION_IDLE_MINUTES (10) without one,
 so the graphics card and the memory are free while nobody uses the site.
 
-Listens on 127.0.0.1 only. There is no authentication, like lod2-api, and for the same
-reason: it is a localhost tool.
+Listens on 127.0.0.1 unless LOD2_VISION_HOST says otherwise. With VISION_KEY set, every request
+must carry it as X-Vision-Key (the hosted site's proxy adds it): behind the home PC's tunnel the
+service has a public address. Listening beyond this computer without the key is refused.
 
 Settings such as HF_TOKEN, HF_HOME and LOD2_VISION_PORT may come from the repo-root .env.
 """
@@ -28,6 +29,7 @@ import os
 import sys
 import threading
 import time
+import warnings
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 from pathlib import Path
@@ -64,6 +66,11 @@ from fastapi.exceptions import RequestValidationError  # noqa: E402
 from fastapi.responses import JSONResponse, Response  # noqa: E402
 from huggingface_hub.errors import HfHubHTTPError, LocalEntryNotFoundError  # noqa: E402
 from PIL import Image, ImageOps  # noqa: E402
+
+# A photo is at most 40 megapixels; a bigger one (or a small file that claims to be) is refused
+# with a 400 instead of decoded into gigabytes of memory.
+Image.MAX_IMAGE_PIXELS = 40_000_000
+warnings.simplefilter("error", Image.DecompressionBombWarning)
 
 from gpu_queue import Abandoned, GpuLine, Jobs  # noqa: E402
 from pipeline import Sam3, find_openings, find_wall  # noqa: E402

@@ -69,7 +69,7 @@ def near(a, b, tol):
     return math.dist(a, b) <= tol
 
 
-def main():
+def test_synthetic_plan():
     result = pipeline.analyse(draw(), FOOTPRINT)
     t = result.transform
     assert abs(t.scale - SCALE) / SCALE < 0.01, f"scale {t.scale:.2f} px/m, expected {SCALE}"
@@ -93,4 +93,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    test_synthetic_plan()

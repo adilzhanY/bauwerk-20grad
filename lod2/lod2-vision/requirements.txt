@@ -23,3 +23,5 @@ huggingface_hub
 fastapi
 uvicorn
 python-multipart
+# Tests (python -m pytest).
+pytest

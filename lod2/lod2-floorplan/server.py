@@ -10,7 +10,9 @@ building's known outline.
   GET  /result/<id> the answer of a plan posted with "Prefer: respond-async" (which returns 202)
   GET  /health  whether the room model is installed
 
-Listens on 127.0.0.1 only, like lod2-vision: a local tool behind the app's proxy.
+Listens on 127.0.0.1 unless LOD2_FLOORPLAN_HOST says otherwise, like lod2-vision, and like it
+checks VISION_KEY on every request when set (the home PC's tunnel gives it a public address).
+Listening beyond this computer without the key is refused.
 See README.md for the setup, pipeline.py for how the plan is read.
 """
 from __future__ import annotations
@@ -20,7 +22,9 @@ import json
 from dataclasses import dataclass, field
 import hmac
 import os
+import sys
 import tempfile
+import warnings
 from pathlib import Path
 
 import cv2
@@ -36,7 +40,7 @@ import pipeline
 from gpu_queue import Abandoned, GpuLine, Jobs
 import room_model
 
-HOST = "127.0.0.1"
+HOST = os.environ.get("LOD2_FLOORPLAN_HOST", "127.0.0.1")
 PORT = int(os.environ.get("LOD2_FLOORPLAN_PORT", "8791"))
 MAX_SIDE = 3000
 # One AI job at a time on this computer, in the order they came: the line is shared with
@@ -48,6 +52,14 @@ jobs = Jobs()
 # Set, every request without it is refused: behind a Cloudflare Tunnel the service has a public
 # address, and only the site, which checks the sign in first, may use the graphics card.
 VISION_KEY = os.environ.get("VISION_KEY", "")
+if HOST != "127.0.0.1" and not VISION_KEY:
+    print("lod2-floorplan: listening beyond this computer needs VISION_KEY; refusing to start.", file=sys.stderr)
+    sys.exit(2)
+
+# A plan scan is at most 40 megapixels; a bigger one (or a small file that claims to be) is
+# refused with a 422 instead of decoded into gigabytes of memory.
+Image.MAX_IMAGE_PIXELS = 40_000_000
+warnings.simplefilter("error", Image.DecompressionBombWarning)
 
 app = FastAPI(title="lod2-floorplan")
 
@@ -89,6 +101,8 @@ def health() -> dict:
 def _read_plan(upload: UploadFile) -> Image.Image:
     try:
         image = ImageOps.exif_transpose(Image.open(io.BytesIO(upload.file.read())))
+    except (Image.DecompressionBombWarning, Image.DecompressionBombError) as exc:
+        raise HTTPException(422, "The image is larger than 40 megapixels.") from exc
     except Exception as exc:  # noqa: BLE001 - any decoding failure is a bad upload
         raise HTTPException(422, "The file is not an image.") from exc
     image = image.convert("RGB")
@@ -104,6 +118,9 @@ def _footprint(text: str) -> np.ndarray:
         raise HTTPException(422, "footprint must be a JSON list of {x, y} points in metres.") from exc
     if len(points) < 3:
         raise HTTPException(422, "footprint needs at least three points.")
+    # A degenerate outline (a line, a point, a bow tie) has nothing to fit the plan into.
+    if Polygon(points).area < 1:
+        raise HTTPException(422, "footprint must enclose at least 1 square metre.")
     return points
 
 

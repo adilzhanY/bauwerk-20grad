@@ -16,7 +16,7 @@
     "test:watch": "vitest",
     "check": "npm run typecheck && npm run lint && npm run test && npm run check:lod2 && npm run check:server",
     "check:server": "cd server && npm run typecheck && npm run lint && DATABASE_URL=${BAUWERK_TEST_DATABASE_URL:-postgres://lod2:lod2@127.0.0.1:55433/bauwerk_test} npm test",
-    "check:lod2": "npm --prefix lod2/lod2-core run typecheck && npm --prefix lod2/lod2-core run lint && npm --prefix lod2/lod2-core test && npm --prefix lod2/lod2-ingest run typecheck && npm --prefix lod2/lod2-ingest run lint && npm --prefix lod2/lod2-ingest test && npm --prefix lod2/lod2-api run typecheck && npm --prefix lod2/lod2-api run lint && npm --prefix lod2/lod2-api test",
+    "check:lod2": "npm --prefix lod2/lod2-core run typecheck && npm --prefix lod2/lod2-core run lint && npm --prefix lod2/lod2-core test && npm --prefix lod2/lod2-ingest run typecheck && npm --prefix lod2/lod2-ingest run lint && npm --prefix lod2/lod2-ingest test && npm --prefix lod2/lod2-api run typecheck && npm --prefix lod2/lod2-api run lint && npm --prefix lod2/lod2-api test && node lod2/scripts/pytest.mjs",
     "db": "docker compose -f lod2/docker-compose.yml up -d --wait",
     "db:stop": "docker compose -f lod2/docker-compose.yml down",
     "migrate": "npm --prefix lod2/lod2-ingest run --silent lod2 -- migrate",

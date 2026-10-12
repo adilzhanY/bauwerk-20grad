@@ -33,12 +33,6 @@ def available() -> bool:
 KINDS = {1: "kitchen", 2: "living", 3: "bedroom", 4: "bath", 5: "entry", 6: "storage", 7: "garage"}
 
 
-def rooms_and_doors(image_path: Path, width: int, height: int) -> tuple[list, list]:
-    """(rooms, doors) in pixels of the original image. Raises when the model fails."""
-    rooms, doors, _ = rooms_doors_kinds(image_path, width, height)
-    return rooms, doors
-
-
 def rooms_doors_kinds(image_path: Path, width: int, height: int) -> tuple[list, list, list]:
     """(rooms, doors, kinds): kinds[i] is room i's type ("kitchen", "bath", ...) or None."""
     with tempfile.TemporaryDirectory() as tmp:
