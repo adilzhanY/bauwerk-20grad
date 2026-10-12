@@ -1,14 +1,13 @@
 import { useMemo } from "react";
-import { Html } from "@react-three/drei";
 import type { ThreeEvent } from "@react-three/fiber";
 import { centroid } from "@/geometry/polygon";
 import type { Id, Room as RoomData, Zone } from "@/geometry/types";
 import { colors } from "@/lib/colors";
-import { coveredFromAbove } from "./display";
 import type { StoreyDisplay } from "./display";
 import { formatArea } from "@/lib/format";
 import { useEditorStore } from "@/store/building";
 import type { Selection } from "@/store/building";
+import { FloorLabel } from "./FloorLabel";
 import { useHover, useMarked } from "./hover";
 import { flatGeometry, meshRaycast, noRaycast } from "./three";
 import { useDisposableGeometry } from "./useDisposableGeometry";
@@ -23,7 +22,7 @@ interface Props {
   ghostOpacity: number;
 }
 
-/** Flat fill on the floor, coloured by zone, with a label facing the camera. */
+/** Flat fill on the floor, coloured by zone, with its name and area printed on it. */
 export function Room({ storeyId, room, zone, elevation, active, display, ghostOpacity }: Props) {
   const target: Selection = useMemo(
     () => ({ kind: "room", storeyId, id: room.id }),
@@ -35,10 +34,6 @@ export function Room({ storeyId, room, zone, elevation, active, display, ghostOp
   const tool = useEditorStore((s) => s.tool);
   // The floor plan writes its own room stamp, with the room's size; two would overlap.
   const planView = useEditorStore((s) => s.planView);
-  // A label is HTML over the canvas: it would show through a roof or storey drawn over it.
-  const covered = useEditorStore((s) =>
-    coveredFromAbove(s.otherStoreys, s.selection?.kind === "roof"),
-  );
   const activeZoneId = useEditorStore((s) => s.activeZoneId);
   const assignRoomToZone = useEditorStore((s) => s.assignRoomToZone);
   const hover = useHover(target, active);
@@ -88,23 +83,14 @@ export function Room({ storeyId, room, zone, elevation, active, display, ghostOp
           roughness={1}
         />
       </mesh>
-      {active && !planView && !covered && (
-        <Html
-          position={[centre.x, elevation + 0.05, centre.y]}
-          center
-          zIndexRange={[10, 0]}
-          style={{ pointerEvents: "none" }}
-        >
-          <div
-            className="flex flex-col items-center rounded-inner border border-line bg-paper/90 px-2.5 py-1 text-center select-none"
-            style={{ whiteSpace: "nowrap" }}
-          >
-            <div className="text-xs font-medium text-ink whitespace-nowrap">{room.name}</div>
-            <div className="font-num text-xs text-muted whitespace-nowrap">
-              {formatArea(room.area, language)}
-            </div>
-          </div>
-        </Html>
+      {active && !planView && (
+        <FloorLabel
+          name={room.name}
+          area={formatArea(room.area, language)}
+          centre={centre}
+          polygon={room.polygon}
+          elevation={elevation}
+        />
       )}
     </group>
   );

@@ -10,15 +10,6 @@ import type { OtherStoreys } from "@/store/building";
  * (Revit calls this a halftone underlay, ArchiCAD a ghost story), storeys below
  * default to a faint ghost so the building still reads as a whole.
  */
-/**
- * Whether the roof is drawn solid over the storeys: set so, or selected (a selected roof is
- * always solid). Storeys above the active one are at most a ghost. Room labels are HTML over
- * the canvas and would show through a solid roof, so they stay hidden then.
- */
-export function coveredFromAbove(other: OtherStoreys, roofSelected: boolean): boolean {
-  return roofSelected || other.roof === "solid";
-}
-
 export function storeyDisplay(
   building: Building,
   storeyId: string,

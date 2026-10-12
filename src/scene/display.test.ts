@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { resetIds } from "@/lib/ids";
 import { createEditorStore } from "@/store/building";
-import { coveredFromAbove, storeyDisplay } from "./display";
+import { storeyDisplay } from "./display";
 
 describe("storeyDisplay", () => {
   it("active is solid, above follows the above setting, below the below setting", () => {
@@ -30,21 +30,5 @@ describe("storeyDisplay", () => {
       roof: "outline",
       ghostOpacity: 0.3,
     });
-  });
-});
-
-describe("coveredFromAbove", () => {
-  const other = {
-    above: "ghost" as const,
-    below: "ghost" as const,
-    roof: "outline" as const,
-    ghostOpacity: 0.15,
-  };
-
-  it("is covered by a solid or a selected roof, not by an outline or a ghost", () => {
-    expect(coveredFromAbove(other, false)).toBe(false);
-    expect(coveredFromAbove({ ...other, roof: "ghost" }, false)).toBe(false);
-    expect(coveredFromAbove({ ...other, roof: "solid" }, false)).toBe(true);
-    expect(coveredFromAbove(other, true)).toBe(true);
   });
 });
