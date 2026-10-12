@@ -9,6 +9,7 @@ import {
   isCounterClockwise,
   isSimplePolygon,
   lineIntersection,
+  outlineEdges,
   overlapOnEdge,
   pointInPolygon,
   segmentsIntersect,
@@ -141,6 +142,14 @@ describe("edges", () => {
     expect(e[2]?.normal).toEqual({ x: 0, y: 1 });
     // Edge 3 runs from (6,5) to (6,8), the inner vertical side; outward is +x.
     expect(e[3]?.normal).toEqual({ x: 1, y: 0 });
+  });
+});
+
+describe("outlineEdges", () => {
+  it("gives one segment per side, closing back to the first corner", () => {
+    const sides = outlineEdges(rect);
+    expect(sides).toHaveLength(4);
+    expect(sides[3]).toEqual({ a: rect[3], b: rect[0] });
   });
 });
 

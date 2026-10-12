@@ -71,6 +71,20 @@ describe("extractFaces", () => {
     for (const f of faces) for (const p of f) expect(pointInPolygon(p, lShape)).toBe(true);
   });
 
+  it("a closed loop of walls not touching the outer walls cuts its room out of the outer one", () => {
+    const corners = [
+      { x: 4, y: 3 },
+      { x: 6, y: 3 },
+      { x: 6, y: 5 },
+      { x: 4, y: 5 },
+    ];
+    const loop = corners.map((a, i) => ({ a, b: corners[(i + 1) % 4] ?? a }));
+    const faces = extractFaces(rect, loop);
+    expect(faces.map((f) => area(f)).sort((a, b) => a - b)).toEqual([4, 76]);
+    const inside = faces.filter((f) => pointInPolygon({ x: 5, y: 4 }, f));
+    expect(inside.map((f) => area(f))).toEqual([4]);
+  });
+
   it("a wall fully outside the footprint is ignored", () => {
     expect(clipSegmentToPolygon({ a: { x: 20, y: 0 }, b: { x: 20, y: 8 } }, rect)).toEqual([]);
     expect(extractFaces(rect, [{ a: { x: 20, y: 0 }, b: { x: 20, y: 8 } }])).toHaveLength(1);

@@ -9,7 +9,16 @@ import { clipSegmentToPolygon, splitSegments } from "./rooms";
 import { GAIN_UTILISATION, GLAZING_G, solarGains } from "./solarGains";
 import { countedOpenings, openingsOn } from "./openings";
 import { windowType } from "./windows";
-import { area, edges, pointInPolygon, pointOnSegment, spansOnEdge, sub, distance } from "./polygon";
+import {
+  area,
+  edges,
+  outlineEdges,
+  pointInPolygon,
+  pointOnSegment,
+  spansOnEdge,
+  sub,
+  distance,
+} from "./polygon";
 import type { Edge } from "./polygon";
 import type {
   Building,
@@ -18,7 +27,6 @@ import type {
   InteriorWall,
   Opening,
   Room,
-  Segment,
   Storey,
   Vec2,
   Zone,
@@ -617,8 +625,7 @@ export function interiorWallPieces(
   footprint: readonly Vec2[],
   interiorWalls: readonly InteriorWall[],
 ): InteriorWall[] {
-  const n = footprint.length;
-  const boundary: Segment[] = footprint.map((p, i) => ({ a: p, b: footprint[(i + 1) % n] ?? p }));
+  const boundary = outlineEdges(footprint);
   const clipped = interiorWalls.flatMap((w) => clipSegmentToPolygon(w, footprint));
   const onBoundary = (p: Vec2) => boundary.some((e) => pointOnSegment(p, e.a, e.b, 1e-6));
   return splitSegments([...boundary, ...clipped]).flatMap((piece) => {

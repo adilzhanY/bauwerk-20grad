@@ -2,11 +2,14 @@ import {
   EPSILON,
   area,
   cross,
+  distance,
   equals,
   interiorPoint,
   lineIntersection,
+  outlineEdges,
   pointInPolygon,
   pointOnSegment,
+  segmentsIntersect,
   signedArea,
   sub,
 } from "./polygon";
@@ -120,10 +123,7 @@ export function extractFaces(
   footprint: readonly Vec2[],
   interiorWalls: readonly Segment[],
 ): Vec2[][] {
-  const boundary: Segment[] = footprint.map((p, i) => ({
-    a: p,
-    b: footprint[(i + 1) % footprint.length] ?? p,
-  }));
+  const boundary = outlineEdges(footprint);
   const clipped = interiorWalls.flatMap((w) => clipSegmentToPolygon(w, footprint));
   return facesOfSegments([...boundary, ...clipped]);
 }
@@ -163,6 +163,7 @@ export function facesOfSegments(segments: readonly Segment[]): Vec2[][] {
   for (const list of outgoing.values()) list.sort((p, q) => p.angle - q.angle);
 
   const faces: Vec2[][] = [];
+  const holes: Vec2[][] = [];
   for (const start of halfEdges) {
     if (start.visited) continue;
     const ring: Vec2[] = [];
@@ -180,9 +181,45 @@ export function facesOfSegments(segments: readonly Segment[]): Vec2[][] {
       guard += 1;
     } while (current !== start && guard < halfEdges.length + 1);
     const cleaned = cleanRing(ring);
-    if (cleaned.length >= 3 && signedArea(cleaned) > 1e-9) faces.push(cleaned);
+    if (cleaned.length < 3) continue;
+    const signed = signedArea(cleaned);
+    if (signed > 1e-9) faces.push(cleaned);
+    else if (signed < -1e-9) holes.push(cleaned);
+  }
+  // A loop of walls touching nothing else walks out as a clockwise ring: a hole in the face
+  // around it. Joined to that face by a slit, so its floor is not counted twice.
+  for (const hole of holes) {
+    const first = hole[0];
+    if (!first) continue;
+    const around = faces
+      .filter((f) => !f.some((p) => equals(p, first, 1e-7)) && pointInPolygon(first, f))
+      .sort((p, q) => area(p) - area(q))[0];
+    if (around) faces[faces.indexOf(around)] = withHole(around, hole, holes);
   }
   return faces;
+}
+
+/** The face with the hole cut in through the shortest slit that crosses no other edge. */
+function withHole(face: Vec2[], hole: Vec2[], holes: readonly Vec2[][]): Vec2[] {
+  const rings = [face, ...holes];
+  const blocked = (f: Vec2, h: Vec2) =>
+    rings.some((ring) =>
+      ring.some((p, k) => {
+        const q = ring[(k + 1) % ring.length] ?? p;
+        if ([p, q].some((e) => equals(e, f) || equals(e, h))) return false;
+        return segmentsIntersect(f, h, p, q);
+      }),
+    );
+  let best: { i: number; j: number; d: number } | undefined;
+  for (const [i, f] of face.entries()) {
+    for (const [j, h] of hole.entries()) {
+      const d = distance(f, h);
+      if ((!best || d < best.d) && !blocked(f, h)) best = { i, j, d };
+    }
+  }
+  if (!best) return face;
+  const { i, j } = best;
+  return [...face.slice(0, i + 1), ...hole.slice(j), ...hole.slice(0, j + 1), ...face.slice(i)];
 }
 
 /** Removes backtracking spikes and collinear middle points from a closed ring. */

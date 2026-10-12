@@ -1,4 +1,4 @@
-import type { Vec2 } from "./types";
+import type { Segment, Vec2 } from "./types";
 
 export const EPSILON = 1e-9;
 
@@ -149,6 +149,10 @@ export function pointOnSegment(p: Vec2, a: Vec2, b: Vec2, eps = 1e-7): boolean {
   if (Math.abs(orient(a, b, p)) > eps) return false;
   return onSegment(a, b, p);
 }
+
+/** The sides of an outline as plain segments, the closing side last. */
+export const outlineEdges = (outline: readonly Vec2[]): Segment[] =>
+  outline.map((a, i) => ({ a, b: outline[(i + 1) % outline.length] ?? a }));
 
 /** Edge list of a counter-clockwise polygon with lengths and outward normals. */
 export function edges(polygon: readonly Vec2[]): Edge[] {

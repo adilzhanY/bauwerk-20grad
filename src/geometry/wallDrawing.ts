@@ -9,7 +9,7 @@
  * wall. So a snap carries both: `point`, stored, and `shown`, where the dot is drawn.
  */
 import { clearWallRange } from "./plan";
-import { add, cross, dot, normalize, scale, sub } from "./polygon";
+import { add, cross, dot, normalize, outlineEdges, scale, sub } from "./polygon";
 import type { InteriorWall, Opening, Segment, ThicknessOf, Vec2 } from "./types";
 
 /** The wall a point lies on: an edge of the outline, or an interior wall, by index. */
@@ -75,10 +75,6 @@ function onOpening(target: WallTarget, u: number, ctx: WallContext): boolean {
       u > o.offset - half + 1e-9 &&
       u < o.offset + o.width + half - 1e-9,
   );
-}
-
-function outlineEdges(footprint: readonly Vec2[]): Segment[] {
-  return footprint.map((a, i) => ({ a, b: footprint[(i + 1) % footprint.length] ?? a }));
 }
 
 /**

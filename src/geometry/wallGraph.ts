@@ -10,7 +10,7 @@
  * joined, it keeps its place on the joined wall. Each piece keeps its wall's type, and two
  * walls of different types stay two walls.
  */
-import { add, cross, distance, dot, normalize, scale, sub } from "./polygon";
+import { add, cross, distance, dot, normalize, outlineEdges, scale, sub } from "./polygon";
 import type { InteriorWall, Opening, Segment, ThicknessOf, Vec2 } from "./types";
 
 const EPS = 1e-6;
@@ -176,9 +176,6 @@ export interface WallMove extends WallSet {
 
 /** Shorter than this, a wall between its joints is not worth keeping: the move is refused. */
 const MIN_PIECE = 0.05;
-
-const outlineEdges = (footprint: readonly Vec2[]): Segment[] =>
-  footprint.map((a, i) => ({ a, b: footprint[(i + 1) % footprint.length] ?? a }));
 
 /**
  * Moves interior wall `index` sideways by `delta` metres (along its left normal). Its ends
