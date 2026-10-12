@@ -92,20 +92,13 @@ export class VersionsController {
       [named, id, version, parsed.data.name, request.user?.id ?? null],
     );
     if (request.user) {
-      const members = await this.pool.query<{ user_id: string }>(
-        "SELECT user_id FROM app.project_members WHERE project_id = $1",
-        [id],
-      );
-      for (const { user_id } of members.rows) {
-        await this.notifications.notify({
-          userId: user_id,
-          kind: "versionNamed",
-          projectId: id,
-          actorId: request.user.id,
-          payload: { name: parsed.data.name, version },
-          quiet: true,
-        });
-      }
+      await this.notifications.notifyMembers({
+        projectId: id,
+        kind: "versionNamed",
+        actorId: request.user.id,
+        payload: { name: parsed.data.name, version },
+        quiet: true,
+      });
     }
     return { id: named, version };
   }

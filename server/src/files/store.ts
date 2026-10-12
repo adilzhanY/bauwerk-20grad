@@ -66,7 +66,7 @@ export class SupabaseStore implements FileStore {
     const res = await fetch(this.object(key), {
       method: "POST",
       headers: this.headers({ "content-type": mime, "x-upsert": "true" }),
-      body: new Uint8Array(data),
+      body: new Uint8Array(data.buffer, data.byteOffset, data.length),
     });
     if (!res.ok) throw new Error(`storage put: ${String(res.status)} ${await res.text()}`);
   }

@@ -78,6 +78,10 @@ export class NotificationsService {
 
   constructor(@Inject(DB) private readonly pool: Pool) {}
 
+  /**
+   * The project's name goes into the payload as it is now, and the inbox shows that one, so a
+   * removed member never sees later renames; older rows without it show the live name.
+   */
   async notify(input: {
     userId: string;
     kind: NoticeKind;
@@ -102,7 +106,9 @@ export class NotificationsService {
     const res = input.groupKey
       ? await this.pool.query<{ id: string }>(
           `INSERT INTO app.notifications (id, user_id, kind, project_id, actor_id, payload, group_key)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)
+           VALUES ($1, $2, $3, $4, $5, $6::jsonb || jsonb_strip_nulls(jsonb_build_object(
+             'projectName', (SELECT name FROM app.projects WHERE id = $4))),
+             $7)
            ON CONFLICT (user_id, group_key) WHERE group_key IS NOT NULL AND read_at IS NULL
            DO UPDATE SET count = app.notifications.count + 1, created_at = now(),
                          actor_id = EXCLUDED.actor_id, payload = EXCLUDED.payload
@@ -112,17 +118,20 @@ export class NotificationsService {
       : await this.pool.query<{ id: string }>(
           `INSERT INTO app.notifications
              (id, user_id, kind, project_id, actor_id, payload, group_key, read_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, CASE WHEN $8 THEN now() END) RETURNING id`,
+           VALUES ($1, $2, $3, $4, $5, $6::jsonb || jsonb_strip_nulls(jsonb_build_object(
+             'projectName', (SELECT name FROM app.projects WHERE id = $4))),
+             $7, CASE WHEN $8 THEN now() END)
+           RETURNING id`,
           [...params, input.quiet === true],
         );
     const id = res.rows[0]?.id;
     if (!id) return null;
     const one = await this.pool.query<Row>(
-      `SELECT n.id, n.kind, n.project_id, p.name AS project_name, n.actor_id,
-         u.first_name, u.last_name, u.username, n.payload, n.count, n.created_at, n.read_at
-  FROM app.notifications n
-  LEFT JOIN app.projects p ON p.id = n.project_id
-  LEFT JOIN app.users u ON u.id = n.actor_id
+      `SELECT n.id, n.kind, n.project_id, COALESCE(n.payload->>'projectName', p.name) AS project_name,
+         n.actor_id, u.first_name, u.last_name, u.username, n.payload, n.count, n.created_at, n.read_at
+       FROM app.notifications n
+       LEFT JOIN app.projects p ON p.id = n.project_id
+       LEFT JOIN app.users u ON u.id = n.actor_id
        WHERE n.id = $1`,
       [id],
     );
@@ -133,14 +142,49 @@ export class NotificationsService {
     return notice;
   }
 
+  /** Tells every member of the project but the actor, in one write; already read when quiet. */
+  async notifyMembers(input: {
+    projectId: string;
+    kind: NoticeKind;
+    actorId: string;
+    payload: Record<string, unknown>;
+    quiet?: boolean;
+  }): Promise<void> {
+    const res = await this.pool.query<Row & { user_id: string }>(
+      `WITH n AS (
+         INSERT INTO app.notifications (id, user_id, kind, project_id, actor_id, payload, read_at)
+         SELECT gen_random_uuid(), m.user_id, $2, $1, $3,
+                $4::jsonb || jsonb_strip_nulls(jsonb_build_object('projectName', pr.name)),
+                CASE WHEN $5 THEN now() END
+         FROM app.project_members m JOIN app.projects pr ON pr.id = m.project_id
+         WHERE m.project_id = $1 AND m.user_id <> $3
+         RETURNING *
+       )
+       SELECT n.id, n.kind, n.project_id, COALESCE(n.payload->>'projectName', p.name) AS project_name,
+         n.actor_id, u.first_name, u.last_name, u.username, n.payload, n.count, n.created_at, n.read_at,
+         n.user_id
+       FROM n
+       LEFT JOIN app.projects p ON p.id = n.project_id
+       LEFT JOIN app.users u ON u.id = n.actor_id`,
+      [
+        input.projectId,
+        input.kind,
+        input.actorId,
+        JSON.stringify(input.payload),
+        input.quiet === true,
+      ],
+    );
+    for (const row of res.rows) this.events.emit("notification", row.user_id, toNotice(row));
+  }
+
   /** The newest items first, and how many are unread. */
   async inbox(userId: string): Promise<{ items: Notice[]; unread: number }> {
     const items = await this.pool.query<Row>(
-      `SELECT n.id, n.kind, n.project_id, p.name AS project_name, n.actor_id,
-         u.first_name, u.last_name, u.username, n.payload, n.count, n.created_at, n.read_at
-  FROM app.notifications n
-  LEFT JOIN app.projects p ON p.id = n.project_id
-  LEFT JOIN app.users u ON u.id = n.actor_id
+      `SELECT n.id, n.kind, n.project_id, COALESCE(n.payload->>'projectName', p.name) AS project_name,
+         n.actor_id, u.first_name, u.last_name, u.username, n.payload, n.count, n.created_at, n.read_at
+       FROM app.notifications n
+       LEFT JOIN app.projects p ON p.id = n.project_id
+       LEFT JOIN app.users u ON u.id = n.actor_id
        WHERE n.user_id = $1 ORDER BY n.created_at DESC LIMIT $2`,
       [userId, INBOX_LIMIT],
     );
