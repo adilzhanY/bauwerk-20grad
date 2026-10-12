@@ -166,6 +166,25 @@ describe("SyncClient", () => {
     expectConverged(a, b);
   });
 
+  it("sends a typed value at once, still as one undo step", () => {
+    const a = openTab("a");
+    hub.flush();
+    const before = opening(hub.building, 1).offset;
+    // Focus on a number field: a batch that does not hold back sending.
+    a.store.getState().beginBatch(false);
+    move(a, 1, 0.3);
+    move(a, 1, 0.35);
+    expect(a.store.getState().gesture).toBe(false);
+    hub.flush();
+    expect(opening(hub.building, 1).offset).toBe(0.35);
+    a.store.getState().endBatch(false);
+    expectConverged(a);
+    a.store.getState().undo();
+    hub.flush();
+    expect(opening(hub.building, 1).offset).toBe(before);
+    expectConverged(a);
+  });
+
   it("keeps both edits when two people move different windows at the same moment", () => {
     const a = openTab("a");
     const b = openTab("b");

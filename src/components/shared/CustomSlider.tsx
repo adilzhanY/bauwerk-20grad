@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useId, useRef, useState } from "react";
 import type { KeyboardEvent, PointerEvent } from "react";
 import { cx } from "@/components/shared/cx";
 
@@ -11,9 +11,12 @@ interface Props {
   disabled?: boolean;
   /** Called on every change while dragging or stepping. */
   onChange: (value: number) => void;
-  /** Called when a drag or key gesture starts and ends, for history batching. */
-  onGestureStart?: () => void;
-  onGestureEnd?: () => void;
+  /**
+   * Called when a drag or key gesture starts and ends, for history batching. `hold` is true
+   * for a pointer drag, whose changes are sent once it ends (store/history.ts).
+   */
+  onGestureStart?: (hold: boolean) => void;
+  onGestureEnd?: (hold: boolean) => void;
   /** Formats the value bubble. */
   format?: (value: number) => string;
 }
@@ -40,21 +43,32 @@ export function CustomSlider({
   const id = useId();
   const track = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(false);
-  const gesture = useRef(false);
+  // The open gesture: null when none, else whether it holds back sending (a pointer drag).
+  const gesture = useRef<boolean | null>(null);
   // Clamped: a value outside the range (set elsewhere, or an older project) pins the thumb to
   // the end of the track instead of drawing it past the end, over the field beside it.
   const ratio = max > min ? Math.min(1, Math.max(0, (value - min) / (max - min))) : 0;
 
-  const begin = () => {
-    if (gesture.current) return;
-    gesture.current = true;
-    onGestureStart?.();
+  const begin = (hold: boolean) => {
+    if (gesture.current !== null) return;
+    gesture.current = hold;
+    onGestureStart?.(hold);
   };
   const end = () => {
-    if (!gesture.current) return;
-    gesture.current = false;
-    onGestureEnd?.();
+    const hold = gesture.current;
+    if (hold === null) return;
+    gesture.current = null;
+    onGestureEnd?.(hold);
   };
+  // React fires no pointer up or blur on an element it removes: a slider gone mid drag (its
+  // element deleted by someone else) would leave the gesture open and nothing sent.
+  const endOnUnmount = useEffectEvent(end);
+  useEffect(
+    () => () => {
+      endOnUnmount();
+    },
+    [],
+  );
 
   const valueAt = (clientX: number) => {
     const rect = track.current?.getBoundingClientRect();
@@ -72,11 +86,11 @@ export function CustomSlider({
     e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
     setActive(true);
-    begin();
+    begin(true);
     emit(valueAt(e.clientX));
   };
   const onPointerMove = (e: PointerEvent<HTMLDivElement>) => {
-    if (!gesture.current || !active) return;
+    if (gesture.current === null || !active) return;
     emit(valueAt(e.clientX));
   };
   const onPointerUp = (e: PointerEvent<HTMLDivElement>) => {
@@ -115,7 +129,7 @@ export function CustomSlider({
         return;
     }
     e.preventDefault();
-    begin();
+    begin(false);
     emit(snapToStep(next, min, max, step));
   };
 

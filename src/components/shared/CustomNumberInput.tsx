@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useId, useRef, useState } from "react";
 import type { KeyboardEvent, PointerEvent } from "react";
 import { formatNumber, parseNumber } from "@/lib/format";
 import type { Language } from "@/i18n";
@@ -24,8 +24,12 @@ interface Props {
   disabled?: boolean;
   /** Called on every live change. */
   onChange: (value: number) => void;
-  onGestureStart?: () => void;
-  onGestureEnd?: () => void;
+  /**
+   * A drag on the slider or the label holds back sending until it ends (`hold` true); typing
+   * does not, so a typed value reaches the server at once and survives a reload.
+   */
+  onGestureStart?: (hold: boolean) => void;
+  onGestureEnd?: (hold: boolean) => void;
 }
 
 const round = (v: number) => Math.round(v * 1e6) / 1e6;
@@ -65,21 +69,32 @@ export function CustomNumberInput({
   const fmt = (v: number) => formatNumber(v, language, digits, { useGrouping: false });
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
-  const gesture = useRef(false);
+  // The open gesture: null when none, else whether it holds back sending (a pointer drag).
+  const gesture = useRef<boolean | null>(null);
   const valueAtFocus = useRef(value);
   const cancelBlurCommit = useRef(false);
   const scrub = useRef<{ startX: number; startValue: number } | null>(null);
 
-  const begin = () => {
-    if (gesture.current) return;
-    gesture.current = true;
-    onGestureStart?.();
+  const begin = (hold: boolean) => {
+    if (gesture.current !== null) return;
+    gesture.current = hold;
+    onGestureStart?.(hold);
   };
   const end = () => {
-    if (!gesture.current) return;
-    gesture.current = false;
-    onGestureEnd?.();
+    const hold = gesture.current;
+    if (hold === null) return;
+    gesture.current = null;
+    onGestureEnd?.(hold);
   };
+  // React fires no blur on a focused input it removes (the opening deleted by someone else):
+  // without this the gesture would stay open.
+  const endOnUnmount = useEffectEvent(end);
+  useEffect(
+    () => () => {
+      endOnUnmount();
+    },
+    [],
+  );
   const emit = (next: number) => {
     if (next !== value) onChange(next);
   };
@@ -89,7 +104,7 @@ export function CustomNumberInput({
     cancelBlurCommit.current = false;
     setEditing(true);
     setDraft(fmt(value));
-    begin();
+    begin(false);
   };
   const onText = (text: string) => {
     setDraft(text);
@@ -132,7 +147,7 @@ export function CustomNumberInput({
     e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
     scrub.current = { startX: e.clientX, startValue: value };
-    begin();
+    begin(true);
   };
   const onLabelMove = (e: PointerEvent<HTMLLabelElement>) => {
     if (!scrub.current) return;

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { CustomNumberInput } from "@/components/shared/CustomNumberInput";
+import { createEditorStore } from "@/store/building";
 
 function Harness(props: { start?: () => void; end?: () => void; slider?: boolean }) {
   const [v, setV] = useState(0.3);
@@ -112,5 +113,61 @@ describe("CustomNumberInput", () => {
     fireEvent.keyDown(slider, { key: "ArrowRight" });
     expect((field() as HTMLInputElement).value).toBe("0,35");
     expect(slider.getAttribute("aria-valuetext")).toBe("0,35 m");
+  });
+
+  describe("with the editor store's history", () => {
+    function StoreField({ store }: { store: ReturnType<typeof createEditorStore> }) {
+      const [v, setV] = useState(0.3);
+      return (
+        <CustomNumberInput
+          label="Thickness"
+          value={v}
+          min={0.1}
+          max={1}
+          step={0.05}
+          language="de"
+          onChange={(next) => {
+            setV(next);
+            store.getState().renameBuilding(String(next));
+          }}
+          onGestureStart={store.getState().beginBatch}
+          onGestureEnd={store.getState().endBatch}
+        />
+      );
+    }
+
+    it("typing does not hold back sending, is one undo step, and unmounting mid focus closes it", () => {
+      const store = createEditorStore();
+      const { unmount } = render(<StoreField store={store} />);
+      const input = field();
+      fireEvent.focus(input);
+      fireEvent.change(input, { target: { value: "0,4" } });
+      fireEvent.change(input, { target: { value: "0,45" } });
+      expect(store.getState().gesture).toBe(false);
+      expect(store.getState().past).toHaveLength(1);
+      // The field disappears while focused (its opening deleted): React fires no blur.
+      unmount();
+      store.getState().renameBuilding("One");
+      store.getState().renameBuilding("Two");
+      expect(store.getState().past).toHaveLength(3);
+      expect(store.getState().gesture).toBe(false);
+    });
+
+    it("a label scrub holds back sending until it ends, also when unmounted mid scrub", () => {
+      const store = createEditorStore();
+      const { unmount } = render(<StoreField store={store} />);
+      const label = screen.getByText("Thickness");
+      label.setPointerCapture = vi.fn();
+      label.releasePointerCapture = vi.fn();
+      fireEvent.pointerDown(label, { clientX: 100, button: 0, pointerId: 1 });
+      fireEvent.pointerMove(label, { clientX: 140, pointerId: 1 });
+      expect(store.getState().gesture).toBe(true);
+      fireEvent.pointerUp(label, { clientX: 140, pointerId: 1 });
+      expect(store.getState().gesture).toBe(false);
+      fireEvent.pointerDown(label, { clientX: 100, button: 0, pointerId: 1 });
+      expect(store.getState().gesture).toBe(true);
+      unmount();
+      expect(store.getState().gesture).toBe(false);
+    });
   });
 });

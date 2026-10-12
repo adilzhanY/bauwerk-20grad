@@ -17,11 +17,13 @@ export interface HistorySlice {
   /**
    * Starts a gesture: every building change until the matching `endBatch` is one undo
    * step. Used by sliders and inputs that update the model live while the user drags or
-   * types. Calls nest: only the outermost pair opens and closes the gesture.
+   * types. Calls nest: only the outermost pair opens and closes the gesture. `hold` (the
+   * default, for pointer drags) also holds back sending until the end; typing passes false,
+   * so a typed value reaches the server at once. Pass the same `hold` to both.
    */
-  beginBatch: () => void;
-  endBatch: () => void;
-  /** Whether a gesture is open: the sync client sends its changes once it closes. */
+  beginBatch: (hold?: boolean) => void;
+  endBatch: (hold?: boolean) => void;
+  /** Whether a held gesture is open: the sync client sends its changes once it closes. */
   gesture: boolean;
   /**
    * Forgets every undo and redo step. When another project opens: undo must never bring back
@@ -89,6 +91,7 @@ const historyImpl: HistoryImpl = (initializer) => (set, get, api) => {
   let restoring = false;
   let batchDepth = 0;
   let batchRecorded = false;
+  let holdDepth = 0;
 
   const trackedSet: typeof set = (partial, replace) => {
     const before = get().building;
@@ -158,24 +161,28 @@ const historyImpl: HistoryImpl = (initializer) => (set, get, api) => {
     redo: () => {
       restore("redo");
     },
-    beginBatch: () => {
+    beginBatch: (hold = true) => {
       batchDepth += 1;
-      if (batchDepth > 1) return;
-      batchRecorded = false;
-      set({ gesture: true } as Partial<S>);
+      if (batchDepth === 1) batchRecorded = false;
+      if (hold) holdDepth += 1;
+      if (holdDepth === 1 && !get().gesture) set({ gesture: true } as Partial<S>);
     },
-    endBatch: () => {
+    endBatch: (hold = true) => {
       if (batchDepth === 0) return;
       batchDepth -= 1;
-      if (batchDepth > 0) return;
-      batchRecorded = false;
-      set({ gesture: false } as Partial<S>);
+      if (hold && holdDepth > 0) holdDepth -= 1;
+      if (batchDepth === 0) {
+        batchRecorded = false;
+        holdDepth = 0;
+      }
+      if (holdDepth === 0 && get().gesture) set({ gesture: false } as Partial<S>);
     },
     clearHistory: () => {
       // A gesture whose end never came (a handle gone mid drag) must not swallow every
       // later edit into one undo step.
       batchDepth = 0;
       batchRecorded = false;
+      holdDepth = 0;
       set({ past: [], future: [], gesture: false } as unknown as Partial<S>);
     },
     withoutHistory: (fn) => {

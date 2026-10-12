@@ -133,4 +133,27 @@ describe("CustomSlider", () => {
     expect(s.getAttribute("aria-disabled")).toBe("true");
     expect(s.getAttribute("tabindex")).toBe("-1");
   });
+
+  it("ends an open drag when it unmounts, and says the drag held back sending", () => {
+    const start = vi.fn();
+    const end = vi.fn();
+    const { unmount } = render(<Harness onGestureStart={start} onGestureEnd={end} />);
+    const s = screen.getByRole("slider");
+    s.setPointerCapture = vi.fn();
+    fireEvent.pointerDown(s, { clientX: 0, button: 0, pointerId: 1 });
+    expect(start).toHaveBeenCalledWith(true);
+    unmount();
+    expect(end).toHaveBeenCalledWith(true);
+  });
+
+  it("does not hold back sending for a key gesture", () => {
+    const start = vi.fn();
+    const end = vi.fn();
+    render(<Harness onGestureStart={start} onGestureEnd={end} />);
+    const s = screen.getByRole("slider");
+    fireEvent.keyDown(s, { key: "ArrowRight" });
+    fireEvent.keyUp(s, { key: "ArrowRight" });
+    expect(start).toHaveBeenCalledWith(false);
+    expect(end).toHaveBeenCalledWith(false);
+  });
 });
