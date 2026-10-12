@@ -1,3 +1,4 @@
+import { unheatedShare } from "./energy";
 import { countedOpenings, openingsOn } from "./openings";
 import { sharedEdgeSet } from "./shared";
 import { edges, pointOnSegment } from "./polygon";
@@ -75,8 +76,17 @@ export function extractBridges(building: Building): Bridge[] {
   const perimeter = outer.reduce((s, e) => s + e.length, 0);
   const out: Bridge[] = [];
   let elevation = 0;
+  // A fully unheated storey is outside the envelope: the first and last heated storeys carry
+  // the slab and roof edges.
+  const heated = building.storeys.map((s) => unheatedShare(s, building.zones) < 1);
+  const first = heated.indexOf(true);
+  const last = heated.lastIndexOf(true);
   building.storeys.forEach((storey, index) => {
     const top = elevation + storey.height;
+    if (!heated[index]) {
+      elevation = top;
+      return;
+    }
     // Outer corners: one vertical line per footprint vertex, storey high.
     for (const [i, p] of fp.entries()) {
       // Vertex i joins edge i - 1 and edge i; between two party walls it is inside.
@@ -111,8 +121,8 @@ export function extractBridges(building: Building): Bridge[] {
         ],
       });
     }
-    // Slab edge on the ground storey, intermediate floor joints above, roof edge on top.
-    if (index === 0)
+    // Slab edge on the lowest heated storey, floor joints above, roof edge on the highest.
+    if (index === first)
       out.push({
         type: "slabEdge",
         storeyId: storey.id,
@@ -126,7 +136,7 @@ export function extractBridges(building: Building): Bridge[] {
         length: perimeter,
         segments: perimeterSegments(elevation),
       });
-    if (index === building.storeys.length - 1)
+    if (index === last)
       out.push({
         type: "roofEdge",
         storeyId: storey.id,

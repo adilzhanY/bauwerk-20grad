@@ -72,6 +72,18 @@ describe("extractBridges", () => {
     expect(roof.segments[0]?.z0).toBe(6);
   });
 
+  it("a fully unheated storey has no bridges; the envelope closes under it", () => {
+    const b = building(2);
+    b.zones = [{ id: "cold", name: "Attic", color: "#ccc", heated: false, temperature: 5 }];
+    b.storeys[1]!.rooms = [{ id: "r", name: "r", polygon: rect, area: 80, zoneId: "cold" }];
+    const s = summarizeBridges(b, "good");
+    expect(s.bridges.some((x) => x.storeyId === "s1")).toBe(false);
+    expect(s.lengths.corner).toBe(12);
+    expect(s.lengths.floorJoint).toBe(0);
+    const roof = s.bridges.find((x) => x.type === "roofEdge")!;
+    expect(roof.segments[0]?.z0).toBe(3);
+  });
+
   it("an interior wall touching two exterior walls adds two junctions, a floating one none", () => {
     const s = summarizeBridges(building(1, [], [{ a: { x: 4, y: 0 }, b: { x: 4, y: 8 } }]), "good");
     expect(s.lengths.junction).toBe(6);
