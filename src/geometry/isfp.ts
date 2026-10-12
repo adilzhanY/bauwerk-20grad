@@ -26,7 +26,7 @@
 import { computeEnergy } from "./energy";
 import type { EnergySummary } from "./energy";
 import { DEFAULT_HEATING, endEnergyOf, heatingOf } from "./heating";
-import { economicsOf, priceOf, supplyOf } from "./supply";
+import { economicsOf, livingAreaOf, priceOf, supplyOf } from "./supply";
 import type { SupplySummary } from "./supply";
 import type { Building, Construction, ConstructionCategory } from "./types";
 
@@ -123,11 +123,7 @@ export function ehCheck(building: Building, energy = computeEnergy(building)): E
 
 // Consumption --------------------------------------------------------------------------------
 
-/** Living area per m² A_N when none is entered: the Energieausweis relation A_N = 1.2 · living. */
-export const LIVING_PER_REFERENCE = 1 / 1.2;
-
-export const livingAreaOf = (building: Building, energy: Pick<EnergySummary, "referenceArea">) =>
-  building.livingArea ?? energy.referenceArea * LIVING_PER_REFERENCE;
+export { livingAreaOf } from "./supply";
 
 /** The iSFP calibration factor for a calculated end energy per m² of living area. */
 export function typicalFactor(q: number): number {

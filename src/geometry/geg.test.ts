@@ -42,4 +42,18 @@ describe("GEG check", () => {
     expect(checkConstruction(c, "window").ok).toBe(true);
     expect(checkConstruction(undefined, "wall").ok).toBe(false);
   });
+
+  it("a flat roof is held to 0.20, a pitched roof to 0.24", () => {
+    const roof = { id: "r", name: "r", category: "roof" as const, uValue: 0.22 };
+    const withRoof = (kind: "flat" | "gable"): Building => ({
+      ...building(),
+      constructions: [...defaultConstructions("en"), roof],
+      roofConstructionId: "r",
+      roof: { kind, pitch: 35, overhang: 0.3, ridgeAxis: "x", parapet: 0.3, heatedAttic: false },
+    });
+    const flat = gegChecks(withRoof("flat"))[1];
+    expect(flat?.limit).toBe(0.2);
+    expect(flat?.ok).toBe(false);
+    expect(gegChecks(withRoof("gable"))[1]?.ok).toBe(true);
+  });
 });

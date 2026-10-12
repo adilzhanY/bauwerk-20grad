@@ -93,10 +93,15 @@ describe("supplyOf", () => {
       hotWaterEfficiency: 0.8,
       ...plain,
     };
-    const rented = supplyOf(withHeating(oil, { ownerOccupied: false }), energy);
-    // 14,062.5 kWh x 0.266 / 100 m² = 37.4 kg/m²a: the 37 to 42 step, landlord 60 %.
+    const house = withHeating(oil, { ownerOccupied: false });
+    const rented = supplyOf({ ...house, livingArea: 100 }, energy);
+    // 14,062.5 kWh x 0.266 / 100 m² living area = 37.4 kg/m²a: the 37 to 42 step, landlord 60 %.
     expect(rented.billedCo2PerM2).toBeCloseTo(37.4, 1);
     expect(rented.landlordShare).toBe(0.6);
+    // The law counts per m² of living area, not A_N: without one entered it is A_N / 1.2.
+    const guessed = supplyOf(house, energy);
+    expect(guessed.billedCo2PerM2).toBeCloseTo(44.9, 1);
+    expect(guessed.landlordShare).toBe(0.7);
     const own = supplyOf(withHeating(oil), energy);
     expect(own.landlordShare).toBe(0);
   });

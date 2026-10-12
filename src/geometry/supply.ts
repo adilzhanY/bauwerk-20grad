@@ -59,6 +59,12 @@ const CO2_STEPS: readonly (readonly [number, number])[] = [
   [52, 0.8],
 ];
 
+/** Living area per m² A_N when none is entered: the Energieausweis relation A_N = 1.2 · living. */
+const LIVING_PER_REFERENCE = 1 / 1.2;
+
+export const livingAreaOf = (building: Building, energy: Pick<EnergySummary, "referenceArea">) =>
+  building.livingArea ?? energy.referenceArea * LIVING_PER_REFERENCE;
+
 /** The landlord's share of the CO2 cost for `kgPerM2` of billed CO2 per m² and year. */
 export function landlordCo2Share(kgPerM2: number): number {
   for (const [upper, share] of CO2_STEPS) if (kgPerM2 < upper) return share;
@@ -89,7 +95,7 @@ export interface SupplySummary {
   cost: number;
   /** Euro per year of it that is the BEHG CO2 price, VAT included. */
   co2Cost: number;
-  /** kg of CO2 per m² and year that the CO2 price is billed on. */
+  /** kg of CO2 per m² of living area and year that the CO2 price is billed on. */
   billedCo2PerM2: number;
   /** Share of co2Cost the landlord carries when rented (CO2KostAufG), 0 when owner-occupied. */
   landlordShare: number;
@@ -115,7 +121,9 @@ export function supplyOf(
   const co2 = inCarrier * carrier.emission + parts.auxiliary * electric.emission;
   const billedCo2 = inCarrier * carrier.billedCo2;
   const co2Cost = (billedCo2 / 1000) * economics.co2Price * (1 + VAT);
-  const billedCo2PerM2 = perM2(billedCo2);
+  // CO2KostAufG steps are per m² of living area, not A_N.
+  const living = livingAreaOf(building, energy);
+  const billedCo2PerM2 = living > 0 ? billedCo2 / living : 0;
   return {
     heating,
     heatingDemand: energy.heatingDemand,
