@@ -529,6 +529,4 @@ export class ProjectsService {
     );
     return Number(res.rows[0]?.n ?? 0);
   }
-
-  /** Saves (or replaces) one picture of a project. False when the project does not exist. */
 }
