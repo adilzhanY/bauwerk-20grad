@@ -11,6 +11,14 @@
 
 {$DOMAIN::80} {
 	encode zstd gzip
+	# Every answer, the proxied ones too. No page is meant to be framed (PDF previews are blob
+	# URLs, which this does not touch). Browsers ignore HSTS over plain HTTP (":80").
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Frame-Options DENY
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+	}
 	# The largest project file the server takes (50 MB, as Supabase's free plan allows); Caddy
 	# refuses anything bigger before it reaches a service.
 	request_body {

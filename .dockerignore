@@ -3,9 +3,9 @@
 **/.venv
 **/.sam3
 **/__pycache__
-.env
-.env.*
-!.env.example
+**/.env
+**/.env.*
+!**/.env.example
 dist
 coverage
 .git
