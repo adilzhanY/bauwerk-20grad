@@ -28,9 +28,6 @@ const NEEDS: Record<ProjectAction, Role> = {
 export const isRole = (value: unknown): value is Role =>
   typeof value === "string" && (ROLES as readonly string[]).includes(value);
 
-export const isLinkRole = (value: unknown): value is LinkRole =>
-  typeof value === "string" && (LINK_ROLES as readonly string[]).includes(value);
-
 /** Whether `role` may do `action`; no role may do nothing. */
 export function can(role: Role | null | undefined, action: ProjectAction): boolean {
   return role != null && RANK[role] >= RANK[NEEDS[action]];

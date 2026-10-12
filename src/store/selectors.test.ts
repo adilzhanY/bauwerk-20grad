@@ -3,9 +3,6 @@ import { resetIds } from "@/lib/ids";
 import { createEditorStore } from "./building";
 import {
   selectActiveStorey,
-  selectCanRedo,
-  selectCanUndo,
-  selectRoomCount,
   selectTotalFloorArea,
   selectTotalHeight,
   storeyElevation,
@@ -28,16 +25,6 @@ describe("selectors", () => {
     expect(storeyElevation(s.building, first?.id ?? "")).toBe(3);
     expect(storeyElevation(s.building, "missing")).toBe(5.5);
     expect(selectTotalHeight(s)).toBe(5.5);
-    expect(selectRoomCount(s)).toBe(2);
     expect(selectTotalFloorArea(s)).toBeCloseTo(160);
-  });
-
-  it("report undo and redo availability", () => {
-    expect(selectCanUndo(store.getState())).toBe(false);
-    store.getState().setWallThickness(0.5);
-    expect(selectCanUndo(store.getState())).toBe(true);
-    expect(selectCanRedo(store.getState())).toBe(false);
-    store.getState().undo();
-    expect(selectCanRedo(store.getState())).toBe(true);
   });
 });

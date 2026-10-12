@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { ChangeSummary } from "./summary";
 import { loginPath, useRouter } from "@/app/router";
 import { fullName, useAuth } from "@/auth/store";
-import { accessToken, authHeaders } from "@/auth/api";
+import { accessToken, apiBase, authHeaders } from "@/auth/api";
 import type { ProjectSummary as CardSummary } from "@/geometry/project";
 import type { Building } from "@/geometry/types";
 import { useEditorStore } from "@/store/building";
@@ -133,9 +133,9 @@ export interface VersionEntry {
 }
 
 function projectUrl(path = ""): string | null {
-  const cfg = syncConfigFromEnv();
+  const base = apiBase();
   const id = useEditorStore.getState().projectId;
-  return cfg && id ? `${cfg.apiUrl}/projects/${id}${path}` : null;
+  return base && id ? `${base}/projects/${id}${path}` : null;
 }
 
 /** Every version of the open project, newest first. Empty when none is open. */

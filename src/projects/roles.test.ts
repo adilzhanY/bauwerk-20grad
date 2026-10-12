@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ROLES, can, isLinkRole, isRole } from "./roles";
+import { LINK_ROLES, ROLES, can, isRole } from "./roles";
 import type { ProjectAction, Role } from "./roles";
 
 describe("roles", () => {
@@ -17,8 +17,7 @@ describe("roles", () => {
   });
 
   it("a link never grants editing", () => {
-    expect(isLinkRole("viewer") && isLinkRole("commenter")).toBe(true);
-    expect(isLinkRole("editor") || isLinkRole("owner")).toBe(false);
+    expect(LINK_ROLES.some((role) => can(role, "edit"))).toBe(false);
     expect(isRole("admin")).toBe(false);
   });
 });
