@@ -111,8 +111,8 @@ function stopAll() {
   }
   setTimeout(() => process.exit(0), 1500).unref();
 }
-process.on("SIGINT", stopAll);
-process.on("SIGTERM", stopAll);
+// SIGHUP: the terminal was closed. The children lead their own groups, so they would outlive it.
+for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"]) process.on(signal, stopAll);
 
 // 1. Database, then migrations. Without Docker the app still runs; the map stays empty.
 const compose = [
@@ -225,7 +225,15 @@ const floorplanPython =
     ".venv",
     process.platform === "win32" ? "Scripts/python.exe" : "bin/python",
   );
-if (existsSync(floorplanPython)) {
+const floorplanPort = process.env.LOD2_FLOORPLAN_PORT ?? "8791";
+const floorplanRunning = await fetch(`http://127.0.0.1:${floorplanPort}/health`).then(
+  () => true,
+  () => false,
+);
+if (floorplanRunning) {
+  // The always-on bauwerk-floorplan service of the hosted site: share it, as for vision.
+  console.log(`${label("plans")} Already running on port ${floorplanPort}, using that one.`);
+} else if (existsSync(floorplanPython)) {
   start("plans", floorplanPython, ["lod2/lod2-floorplan/server.py"], keyEnv);
 } else {
   console.log(
