@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { parseRoute } from "../../app/router";
-import type { BuildingDetail, CoverageStats, Neighbour } from "lod2-core/api";
-import { fetchBuilding, fetchNeighbours, fetchStats } from "../api/client.ts";
+import type { BuildingDetail, Neighbour } from "lod2-core/api";
+import { fetchBuilding, fetchNeighbours } from "../api/client.ts";
 
 /**
  * Identifies one surface of one building part, for the session only.
@@ -48,7 +48,6 @@ interface State {
   loadingNeighbours: boolean;
   /** Why the building could not be loaded: not in the data, or the request failed. */
   error: { kind: "notFound" } | { kind: "failed"; message: string } | null;
-  stats: CoverageStats | null;
   /** Bumped when freshly ingested tiles are ready, to make the map refetch. */
   refreshToken: number;
   highlightedPlane: { gid: string; idx: number } | null;
@@ -69,7 +68,6 @@ interface State {
   closePhotoEditor: () => void;
   highlightPlane: (gid: string, idx: number) => void;
   clearHighlight: () => void;
-  loadStats: () => Promise<void>;
 }
 /**
  * Read the initial view and selection out of the URL so links are shareable: the map view
@@ -180,7 +178,6 @@ export const useStore = create<State>((set, get) => {
     loadingBuilding: Boolean(gid),
     loadingNeighbours: false,
     error: null,
-    stats: null,
     refreshToken: 0,
     highlightedPlane: null,
     selectedWall: null,
@@ -227,13 +224,6 @@ export const useStore = create<State>((set, get) => {
     },
     clearHighlight: () => {
       set({ highlightedPlane: null });
-    },
-    loadStats: async () => {
-      try {
-        set({ stats: await fetchStats() });
-      } catch {
-        /* stats are decoration; a failure must not break the map */
-      }
     },
   };
 });

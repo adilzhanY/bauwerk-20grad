@@ -12,7 +12,7 @@ import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import compress from '@fastify/compress'
 import { getAdapter, adapterCodes } from 'lod2-ingest/adapters'
-import { PIPELINE_VERSION, BuildingDetailSchema, CoverageStatsSchema, type CoverageStats } from 'lod2-core'
+import { PIPELINE_VERSION, BuildingDetailSchema } from 'lod2-core'
 import {
   buildingDetail, buildingTile, coverageTile, findByGid, neighboursInBox, buildingAt, orthophotoCrop,
 } from './queries.ts'
@@ -47,12 +47,12 @@ const HOST = process.env.LOD2_API_HOST ?? '127.0.0.1'
 /** Below this, a viewport covers so many footprints that the tile is not useful. */
 const MIN_BUILDING_ZOOM = 13
 
+/** A complete building tile only changes with a re-ingest, which is rare and deliberate. */
+const TILE_MAX_AGE_S = 6 * 3600
 /** How long shutdown waits for in-flight downloads before aborting them. */
 const SHUTDOWN_WAIT_MS = 5_000
 /** An aerial tile that would wait longer than this for its upstream slot is refused. */
 const AERIAL_MAX_QUEUE_MS = 10_000
-/** /stats counts every indexed tile and building; nobody needs that fresher than a minute. */
-const STATS_TTL_MS = 60_000
 
 const pool = createRequestPool(10)
 const ingestPool = createIngestPool(3)
@@ -78,13 +78,13 @@ app.setErrorHandler((err: { statusCode?: number; message: string }, req, reply) 
 })
 
 // Neighbour meshes are a couple of megabytes of JSON coordinates, which is almost all
-// repeated digits, it compresses to a fraction. Images are already compressed, so they
-// are left alone.
+// repeated digits, it compresses to a fraction, and so do vector tiles. Images are already
+// compressed, so they are left alone.
 await app.register(compress, {
   global: true,
   threshold: 4096,
   encodings: ['br', 'gzip', 'deflate'],
-  customTypes: /^application\/json/,
+  customTypes: /^application\/(json|vnd\.mapbox-vector-tile)/,
 })
 
 const parseTile = (p: { z: string; x: string; y: string }) => ({
@@ -106,11 +106,13 @@ app.get<{ Params: { z: string; x: string; y: string } }>(
 
     const mvt = await buildingTile(pool, z, x, y)
 
-    // Only reach for source data once the user is actually looking at buildings.
+    // Only reach for source data once the user is actually looking at buildings. Below that
+    // an unfetched source tile still means this tile will change once it is loaded.
     let queued = 0
     let dropped = 0
+    const byState = await findUnfetchedTiles(pool, z, x, y)
+    const unfetchedBelowFetchZoom = z < MIN_ZOOM && byState.size > 0
     if (z >= MIN_ZOOM) {
-      const byState = await findUnfetchedTiles(pool, z, x, y)
       for (const [state, tiles] of byState) {
         try {
           const res = fetcher.enqueue(getAdapter(state), tiles)
@@ -123,10 +125,10 @@ app.get<{ Params: { z: string; x: string; y: string } }>(
     }
 
     // While any source tile is still on its way, this tile's content is about to change.
-    const incomplete = queued > 0 || dropped > 0 || fetcher.pendingCount > 0
+    const incomplete = unfetchedBelowFetchZoom || queued > 0 || dropped > 0 || fetcher.pendingCount > 0
     return reply
       .header('Content-Type', 'application/vnd.mapbox-vector-tile')
-      .header('Cache-Control', incomplete ? 'no-store' : 'public, max-age=60')
+      .header('Cache-Control', incomplete ? 'no-store' : `public, max-age=${TILE_MAX_AGE_S}`)
       .send(mvt)
   },
 )
@@ -163,7 +165,7 @@ app.get<{ Params: { gid: string }; Querystring: Record<string, unknown> }>(
     if (!isValidGid(req.params.gid)) return reply.code(400).send({ error: 'bad building id' })
     // Metres across; the default matches the context orthophoto.
     const box = parseNeighbourBox(singleParam(req.query.box))
-    if (box === null) return reply.code(400).send({ error: 'box must be a number of metres from 20 to 1200' })
+    if (box === null) return reply.code(400).send({ error: 'box must be a number of metres from 20 to 800' })
     // The building's own state decides the CRS the box is measured in, metres, not
     // degrees, so a 300 m box is 300 m everywhere rather than stretching with latitude.
     const { rows } = await pool.query<{ state: string }>(
@@ -204,60 +206,6 @@ app.get<{ Querystring: Record<string, unknown> }>('/building-at', async (req, re
   const gid = await buildingAt(pool, lon, lat)
   if (!gid) return reply.code(404).send({ error: 'no loaded building near this point' })
   return reply.send({ buildingGid: gid })
-})
-
-async function loadStats(): Promise<CoverageStats> {
-  const { rows } = await pool.query(
-    `SELECT ti.state,
-            count(*) AS indexed_tiles,
-            count(*) FILTER (WHERE ts.status = 'ready') AS ready_tiles,
-            count(*) FILTER (WHERE ts.status = 'empty') AS empty_tiles,
-            count(*) FILTER (WHERE ts.status = 'failed') AS failed_tiles
-       FROM tile_index ti
-       LEFT JOIN tile_status ts ON ts.state = ti.state AND ts.tile_id = ti.tile_id
-      GROUP BY ti.state ORDER BY ti.state`,
-  )
-  const counts = await pool.query(
-    `SELECT state, count(DISTINCT building_gid) AS buildings FROM building GROUP BY state`,
-  )
-  const buildingsByState = new Map(counts.rows.map((r) => [r.state, Number(r.buildings)]))
-
-  const stats: CoverageStats = {
-    states: rows.map((r) => {
-      let name = r.state
-      let attribution = r.state
-      try {
-        const a = getAdapter(r.state)
-        name = a.name
-        attribution = a.attribution
-      } catch { /* indexed but no adapter compiled in */ }
-      return {
-        state: r.state, name, attribution,
-        indexedTiles: Number(r.indexed_tiles),
-        readyTiles: Number(r.ready_tiles),
-        emptyTiles: Number(r.empty_tiles),
-        failedTiles: Number(r.failed_tiles),
-        buildings: buildingsByState.get(r.state) ?? 0,
-      }
-    }),
-    onDemandMinZoom: MIN_ZOOM,
-  }
-  return CoverageStatsSchema.parse(stats)
-}
-
-/** The last answer and when it was asked for; a promise, so a burst of requests shares one query. */
-let statsCache: { at: number; value: Promise<CoverageStats> } | null = null
-
-app.get('/stats', async (_req, reply) => {
-  if (!statsCache || Date.now() - statsCache.at > STATS_TTL_MS) {
-    const value = loadStats()
-    statsCache = { at: Date.now(), value }
-    // A failed count is not kept for a minute.
-    value.catch(() => {
-      if (statsCache?.value === value) statsCache = null
-    })
-  }
-  return reply.send(await statsCache.value)
 })
 
 /**

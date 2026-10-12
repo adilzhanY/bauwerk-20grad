@@ -142,21 +142,6 @@ export const SearchHitSchema = z.object({
 export const NeighboursSchema = z.array(NeighbourSchema)
 export const SearchHitsSchema = z.array(SearchHitSchema)
 
-export const CoverageStatsSchema = z.object({
-  states: z.array(z.object({
-    state: z.string(),
-    name: z.string(),
-    attribution: z.string(),
-    indexedTiles: z.number(),
-    readyTiles: z.number(),
-    emptyTiles: z.number(),
-    failedTiles: z.number(),
-    buildings: z.number(),
-  })),
-  /** Below this zoom the API will not fetch source tiles on demand. */
-  onDemandMinZoom: z.number(),
-})
-
 /**
  * What lod2-vision answers when asked where a wall is in a photo.
  *
@@ -204,7 +189,6 @@ export type BuildingPartDto = z.infer<typeof BuildingPartSchema>
 export type RoofPlaneDto = z.infer<typeof RoofPlaneSchema>
 export type Neighbour = z.infer<typeof NeighbourSchema>
 export type SearchHit = z.infer<typeof SearchHitSchema>
-export type CoverageStats = z.infer<typeof CoverageStatsSchema>
 export type VisionCorners = z.infer<typeof VisionCornersSchema>
 export type VisionOpening = z.infer<typeof VisionOpeningSchema>
 export type VisionOpenings = z.infer<typeof VisionOpeningsSchema>

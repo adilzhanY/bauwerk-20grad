@@ -25,7 +25,6 @@ Every one is a GET.
 | `/search?q=` | Gebäude-ID prefix lookup. No address search, Berlin publishes none |
 | `/orthophoto/:gid/:kind` | a building's DOP crop (`roof` or `context`) in the state's own CRS, cached in Postgres |
 | `/aerial/:z/:x/:y.jpg` | the DOP as web-mercator map tiles, for the 2D basemap |
-| `/stats` | per-state tile and building counts, recounted at most once a minute |
 | `/health` | `{ ok, states, pipelineVersion }` |
 
 Responses are validated against the `lod2-core/api` schemas on the way out: a schema drift should

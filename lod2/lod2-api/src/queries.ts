@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import type pg from 'pg'
 import {
   buildingFunctionLabel,
@@ -22,6 +23,11 @@ export async function buildingTile(
   const geomExpr = toleranceM > 0
     ? `ST_SimplifyPreserveTopology(b.ground_3857, ${toleranceM})`
     : 'b.ground_3857'
+  // Below z14 a central Berlin tile held 19,000 footprints (1.8 MB). Sheds and garages under
+  // 50 m2 are most of them and a pixel or two each; dropping them keeps 94% of the built area
+  // at less than half the bytes. Parts stay: in this data a building with parts has no
+  // footprint of its own, so leaving parts out blanked three quarters of the city centre.
+  const sizeFilter = z < 14 ? 'AND b.footprint_area >= 50' : ''
 
   const { rows } = await pool.query<{ mvt: Buffer }>(
     `WITH env AS (SELECT ST_TileEnvelope($1,$2,$3) AS geom),
@@ -33,6 +39,7 @@ export async function buildingTile(
          FROM building b, env
         WHERE b.has_geometry
           AND b.ground_3857 && env.geom
+          ${sizeFilter}
      )
      -- No feature-id column: ST_AsMVT requires an integer there and our ids are the
      -- AdV Gebäude-ID (text). The client uses MapLibre's promoteId on 'gid' instead.
@@ -330,7 +337,10 @@ function orthophotoFor(
   const describe = (kind: OrthoKind) => {
     const bbox = boxes[kind]
     const { width, height } = pixelSize(bbox, service.gsdM, cropMaxPx(service.maxPx, kind))
-    const url = `/orthophoto/${encodeURIComponent(buildingGid)}/${kind}`
+    // The route ignores `v`: it is there so a re-ingest that moves the box also changes the
+    // URL, instead of the browser keeping the old image for the day it may cache it.
+    const v = createHash('sha1').update(bbox.join(',')).digest('hex').slice(0, 8)
+    const url = `/orthophoto/${encodeURIComponent(buildingGid)}/${kind}?v=${v}`
     return { url, bbox, widthPx: width, heightPx: height }
   }
 

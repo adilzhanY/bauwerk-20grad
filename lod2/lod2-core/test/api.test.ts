@@ -38,8 +38,8 @@ test('an orthophoto descriptor survives the round trip intact', () => {
 
 test('an absent flight date parses as null rather than failing', () => {
   // The client and the server are deployed separately, so they are briefly out of step every
-  // time either restarts. A service that will not state its vintage — and a server older than
-  // the field — must cost the date, not the whole building.
+  // time either restarts. A service that will not state its vintage (or a server older than
+  // the field) must cost the date, not the whole building.
   const { acquiredAt: _omitted, ...noDate } = ORTHO
   const parsed = BuildingDetailSchema.parse(detail({ orthophoto: noDate }))
   assert.equal(parsed.orthophoto?.acquiredAt, null)

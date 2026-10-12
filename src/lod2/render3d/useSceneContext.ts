@@ -51,8 +51,8 @@ function absolute(
  * is roughly a second of straight-line work. Done in a render-phase `useMemo` it blocks before
  * the browser has painted anything, so no progress indicator can appear, and done in a
  * *concurrent* render (`useDeferredValue` and friends) it is worse, because any state update
- * can interrupt that render and React starts it again from scratch. With `usePendingPoll`
- * ticking every 2.5 seconds against a pass costing about a second, it never finished: measured
+ * can interrupt that render and React starts it again from scratch. With a poll for pending
+ * tiles ticking every 2.5 seconds against a pass costing about a second, it never finished: measured
  * over a Berlin view, `sampleHeight` alone burned 52 of 63 seconds of blocked main thread,
  * nearly all of it thrown away and redone. Chrome offered to kill the page.
  *

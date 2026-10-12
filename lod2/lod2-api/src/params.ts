@@ -27,7 +27,7 @@ export function escapeLike(value: string): string {
 
 export const NEIGHBOUR_BOX_DEFAULT_M = 800
 export const NEIGHBOUR_BOX_MIN_M = 20
-export const NEIGHBOUR_BOX_MAX_M = 1200
+export const NEIGHBOUR_BOX_MAX_M = 800
 
 /** Neighbour box size in metres, the default when absent, or null when invalid. */
 export function parseNeighbourBox(raw: string | undefined): number | null {

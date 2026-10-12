@@ -4,7 +4,7 @@ Crawls Berlin's LoD2 open-data portal and loads buildings into PostGIS. Also the
 
 ```
 src/adapters/be.ts    everything specific to Berlin
-src/adapters/index.ts the registry — one line per state
+src/adapters/index.ts the registry, one line per state
 src/cli.ts            migrate · index · tiles · status
 src/fetch-tile.ts     one tile as streamed text, with retries and an optional disk cache
 src/unzip.ts          just enough ZIP to read one member
@@ -22,7 +22,7 @@ A `StateAdapter` (defined in `lod2-core/src/types.ts`) is configuration plus one
   archiveMember?, sizesAreApproximate?, orthophoto?, listTiles() }
 ```
 
-Everything downstream — the crawler, the loader, the API, the viewer — is state-agnostic. Adding a
+Everything downstream (the crawler, the loader, the API, the viewer) is state-agnostic. Adding a
 state is one file here and one line in `adapters/index.ts`. Note that the eastern states use
 EPSG:25833 and the western ones 25832; the adapter carries the CRS and PostGIS reprojects.
 
@@ -32,12 +32,12 @@ imagery wired up" is a first-class state the UI can explain rather than a crash.
 ## Berlin, and what its source does and does not give
 
 Discovery is an INSPIRE download service: a catalogue feed pointing at `0.atom`, where every tile
-sits as a `<link rel="section">` inside a single `<entry>` — around 925 of them, on a 1 km grid in
+sits as a `<link rel="section">` inside a single `<entry>`, around 925 of them, on a 1 km grid in
 EPSG:25833.
 
 **No file sizes.** No `<size>`, no per-file date, just one `<updated>` for the whole feed. So
 every tile is advertised with `sizeBytes: 0`, which the loader treats as *unknown* rather than as
-*empty* — `load.ts` guards its empty-tile skip with `sizeBytes > 0`. Two consequences: `--dry-run`
+*empty*: `load.ts` guards its empty-tile skip with `sizeBytes > 0`. Two consequences: `--dry-run`
 cannot tell you how many bytes an area will cost, and no tile is ever skipped without a request.
 Fetching the sizes with HEAD does not scale against this server, which limits over time rather
 than over concurrency: twenty requests succeed whether sequential or parallel, but of a full sweep
@@ -45,8 +45,8 @@ only 224 came back. `emptyTileMaxBytes` is kept at a plausible threshold so the 
 working by itself if Berlin ever publishes sizes.
 
 **ZIP archives, and the member is `.xml`.** `archiveMember: /_BE\.xml$/i`, and the CityGML inside
-is version 1.0. An archive has to be whole before anything can be read out of it — the central
-directory is at the end — so that path buffers rather than streams. A Berlin tile is a few
+is version 1.0. An archive has to be whole before anything can be read out of it (the central
+directory is at the end), so that path buffers rather than streams. A Berlin tile is a few
 megabytes compressed, which is the scale it is meant for.
 
 **A filename with no UTM zone.** `LoD2_389_5819.zip` gives the south-west corner in kilometres and
@@ -68,7 +68,7 @@ node src/cli.ts tiles --state BE …           # ingest an area
 node src/cli.ts status [--state BE]          # what is indexed and ingested
 ```
 
-Area selection for `tiles`, one required — it refuses to select a whole state implicitly:
+Area selection for `tiles`, one required. It refuses to select a whole state implicitly:
 
 ```
 --bbox-wgs84 minlon,minlat,maxlon,maxlat
@@ -82,7 +82,7 @@ Plus `--dry-run`, `--concurrency`, `--cache[=dir]`, `--limit`, `--force`.
 
 ## Catalogue first
 
-`index` writes a row per tile — url, bbox, size, hash, timestamp — without downloading any
+`index` writes a row per tile (url, bbox, size, hash, timestamp) without downloading any
 geometry. That is what makes "which source tile covers this point?" always answerable, which is
 what lets the API fetch on demand as the map pans. Progress lives in a separate `tile_status`
 table, so re-indexing never clears it.
@@ -94,11 +94,11 @@ so the CLI and a map pan can never download the same tile twice, and it records
 
 ## Schema
 
-`building` is one row per geometry-bearing feature — a standalone Building or a BuildingPart —
+`building` is one row per geometry-bearing feature (a standalone Building or a BuildingPart),
 with the headline metrics denormalised into columns for querying, the rest in `metrics jsonb`, the
 renderable geometry in `mesh jsonb`, and `flags text[]`. Footprints are stored in 4326 (`ground`)
 with a 3857 mirror (`ground_3857`) for vector tiles, because one typed geometry column cannot hold
-both UTM zones. Alongside: `building_roof_plane`, `parcel`, the `building_aggregate` view,
+both UTM zones. Alongside: `building_roof_plane`,
 `tile_index`, `tile_status`, and `orthophoto_cache`.
 
 ```bash

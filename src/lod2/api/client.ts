@@ -5,11 +5,9 @@
  */
 import {
   BuildingDetailSchema,
-  CoverageStatsSchema,
   NeighboursSchema,
   SearchHitsSchema,
   type BuildingDetail,
-  type CoverageStats,
   type Neighbour,
   type SearchHit,
 } from "lod2-core/api";
@@ -53,10 +51,6 @@ export async function fetchNeighbours(
 export async function search(q: string, signal?: AbortSignal): Promise<SearchHit[]> {
   const body = await getJson(`/search?q=${encodeURIComponent(q)}`, signal);
   return SearchHitsSchema.parse(body ?? []);
-}
-
-export async function fetchStats(signal?: AbortSignal): Promise<CoverageStats> {
-  return CoverageStatsSchema.parse(await getJson("/stats", signal));
 }
 
 /**

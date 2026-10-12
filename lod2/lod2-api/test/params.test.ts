@@ -34,7 +34,7 @@ test('parseNeighbourBox defaults, accepts the range, rejects the rest', () => {
   assert.equal(parseNeighbourBox(undefined), 800)
   assert.equal(parseNeighbourBox('300'), 300)
   assert.equal(parseNeighbourBox('20'), 20)
-  assert.equal(parseNeighbourBox('1200'), 1200)
+  assert.equal(parseNeighbourBox('800'), 800)
   assert.equal(parseNeighbourBox(''), null)
   assert.equal(parseNeighbourBox('  '), null)
   assert.equal(parseNeighbourBox('NaN'), null)
@@ -42,7 +42,7 @@ test('parseNeighbourBox defaults, accepts the range, rejects the rest', () => {
   assert.equal(parseNeighbourBox('Infinity'), null)
   assert.equal(parseNeighbourBox('-5'), null)
   assert.equal(parseNeighbourBox('19'), null)
-  assert.equal(parseNeighbourBox('1201'), null)
+  assert.equal(parseNeighbourBox('801'), null)
 })
 
 test('parseCorsOrigins splits a list and falls back to the local viewer', () => {
