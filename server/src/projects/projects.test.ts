@@ -11,6 +11,7 @@ import type { Op } from "@/sync/ops";
 import { DatabaseStore } from "../files/store";
 import { createApp } from "../app";
 import { ProjectsService } from "./projects.service";
+import type { PresenceEntry } from "./projects.gateway";
 
 const url = process.env.DATABASE_URL ?? "postgres://bauwerk@127.0.0.1:5499/bauwerk_test";
 
@@ -233,7 +234,8 @@ describe("batches", () => {
     expect(versions).toEqual(Array.from({ length: 12 }, (_, i) => i + 2));
     const after = await service.get(id);
     expect(after?.version).toBe(13);
-    expect(await service.eventCount(id)).toBe(13);
+    const events = await pool.query("SELECT 1 FROM app.project_events WHERE project_id = $1", [id]);
+    expect(events.rowCount).toBe(13);
     // The last batch to commit named the building.
     const last = results.findIndex((r) => r.ok && r.version === 13);
     expect(after?.name).toBe(`Name ${last}`);
@@ -428,15 +430,15 @@ describe("Socket.IO", () => {
     });
   });
 
-  it("passes pointers and drags on to the others, and drops malformed ones", async () => {
+  it("passes pointers and drags on to the others, and drops malformed ones and extra fields", async () => {
     const { id } = await createHouse();
     const a = await tab(id, "a");
     const b = await tab(id, "b");
-    a.socket.emit("cursor", { cursor: { x: 1.5, y: -2 } });
+    a.socket.emit("cursor", { cursor: { x: 1.5, y: -2, pad: "x".repeat(1000) } });
     expect(await b.next("cursor")).toEqual({ clientId: "a", cursor: { x: 1.5, y: -2 } });
     a.socket.emit("cursor", { cursor: { x: "far", y: 0 } });
     const dragging = { storeyId: "s1", id: "o1", offset: 2.5 };
-    a.socket.emit("drag", { dragging });
+    a.socket.emit("drag", { dragging: { ...dragging, pad: "x".repeat(1000) } });
     expect(await b.next("drag")).toEqual({ clientId: "a", dragging });
     // The malformed pointer was dropped, not passed on.
     expect(b.received.some((m) => m.event === "cursor")).toBe(false);
@@ -460,9 +462,11 @@ describe("Socket.IO", () => {
     const b = await tab(id, "b");
     a.socket.emit("activity", { activity: { kind: "launch", storeyId: "s1" } });
     a.socket.emit("activity", { activity: { kind: "facade", wallIndex: -1, count: 3 } });
-    a.socket.emit("activity", { activity: { kind: "floorPlan", storeyId: "s1" } });
-    expect(await b.next("activity")).toMatchObject({
+    a.socket.emit("activity", { activity: { kind: "floorPlan", storeyId: "s1", pad: "x" } });
+    expect(await b.next("activity")).toEqual({
       clientId: "a",
+      actor: "Actor a",
+      userId: null,
       activity: { kind: "floorPlan", storeyId: "s1" },
     });
     // Only the valid one arrived (next took it), and never back at the tab that sent it.
@@ -470,13 +474,22 @@ describe("Socket.IO", () => {
     expect(a.received.some((m) => m.event === "activity")).toBe(false);
   });
 
-  it("relays a selection to the others and shows it in the presence list", async () => {
+  it("relays a selection to the others and shows it in the presence list, without extra fields", async () => {
     const { id } = await createHouse();
     const a = await tab(id, "a");
     const b = await tab(id, "b");
     await a.next("presence");
-    a.socket.emit("selection", { selection: { kind: "roof" } });
+    a.socket.emit("selection", { selection: { kind: "roof", pad: "x".repeat(1000) } });
     expect(await b.next("selection")).toEqual({ clientId: "a", selection: { kind: "roof" } });
+    a.socket.emit("selection", {
+      selection: { kind: "wall", storeyId: "s1", wallIndex: 2, pad: 1 },
+    });
+    const wall = { kind: "wall", storeyId: "s1", wallIndex: 2 };
+    expect(await b.next("selection")).toEqual({ clientId: "a", selection: wall });
+    a.socket.emit("status", { state: "here" });
+    const selectionOfA = (data: unknown) =>
+      (data as { actors: PresenceEntry[] }).actors.find((x) => x.clientId === "a")?.selection;
+    expect(selectionOfA(await b.next("presence", (d) => selectionOfA(d) != null))).toEqual(wall);
     b.socket.disconnect();
     const alone = (data: unknown) => (data as { actors: unknown[] }).actors.length === 1;
     const presence = (await a.next("presence", alone)) as { actors: { clientId: string }[] };

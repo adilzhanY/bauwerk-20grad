@@ -59,7 +59,14 @@ async function project(owner: Session): Promise<string> {
 
 const inbox = async (who: Session) =>
   (await (await call("GET", "/notifications", who.token)).json()) as {
-    items: { id: string; kind: string; projectId: string; count: number; payload: object }[];
+    items: {
+      id: string;
+      kind: string;
+      projectId: string;
+      projectName: string | null;
+      count: number;
+      payload: object;
+    }[];
     unread: number;
   };
 
@@ -242,6 +249,68 @@ describe("members", () => {
       ok: false,
       reason: "notJoined",
     });
+  });
+});
+
+describe("a removed person", () => {
+  it("cannot come back by the share link until invited again or the link is reset", async () => {
+    const ada = await signUp(person("Ada", "Lovelace", "ada_l"));
+    const lena = await signUp(person("Lena", "Berg", "lena_berg"));
+    const id = await project(ada);
+    const setLink = async (reset: boolean) =>
+      (
+        (await (
+          await call("PUT", `/projects/${id}/link`, ada.token, { role: "viewer", reset })
+        ).json()) as { link: { token: string } }
+      ).link.token;
+    const join = async (link: string) =>
+      (await call("POST", `/projects/${id}/join`, lena.token, { link })).status;
+    const link = await setLink(false);
+    expect(await join(link)).toBe(200);
+    expect(
+      (await call("DELETE", `/projects/${id}/members/${lena.user.id}`, ada.token)).status,
+    ).toBe(204);
+    expect(await join(link)).toBe(403);
+    expect((await call("GET", `/projects/${id}`, lena.token)).status).toBe(403);
+
+    // Invited again, she is back; removed once more, a new link lets her in again.
+    expect(
+      (
+        await call("POST", `/projects/${id}/members`, ada.token, {
+          userId: lena.user.id,
+          role: "viewer",
+        })
+      ).status,
+    ).toBe(204);
+    expect((await call("GET", `/projects/${id}`, lena.token)).status).toBe(200);
+    await call("DELETE", `/projects/${id}/members/${lena.user.id}`, ada.token);
+    expect(await join(link)).toBe(403);
+    expect(await join(await setLink(true))).toBe(200);
+  });
+
+  it("keeps the project's name in the inbox as it was, not the later renames", async () => {
+    const ada = await signUp(person("Ada", "Lovelace", "ada_l"));
+    const lena = await signUp(person("Lena", "Berg", "lena_berg"));
+    const id = await project(ada);
+    const name = (
+      (await (await call("GET", `/projects/${id}`, ada.token)).json()) as { name: string }
+    ).name;
+    await call("POST", `/projects/${id}/members`, ada.token, {
+      userId: lena.user.id,
+      role: "editor",
+    });
+    await call("DELETE", `/projects/${id}/members/${lena.user.id}`, ada.token);
+    const rename = {
+      clientId: "ada",
+      seq: 1,
+      ops: [{ op: "set", path: ["name"], value: "Secret" }],
+    };
+    expect((await call("POST", `/projects/${id}/ops`, ada.token, rename)).status).toBe(200);
+    const box = await inbox(lena);
+    expect(box.items.map((n) => [n.kind, n.projectName])).toEqual([
+      ["removed", name],
+      ["invited", name],
+    ]);
   });
 });
 
@@ -494,6 +563,8 @@ describe("history", () => {
     };
     expect(tomBox.items.map((n) => n.kind)).toContain("versionNamed");
     expect(tomBox.unread).toBe(1); // only the invitation counts
+    expect((await inbox(ada)).items.map((n) => n.kind)).toContain("versionNamed");
+    expect((await inbox(lena)).items.map((n) => n.kind)).not.toContain("versionNamed");
     expect(
       (
         await call("PATCH", `/projects/${id}/named/${named.id}`, ada.token, {
@@ -552,6 +623,45 @@ describe("history", () => {
       color: "#123456",
     })) as { lastSeenAt: string | null };
     expect(two.lastSeenAt).not.toBeNull();
+  });
+});
+
+describe("a viewer", () => {
+  it("cannot hold an opening with a drag or announce an activity", async () => {
+    const ada = await signUp(person("Ada", "Lovelace", "ada_l"));
+    const tom = await signUp(person("Tom", "Wagner", "tom_w"));
+    const id = await project(ada);
+    await call("POST", `/projects/${id}/members`, ada.token, {
+      userId: tom.user.id,
+      role: "viewer",
+    });
+    const open = async (who: Session, clientId: string) => {
+      const socket = io(base, {
+        transports: ["websocket"],
+        forceNew: true,
+        auth: (cb) => {
+          cb({ token: who.token });
+        },
+      });
+      sockets.push(socket);
+      const received: string[] = [];
+      socket.onAny((event: string) => {
+        received.push(event);
+      });
+      await socket.emitWithAck("join", { projectId: id, clientId, actor: "x", color: "#123456" });
+      return { socket, received };
+    };
+    const owner = await open(ada, "ada");
+    const viewer = await open(tom, "tom");
+    viewer.socket.emit("drag", { dragging: { storeyId: "s1", id: "o1", offset: 1 } });
+    viewer.socket.emit("activity", { activity: { kind: "restore", version: 1 } });
+    // A selection is allowed and comes after both, in order, so its arrival means they were handled.
+    viewer.socket.emit("selection", { selection: { kind: "roof" } });
+    for (let i = 0; i < 100 && !owner.received.includes("selection"); i++)
+      await new Promise((r) => setTimeout(r, 20));
+    expect(owner.received).toContain("selection");
+    expect(owner.received).not.toContain("drag");
+    expect(owner.received).not.toContain("activity");
   });
 });
 

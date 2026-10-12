@@ -73,7 +73,7 @@ export function granted(access: Access) {
   throw new ForbiddenException({ error: access.reason });
 }
 
-export function batchResponse(result: BatchResult) {
+function batchResponse(result: BatchResult) {
   if (result.ok) return result;
   if (result.reason === "notFound") throw new NotFoundException();
   throw new HttpException({ error: "invalid", detail: result.error }, 422);

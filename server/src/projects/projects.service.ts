@@ -231,7 +231,7 @@ export class ProjectsService {
    * This person's role in the project. With accounts off everyone owns everything. Signed in,
    * a member has their role; someone who is not one gets in only with the project's share link
    * token, and then becomes a member with the link's role (view or comment, never edit). The
-   * project's address alone lets nobody in.
+   * project's address alone lets nobody in, and the link not someone the owner removed.
    */
   async roleIn(id: string, user: AuthUser | undefined, linkToken?: string): Promise<Access> {
     if (!isUuid(id)) return { ok: false, reason: "notFound" };
@@ -249,8 +249,9 @@ export class ProjectsService {
     }
     const link = await this.pool.query<{ role: string }>(
       `SELECT role FROM app.project_links
-       WHERE project_id = $1 AND token = $2 AND (expires_at IS NULL OR expires_at > now())`,
-      [id, linkToken],
+       WHERE project_id = $1 AND token = $2 AND (expires_at IS NULL OR expires_at > now())
+         AND NOT EXISTS (SELECT 1 FROM app.project_removed WHERE project_id = $1 AND user_id = $3)`,
+      [id, linkToken, user.id],
     );
     const linkRole = link.rows[0]?.role;
     if (linkRole !== "viewer" && linkRole !== "commenter")
@@ -289,7 +290,8 @@ export class ProjectsService {
 
   /**
    * Turns the share link on or changes what it grants and until when. `reset` (or a link that
-   * did not exist) makes a new token, so the old address stops working.
+   * did not exist) makes a new token, so the old address stops working. A reset also lets the
+   * people the owner removed come in by the new one.
    */
   async setLink(
     id: string,
@@ -306,6 +308,9 @@ export class ProjectsService {
          token = CASE WHEN $6 THEN EXCLUDED.token ELSE app.project_links.token END`,
       [id, token, settings.role, settings.expiresAt, by ?? null, settings.reset],
     );
+    if (settings.reset) {
+      await this.pool.query("DELETE FROM app.project_removed WHERE project_id = $1", [id]);
+    }
     const link = await this.link(id);
     if (!link) throw new Error("share link not written");
     return link;
@@ -520,13 +525,5 @@ export class ProjectsService {
       : await this.pool.query("DELETE FROM app.projects WHERE id = $1", [id]);
     if ((res.rowCount ?? 0) > 0) return "ok";
     return (await this.get(id)) ? "forbidden" : "notFound";
-  }
-
-  async eventCount(id: string): Promise<number> {
-    const res = await this.pool.query<{ n: string }>(
-      "SELECT count(*)::text AS n FROM app.project_events WHERE project_id = $1",
-      [id],
-    );
-    return Number(res.rows[0]?.n ?? 0);
   }
 }

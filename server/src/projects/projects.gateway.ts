@@ -71,49 +71,75 @@ const isText = (value: unknown, max: number): value is string =>
 const isIndex = (value: unknown): value is number =>
   typeof value === "number" && Number.isInteger(value) && value >= 0;
 
+/*
+ * What a tab sends is checked and then rebuilt from the checked fields only, so nothing else it
+ * adds (a few megabytes of padding) is stored or passed on. Each returns undefined when invalid.
+ */
+
 /** An activity a tab may announce: what kind and where, nothing more. */
-function isActivity(value: unknown): boolean {
-  if (!isRecord(value)) return false;
-  switch (value.kind) {
+function activityOf(value: unknown) {
+  if (!isRecord(value)) return undefined;
+  const { kind, storeyId, wallIndex, count, version } = value;
+  switch (kind) {
     case "floorPlan":
-      return isText(value.storeyId, 128);
+      return isText(storeyId, 128) ? { kind, storeyId } : undefined;
     case "facade":
-      return isIndex(value.wallIndex) && typeof value.count === "number" && value.count >= 0;
+      return isIndex(wallIndex) && typeof count === "number" && count >= 0
+        ? { kind, wallIndex, count }
+        : undefined;
     case "restore":
-      return typeof value.version === "number" && Number.isInteger(value.version);
+      return typeof version === "number" && Number.isInteger(version)
+        ? { kind, version }
+        : undefined;
     default:
-      return false;
+      return undefined;
   }
 }
 
-function isSelection(value: unknown): boolean {
-  if (value === null) return true;
-  if (!isRecord(value) || typeof value.kind !== "string") return false;
-  switch (value.kind) {
+function selectionOf(value: unknown) {
+  if (value === null) return null;
+  if (!isRecord(value)) return undefined;
+  const { kind, storeyId, id, index, wallIndex } = value;
+  switch (kind) {
     case "vertex":
-      return isIndex(value.index);
+      return isIndex(index) ? { kind, index } : undefined;
     case "wall":
+      return isText(storeyId, 128) && isIndex(wallIndex)
+        ? { kind, storeyId, wallIndex }
+        : undefined;
     case "interiorWall":
-      return isText(value.storeyId, 128) && isIndex(value.wallIndex ?? value.index);
+      return isText(storeyId, 128) && isIndex(index) ? { kind, storeyId, index } : undefined;
     case "opening":
     case "room":
     case "radiator":
     case "pipe":
-      return isText(value.storeyId, 128) && isText(value.id, 128);
+      return isText(storeyId, 128) && isText(id, 128) ? { kind, storeyId, id } : undefined;
     case "storey":
     case "zone":
     case "heatPump":
-      return isText(value.id, 128);
+      return isText(id, 128) ? { kind, id } : undefined;
     case "roof":
-      return true;
+      return { kind };
     default:
-      return false;
+      return undefined;
   }
 }
 
-const isPoint = (value: unknown) => isRecord(value) && isNumber(value.x) && isNumber(value.y);
-const isDrag = (value: unknown) =>
-  isRecord(value) && isText(value.storeyId, 128) && isText(value.id, 128) && isNumber(value.offset);
+const pointOf = (value: unknown) =>
+  value === null
+    ? null
+    : isRecord(value) && isNumber(value.x) && isNumber(value.y)
+      ? { x: value.x, y: value.y }
+      : undefined;
+const dragOf = (value: unknown) =>
+  value === null
+    ? null
+    : isRecord(value) &&
+        isText(value.storeyId, 128) &&
+        isText(value.id, 128) &&
+        isNumber(value.offset)
+      ? { storeyId: value.storeyId, id: value.id, offset: value.offset }
+      : undefined;
 
 const room = (projectId: string) => `project:${projectId}`;
 const userRoom = (userId: string) => `user:${userId}`;
@@ -342,30 +368,31 @@ export class ProjectsGateway
   @SubscribeMessage("selection")
   selection(@ConnectedSocket() socket: Socket, @MessageBody() body: unknown) {
     const data = member(socket);
-    if (!data.projectId || !isRecord(body) || !isSelection(body.selection)) return;
-    data.selection = body.selection;
-    socket
-      .to(room(data.projectId))
-      .emit("selection", { clientId: data.clientId, selection: body.selection });
+    const selection = isRecord(body) ? selectionOf(body.selection) : undefined;
+    if (!data.projectId || selection === undefined) return;
+    data.selection = selection;
+    socket.to(room(data.projectId)).emit("selection", { clientId: data.clientId, selection });
   }
 
   /** Where the pointer is on the ground. Fire and forget: a lost one is replaced by the next. */
   @SubscribeMessage("cursor")
   cursor(@ConnectedSocket() socket: Socket, @MessageBody() body: unknown) {
     const { projectId, clientId } = member(socket);
-    if (!projectId || !isRecord(body)) return;
-    const cursor = body.cursor;
-    if (cursor !== null && !isPoint(cursor)) return;
+    const cursor = isRecord(body) ? pointOf(body.cursor) : undefined;
+    if (!projectId || cursor === undefined) return;
     socket.volatile.to(room(projectId)).emit("cursor", { clientId, cursor });
   }
 
-  /** The opening being dragged and where it is now, so the others see it move and keep off. */
+  /**
+   * The opening being dragged and where it is now, so the others see it move and keep off.
+   * Editors only: the others' editors disable an opening someone drags.
+   */
   @SubscribeMessage("drag")
   drag(@ConnectedSocket() socket: Socket, @MessageBody() body: unknown) {
-    const { projectId, clientId } = member(socket);
-    if (!projectId || !isRecord(body)) return;
-    const dragging = body.dragging;
-    if (dragging !== null && !isDrag(dragging)) return;
+    const { projectId, clientId, role } = member(socket);
+    if (!can(role, "edit")) return;
+    const dragging = isRecord(body) ? dragOf(body.dragging) : undefined;
+    if (!projectId || dragging === undefined) return;
     socket.to(room(projectId)).emit("drag", { clientId, dragging });
   }
 
@@ -388,15 +415,17 @@ export class ProjectsGateway
   /**
    * Something big this tab did (a floor plan applied, a facade's openings put on, a version
    * restored), for a short toast on the others' screens. Only relayed, never stored: the
-   * change itself travels as ops; this only says who did it.
+   * change itself travels as ops; this only says who did it, so only editors may say it.
    */
   @SubscribeMessage("activity")
   activity(@ConnectedSocket() socket: Socket, @MessageBody() body: unknown) {
-    const { projectId, clientId, actor, user } = member(socket);
-    if (!projectId || !isRecord(body) || !isActivity(body.activity)) return;
+    const { projectId, clientId, actor, user, role } = member(socket);
+    if (!can(role, "edit")) return;
+    const activity = isRecord(body) ? activityOf(body.activity) : undefined;
+    if (!projectId || !activity) return;
     socket
       .to(room(projectId))
-      .emit("activity", { clientId, actor, userId: user?.id ?? null, activity: body.activity });
+      .emit("activity", { clientId, actor, userId: user?.id ?? null, activity });
   }
 
   /**

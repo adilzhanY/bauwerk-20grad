@@ -95,6 +95,7 @@ export class MembersService {
       "DELETE FROM app.access_requests WHERE project_id = $1 AND user_id = $2",
       [projectId, userId],
     );
+    await this.forgetRemoval(projectId, userId);
     await this.notifications.notify({
       userId,
       kind: "invited",
@@ -175,10 +176,24 @@ export class MembersService {
     if ((res.rowCount ?? 0) === 0)
       return (await this.roleOf(projectId, userId)) ? "owner" : "notFound";
     if (by !== userId) {
+      // Taken out, the share link must not let them back in (it would on their next reconnect).
+      await this.pool.query(
+        `INSERT INTO app.project_removed (project_id, user_id) VALUES ($1, $2)
+         ON CONFLICT DO NOTHING`,
+        [projectId, userId],
+      );
       await this.notifications.notify({ userId, kind: "removed", projectId, actorId: by });
     }
     this.events.emit("access", projectId, userId, null);
     return "ok";
+  }
+
+  /** Let in again by the owner: the share link works for them again. */
+  private async forgetRemoval(projectId: string, userId: string): Promise<void> {
+    await this.pool.query(
+      "DELETE FROM app.project_removed WHERE project_id = $1 AND user_id = $2",
+      [projectId, userId],
+    );
   }
 
   /** When the person last had the project open, before now; null if never. */
@@ -277,6 +292,7 @@ export class MembersService {
       [projectId, userId, role, by],
     );
     if ((added.rowCount ?? 0) === 0) return "already";
+    await this.forgetRemoval(projectId, userId);
     await this.notifications.notify({
       userId,
       kind: "accessGranted",
