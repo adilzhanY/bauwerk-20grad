@@ -13,7 +13,6 @@ import {
   type Neighbour,
   type SearchHit,
 } from "lod2-core/api";
-import { z } from "zod";
 
 const BASE = "/api";
 
@@ -59,19 +58,6 @@ export async function search(q: string, signal?: AbortSignal): Promise<SearchHit
 export async function fetchStats(signal?: AbortSignal): Promise<CoverageStats> {
   return CoverageStatsSchema.parse(await getJson("/stats", signal));
 }
-
-export interface PendingState {
-  pending: number;
-  tiles: string[];
-}
-
-/** What the API's on-demand fetcher is working on right now. */
-export async function fetchPending(signal?: AbortSignal): Promise<PendingState> {
-  const body = await getJson("/pending", signal);
-  return PendingSchema.parse(body ?? { pending: 0, tiles: [] });
-}
-
-const PendingSchema = z.object({ pending: z.number(), tiles: z.array(z.string()) });
 
 /**
  * Resolve a path the API handed us (e.g. an orthophoto URL) against the proxy prefix.

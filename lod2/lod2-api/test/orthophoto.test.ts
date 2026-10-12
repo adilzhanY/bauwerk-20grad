@@ -1,9 +1,11 @@
 import { mock, test } from 'node:test'
 import assert from 'node:assert/strict'
 import type pg from 'pg'
-import type { OrthophotoService } from 'lod2-core'
+import type { OrthophotoService, StateAdapter } from 'lod2-core'
+import { upstreamPacer } from '../src/host-pacer.ts'
 import {
-  getMapUrl, mercatorToLonLat, pixelSize, resetStateBounds, stateAt, tileBBox3857,
+  UpstreamBusyError, fetchOrthophoto, getMapUrl, mercatorToLonLat, pixelSize, resetStateBounds, stateAt,
+  tileBBox3857,
 } from '../src/orthophoto.ts'
 
 /** Shaped like Berlin's TrueDOP: WMS 1.3.0 at 20 cm. */
@@ -35,7 +37,7 @@ test('pixel size preserves the bbox aspect ratio when capping', () => {
 test('the neighbour context crop is not capped below native resolution', () => {
   // The 800 m box a building's neighbours are draped from wants 4000 px at the DOP's own
   // 20 cm, so the 4096 hard cap has to sit above it. A cap below that would quietly serve a
-  // coarser image — imagery that looks like the data is poor rather than like the code chose
+  // coarser image: imagery that looks like the data is poor rather than like the code chose
   // to blur it.
   const bbox: [number, number, number, number] = [0, 0, 800, 800]
   const { width, height } = pixelSize(bbox, 0.2, 8000)
@@ -56,7 +58,7 @@ test('a narrower cap than the service allows is honoured', () => {
 
 test('a cap wider than the service allows cannot talk it into more pixels', () => {
   // maxPx only ever narrows. `fetchOrthophoto` takes Math.min of the two, and the hard cap
-  // applies on top of both — otherwise a crafted request becomes a denial-of-service against
+  // applies on top of both. Otherwise a crafted request becomes a denial-of-service against
   // a public authority server.
   const asked = pixelSize([0, 0, 4000, 4000], 0.2, 99_999)
   assert.ok(Math.max(asked.width, asked.height) <= 4096, `got ${asked.width}x${asked.height}`)
@@ -141,7 +143,7 @@ const BERLIN = { state: 'BE', min_lon: 13.08, min_lat: 52.33, max_lon: 13.78, ma
 test('the nested state wins, whatever order the rows arrive in', async () => {
   // Berlin sits wholly inside Brandenburg, so this matters the moment a surrounding state is
   // indexed alongside it. First-match-wins would make the answer depend on the row order of
-  // an unordered GROUP BY — and picking the wrong state is silent, because a WMS asked for
+  // an unordered GROUP BY, and picking the wrong state is silent, because a WMS asked for
   // ground it does not hold returns a valid white image with 200 OK.
   resetStateBounds()
   const ref = { rows: [BRANDENBURG, BERLIN], queries: 0 }
@@ -158,7 +160,7 @@ test('the nested state wins, whatever order the rows arrive in', async () => {
 })
 
 test('a state indexed while the API runs appears without a restart', async () => {
-  // The cache is right — this is consulted once per aerial tile — but it used to be kept for
+  // The cache is right (this is consulted once per aerial tile), but it used to be kept for
   // the life of the process, so a freshly indexed state stayed invisible until someone
   // restarted the server.
   mock.timers.enable({ apis: ['Date'] })
@@ -188,4 +190,13 @@ test('a cold cache under a burst of tiles issues one query', async () => {
   const answers = await Promise.all(Array.from({ length: 6 }, () => stateAt(pool, 13.4, 52.52)))
   assert.deepEqual(answers, Array(6).fill('BE'))
   assert.equal(ref.queries, 1)
+})
+
+test('a crop that would queue too long for the upstream is refused, not held', async () => {
+  const service = { ...berlin, wmsUrl: 'https://busy.test/wms' }
+  // Fill the host's line well past the ten seconds a crop may wait.
+  for (let i = 0; i < 60; i++) upstreamPacer.reserve(service.wmsUrl)
+  const pool = { query: async () => ({ rows: [] }) } as unknown as pg.Pool
+  const adapter = { code: 'BE', epsg: 25833, orthophoto: service } as StateAdapter
+  await assert.rejects(fetchOrthophoto(pool, adapter, [0, 0, 10, 10]), UpstreamBusyError)
 })

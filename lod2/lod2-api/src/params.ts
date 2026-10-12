@@ -39,33 +39,6 @@ export function parseNeighbourBox(raw: string | undefined): number | null {
   return box
 }
 
-/**
- * Pixel caps the orthophoto route accepts. A fixed set, so arbitrary values cannot each
- * produce a differently sized image and a new cache row.
- */
-export const ALLOWED_MAX_PX = [256, 512, 1024, 2048, 4096]
-/** Larger requests are capped here anyway, so they are all treated as this value. */
-const LARGEST_MAX_PX = 4096
-
-/** maxPx as a number, undefined when absent, or null when not an accepted value. */
-export function parseMaxPx(raw: string | undefined): number | undefined | null {
-  if (raw === undefined) return undefined
-  const value = Number(raw)
-  if (!Number.isInteger(value)) return null
-  if (value >= LARGEST_MAX_PX) return LARGEST_MAX_PX
-  if (!ALLOWED_MAX_PX.includes(value)) return null
-  return value
-}
-
-/** bbox=minx,miny,maxx,maxy as four finite numbers, or null. */
-export function parseBBox(raw: string | undefined): [number, number, number, number] | null {
-  if (raw === undefined) return null
-  const parts = raw.split(',').map(Number)
-  if (parts.length !== 4) return null
-  if (parts.some((v) => !Number.isFinite(v))) return null
-  return parts as [number, number, number, number]
-}
-
 export const DEFAULT_CORS_ORIGINS = ['http://localhost:5173', 'http://127.0.0.1:5173']
 
 /** Comma separated origins from the environment, or the local app's defaults. */

@@ -23,10 +23,9 @@ Every one is a GET.
 | `/buildings/:gid` | the full detail: attributes, totals, per-part metrics, meshes, roof planes, orthophoto descriptor |
 | `/buildings/:gid/neighbours?box=` | surrounding buildings' meshes, for context in 3D |
 | `/search?q=` | Gebäude-ID prefix lookup. No address search, Berlin publishes none |
-| `/orthophoto?state=&bbox=&maxPx=` | a DOP crop in the state's own CRS, cached in Postgres |
+| `/orthophoto/:gid/:kind` | a building's DOP crop (`roof` or `context`) in the state's own CRS, cached in Postgres |
 | `/aerial/:z/:x/:y.jpg` | the DOP as web-mercator map tiles, for the 2D basemap |
-| `/pending` | what the on-demand fetcher is working on |
-| `/stats` | per-state tile and building counts |
+| `/stats` | per-state tile and building counts, recounted at most once a minute |
 | `/health` | `{ ok, states, pipelineVersion }` |
 
 Responses are validated against the `lod2-core/api` schemas on the way out: a schema drift should
@@ -44,14 +43,15 @@ falls inside the image.
 4000 a native 800 m crop would be. It is the ground plane seen from above at a distance, where
 the screen is already coarser than a metre per pixel, and the cost of the larger version is not
 bandwidth but a frozen tab: 16 megapixels to decode and 61 MB to upload on the main thread, plus
-about six seconds of cold WMS fetch. The cap travels in the request as `maxPx`, because
-`buildingDetail` advertises `widthPx`/`heightPx` per crop and this route has to serve exactly
-that; `maxPx` only ever narrows what the service itself allows.
+about six seconds of cold WMS fetch. The route computes both boxes and caps from the
+building itself, with the same code `buildingDetail` uses to advertise `widthPx`/`heightPx`, so
+it serves exactly that, and a client cannot ask for any other patch of the state.
 
 Requests are proxied rather than made from the browser, even though the service sends permissive
 CORS headers: going direct would put one uncached GetMap per selection per user against
 gdi.berlin.de and bypass the per-host pacing. Results are cached in `orthophoto_cache`, keyed by a
-hash of state, layer, bbox and pixel size.
+hash of state, layer, bbox and pixel size, and cut back to the newest 2 GB every 20 inserts. A crop
+that would wait more than 10 s for its upstream slot is answered 503 rather than held.
 
 Two numbers worth knowing about:
 
@@ -72,10 +72,6 @@ raise hopefully.
 When the map requests a tile, the API serves what it has and queues anything missing. Because that
 turns map panning into traffic against a public authority server, the limits in `ondemand.ts` are
 correctness requirements rather than polish, see the root README for the list.
-
-The viewer polls `/pending` rather than reading response headers, because MapLibre loads vector
-tiles inside a web worker: response headers never reach the page's own fetch, and any main-thread
-interception silently misses every tile request.
 
 ## Resolving a coordinate to a state
 

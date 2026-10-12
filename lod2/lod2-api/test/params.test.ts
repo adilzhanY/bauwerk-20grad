@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  DEFAULT_CORS_ORIGINS, escapeLike, isLonLat, isValidGid, parseBBox, parseCorsOrigins, parseMaxPx,
+  DEFAULT_CORS_ORIGINS, escapeLike, isLonLat, isValidGid, parseCorsOrigins,
   parseNeighbourBox, singleParam,
 } from '../src/params.ts'
 
@@ -43,24 +43,6 @@ test('parseNeighbourBox defaults, accepts the range, rejects the rest', () => {
   assert.equal(parseNeighbourBox('-5'), null)
   assert.equal(parseNeighbourBox('19'), null)
   assert.equal(parseNeighbourBox('1201'), null)
-})
-
-test('parseMaxPx allows a fixed set and folds large values into the hard cap', () => {
-  assert.equal(parseMaxPx(undefined), undefined)
-  assert.equal(parseMaxPx('2048'), 2048)
-  assert.equal(parseMaxPx('4096'), 4096)
-  assert.equal(parseMaxPx('8000'), 4096)
-  assert.equal(parseMaxPx('2047'), null)
-  assert.equal(parseMaxPx('16'), null)
-  assert.equal(parseMaxPx('abc'), null)
-  assert.equal(parseMaxPx('1024.5'), null)
-})
-
-test('parseBBox needs four finite numbers', () => {
-  assert.deepEqual(parseBBox('1,2,3,4'), [1, 2, 3, 4])
-  assert.equal(parseBBox(undefined), null)
-  assert.equal(parseBBox('1,2,3'), null)
-  assert.equal(parseBBox('1,2,3,x'), null)
 })
 
 test('parseCorsOrigins splits a list and falls back to the local viewer', () => {

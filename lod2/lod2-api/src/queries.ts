@@ -142,7 +142,7 @@ export async function buildingDetail(
       if (boxes) {
         // Berlin's TrueDOP layers answer no GetFeatureInfo, so the vintage is the product
         // year carried on the service rather than a date asked for per roof.
-        orthophoto = orthophotoFor(adapter, boxes, adapter.orthophoto?.acquiredAt ?? null)
+        orthophoto = orthophotoFor(adapter, buildingGid, boxes, adapter.orthophoto?.acquiredAt ?? null)
       }
     } catch (err) {
       // Imagery is optional, the viewer falls back to a flat roof colour, but a failure
@@ -285,28 +285,58 @@ async function buildingBoxes(
   }
 }
 
+export type OrthoKind = 'roof' | 'context'
+
+/** Pixel cap of one crop. The descriptor and the route both take it from here, so they agree. */
+function cropMaxPx(serviceMaxPx: number, kind: OrthoKind): number {
+  return kind === 'context' ? Math.min(serviceMaxPx, CONTEXT_MAX_PX) : serviceMaxPx
+}
+
+/**
+ * The crop the orthophoto route serves for one building, computed here rather than taken
+ * from the request: a bbox from the client would let anyone ask for (and cache) any patch
+ * of the state, while this way there are only two crops per building.
+ */
+export async function orthophotoCrop(
+  pool: pg.Pool, buildingGid: string, kind: OrthoKind,
+): Promise<{ adapter: ReturnType<typeof getAdapter>; bbox: [number, number, number, number]; maxPx: number } | null> {
+  const { rows } = await pool.query<{ state: string }>(
+    'SELECT state FROM building WHERE building_gid = $1 LIMIT 1',
+    [buildingGid],
+  )
+  const state = rows[0]?.state
+  if (!state) return null
+  let adapter: ReturnType<typeof getAdapter>
+  try {
+    adapter = getAdapter(state)
+  } catch {
+    return null
+  }
+  if (!adapter.orthophoto) return null
+  const boxes = await buildingBoxes(pool, adapter, buildingGid)
+  if (!boxes) return null
+  return { adapter, bbox: boxes[kind], maxPx: cropMaxPx(adapter.orthophoto.maxPx, kind) }
+}
+
 function orthophotoFor(
   adapter: ReturnType<typeof getAdapter>,
+  buildingGid: string,
   boxes: { roof: [number, number, number, number]; context: [number, number, number, number] },
   acquiredAt: string | null,
 ): Orthophoto | null {
   const service = adapter.orthophoto
   if (!service) return null
-  const { roof: roofBbox, context: contextBbox } = boxes
 
-  const describe = (bbox: [number, number, number, number], maxPx: number) => {
-    const { width, height } = pixelSize(bbox, service.gsdM, maxPx)
-    // maxPx travels with the url, or the route would recompute the size from the service's
-    // own cap and serve something other than what widthPx/heightPx here promise.
-    const q = new URLSearchParams({
-      state: adapter.code, bbox: bbox.join(','), maxPx: String(maxPx),
-    })
-    return { url: `/orthophoto?${q}`, bbox, widthPx: width, heightPx: height }
+  const describe = (kind: OrthoKind) => {
+    const bbox = boxes[kind]
+    const { width, height } = pixelSize(bbox, service.gsdM, cropMaxPx(service.maxPx, kind))
+    const url = `/orthophoto/${encodeURIComponent(buildingGid)}/${kind}`
+    return { url, bbox, widthPx: width, heightPx: height }
   }
 
   return {
-    roof: describe(roofBbox, service.maxPx),
-    context: describe(contextBbox, Math.min(service.maxPx, CONTEXT_MAX_PX)),
+    roof: describe('roof'),
+    context: describe('context'),
     epsg: adapter.epsg,
     gsdM: service.gsdM,
     trueOrtho: service.trueOrtho,

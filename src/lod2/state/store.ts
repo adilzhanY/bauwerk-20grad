@@ -49,8 +49,6 @@ interface State {
   /** Why the building could not be loaded: not in the data, or the request failed. */
   error: { kind: "notFound" } | { kind: "failed"; message: string } | null;
   stats: CoverageStats | null;
-  /** Source tiles the API is currently fetching for us. */
-  pendingTiles: number;
   /** Bumped when freshly ingested tiles are ready, to make the map refetch. */
   refreshToken: number;
   highlightedPlane: { gid: string; idx: number } | null;
@@ -62,7 +60,6 @@ interface State {
   setView: (v: MapView) => void;
   setHovered: (gid: string | null) => void;
   select: (gid: string | null) => void;
-  setPendingTiles: (n: number) => void;
   bumpRefresh: () => void;
   toggleNeighbours: () => void;
   toggleAerial: () => void;
@@ -184,7 +181,6 @@ export const useStore = create<State>((set, get) => {
     loadingNeighbours: false,
     error: null,
     stats: null,
-    pendingTiles: 0,
     refreshToken: 0,
     highlightedPlane: null,
     selectedWall: null,
@@ -201,19 +197,6 @@ export const useStore = create<State>((set, get) => {
       set({ selectedGid, highlightedPlane: null, selectedWall: null, photoEditorOpen: false });
       syncUrl();
       void loadDetail(selectedGid);
-    },
-    /**
-     * Only publish a change when the number actually changed.
-     *
-     * `usePendingPoll` calls this every 2.5 seconds, and almost every call carries the same
-     * value. Writing it regardless made every subscriber re-render on a timer, harmless on
-     * its own, and not harmless at all next to a one-second scene build: while that lived in
-     * a concurrent render, each tick interrupted and restarted it, so it never finished. The
-     * build has moved to an effect (`useSceneContext`) and is no longer interruptible, but a
-     * store that notifies when nothing changed is a bug in its own right.
-     */
-    setPendingTiles: (pendingTiles) => {
-      if (get().pendingTiles !== pendingTiles) set({ pendingTiles });
     },
     bumpRefresh: () => {
       set({ refreshToken: get().refreshToken + 1 });

@@ -14,16 +14,16 @@ import compress from '@fastify/compress'
 import { getAdapter, adapterCodes } from 'lod2-ingest/adapters'
 import { PIPELINE_VERSION, BuildingDetailSchema, CoverageStatsSchema, type CoverageStats } from 'lod2-core'
 import {
-  buildingDetail, buildingTile, coverageTile, findByGid, neighboursInBox, buildingAt
+  buildingDetail, buildingTile, coverageTile, findByGid, neighboursInBox, buildingAt, orthophotoCrop,
 } from './queries.ts'
 import { MIN_ZOOM, OnDemandFetcher, findUnfetchedTiles, resetStaleFetching } from './ondemand.ts'
 import {
-  bboxInState, fetchOrthophoto, getMapUrl, mercatorToLonLat, stateAt, tileBBox3857,
+  UpstreamBusyError, fetchOrthophoto, getMapUrl, mercatorToLonLat, stateAt, tileBBox3857,
 } from './orthophoto.ts'
 import { checkDatabase, createIngestPool, createRequestPool } from './db.ts'
 import { upstreamPacer } from './host-pacer.ts'
 import {
-  isValidGid, parseBBox, parseCorsOrigins, parseMaxPx, parseNeighbourBox, singleParam, isLonLat } from './params.ts'
+  isValidGid, parseCorsOrigins, parseNeighbourBox, singleParam, isLonLat } from './params.ts'
 
 /**
  * Configuration comes from a gitignored `.env` at the repo root, or from the real environment.
@@ -51,6 +51,8 @@ const MIN_BUILDING_ZOOM = 13
 const SHUTDOWN_WAIT_MS = 5_000
 /** An aerial tile that would wait longer than this for its upstream slot is refused. */
 const AERIAL_MAX_QUEUE_MS = 10_000
+/** /stats counts every indexed tile and building; nobody needs that fresher than a minute. */
+const STATS_TTL_MS = 60_000
 
 const pool = createRequestPool(10)
 const ingestPool = createIngestPool(3)
@@ -64,10 +66,7 @@ const app = Fastify({
 })
 
 // The viewer goes through the Vite proxy, so only the dev server's own origins are allowed.
-await app.register(cors, {
-  origin: parseCorsOrigins(process.env.CORS_ORIGINS),
-  exposedHeaders: ['X-Lod2-Pending', 'X-Lod2-Queued', 'X-Lod2-Dropped'],
-})
+await app.register(cors, { origin: parseCorsOrigins(process.env.CORS_ORIGINS) })
 
 // Client errors keep their status; anything else is logged and answered with a generic body,
 // so database messages never reach the client.
@@ -102,21 +101,20 @@ app.get<{ Params: { z: string; x: string; y: string } }>(
     if (!validTile(z, x, y)) return reply.code(400).send({ error: 'bad tile coordinates' })
 
     if (z < MIN_BUILDING_ZOOM) {
-      return reply.header('Content-Type', 'application/vnd.mapbox-vector-tile')
-        .header('X-Lod2-Pending', '0').send(Buffer.alloc(0))
+      return reply.header('Content-Type', 'application/vnd.mapbox-vector-tile').send(Buffer.alloc(0))
     }
 
     const mvt = await buildingTile(pool, z, x, y)
 
     // Only reach for source data once the user is actually looking at buildings.
-    let queued: string[] = []
+    let queued = 0
     let dropped = 0
     if (z >= MIN_ZOOM) {
       const byState = await findUnfetchedTiles(pool, z, x, y)
       for (const [state, tiles] of byState) {
         try {
           const res = fetcher.enqueue(getAdapter(state), tiles)
-          queued = queued.concat(res.queued)
+          queued += res.queued.length
           dropped += res.dropped
         } catch {
           // No adapter for that state yet, the tile index knows about it, we cannot fetch it.
@@ -125,13 +123,10 @@ app.get<{ Params: { z: string; x: string; y: string } }>(
     }
 
     // While any source tile is still on its way, this tile's content is about to change.
-    const incomplete = queued.length > 0 || dropped > 0 || fetcher.pendingCount > 0
+    const incomplete = queued > 0 || dropped > 0 || fetcher.pendingCount > 0
     return reply
       .header('Content-Type', 'application/vnd.mapbox-vector-tile')
       .header('Cache-Control', incomplete ? 'no-store' : 'public, max-age=60')
-      .header('X-Lod2-Pending', String(fetcher.pendingCount))
-      .header('X-Lod2-Queued', String(queued.length))
-      .header('X-Lod2-Dropped', String(dropped))
       .send(mvt)
   },
 )
@@ -211,7 +206,7 @@ app.get<{ Querystring: Record<string, unknown> }>('/building-at', async (req, re
   return reply.send({ buildingGid: gid })
 })
 
-app.get('/stats', async (_req, reply) => {
+async function loadStats(): Promise<CoverageStats> {
   const { rows } = await pool.query(
     `SELECT ti.state,
             count(*) AS indexed_tiles,
@@ -247,69 +242,43 @@ app.get('/stats', async (_req, reply) => {
     }),
     onDemandMinZoom: MIN_ZOOM,
   }
-  return reply.send(CoverageStatsSchema.parse(stats))
+  return CoverageStatsSchema.parse(stats)
+}
+
+/** The last answer and when it was asked for; a promise, so a burst of requests shares one query. */
+let statsCache: { at: number; value: Promise<CoverageStats> } | null = null
+
+app.get('/stats', async (_req, reply) => {
+  if (!statsCache || Date.now() - statsCache.at > STATS_TTL_MS) {
+    const value = loadStats()
+    statsCache = { at: Date.now(), value }
+    // A failed count is not kept for a minute.
+    value.catch(() => {
+      if (statsCache?.value === value) statsCache = null
+    })
+  }
+  return reply.send(await statsCache.value)
 })
 
 /**
- * What the on-demand fetcher is currently working on.
+ * Digital orthophoto crop of one building, cached: `roof` (tight, native resolution) or
+ * `context` (800 m around it, for the ground and the neighbours).
  *
- * The viewer polls this rather than inspecting tile responses: MapLibre loads vector
- * tiles inside a web worker, so response headers never reach the page's own fetch and
- * any main-thread interception silently misses every tile request.
+ * The bbox is computed here from the building, in the state's own CRS, the same frame as the
+ * building meshes, so the client can drape the result by (x, y) without any projection maths.
  */
-app.get('/pending', async (_req, reply) =>
-  reply.header('Cache-Control', 'no-store').send({
-    pending: fetcher.pendingCount,
-    tiles: fetcher.pendingKeys(),
-  }),
-)
-
-/**
- * Digital orthophoto crop, cached.
- *
- * bbox is in the state's own CRS, the same frame as the building meshes, so the client
- * can drape the result by (x, y) without any projection maths.
- */
-app.get<{ Querystring: Record<string, unknown> }>(
-  '/orthophoto',
+app.get<{ Params: { gid: string; kind: string } }>(
+  '/orthophoto/:gid/:kind',
   async (req, reply) => {
-    const state = singleParam(req.query.state)
-    const bbox = parseBBox(singleParam(req.query.bbox))
-    if (!state || !bbox) {
-      return reply.code(400).send({ error: 'state and bbox=minx,miny,maxx,maxy are required' })
+    const { gid, kind } = req.params
+    if (!isValidGid(gid) || (kind !== 'roof' && kind !== 'context')) {
+      return reply.code(400).send({ error: 'needs a building id and roof or context' })
     }
-    if (bbox[2] <= bbox[0] || bbox[3] <= bbox[1]) {
-      return reply.code(400).send({ error: 'bbox is empty or inverted' })
-    }
-    // Cap the ground area one request may ask for, so a crafted bbox cannot turn into a
-    // full-resolution request for half a state.
-    if (bbox[2] - bbox[0] > 2000 || bbox[3] - bbox[1] > 2000) {
-      return reply.code(400).send({ error: 'bbox exceeds 2000 m per side' })
-    }
-
-    let adapter
-    try {
-      adapter = getAdapter(state)
-    } catch {
-      return reply.code(404).send({ error: `no adapter for state ${state}` })
-    }
-    if (!adapter.orthophoto) {
-      return reply.code(404).send({ error: `${state} has no orthophoto service configured` })
-    }
-
-    // Optional, and only ever narrows what the service would allow. `buildingDetail` sends
-    // it for the context crop, which does not need native resolution. Rejected rather than
-    // ignored when nonsense, so a typo cannot silently cost a quarter of the image.
-    const maxPx = parseMaxPx(singleParam(req.query.maxPx))
-    if (maxPx === null) {
-      return reply.code(400).send({ error: 'maxPx must be one of 256, 512, 1024, 2048, 4096 or larger' })
-    }
-    if (!(await bboxInState(pool, adapter.code, adapter.epsg, bbox))) {
-      return reply.code(400).send({ error: `bbox does not intersect ${adapter.code}` })
-    }
+    const crop = await orthophotoCrop(pool, gid, kind)
+    if (!crop) return reply.code(404).send({ error: 'no imagery for this building' })
 
     try {
-      const img = await fetchOrthophoto(pool, adapter, bbox, maxPx)
+      const img = await fetchOrthophoto(pool, crop.adapter, crop.bbox, crop.maxPx)
       if (!img) return reply.code(404).send({ error: 'no imagery' })
       return reply
         .header('Content-Type', img.contentType)
@@ -318,9 +287,13 @@ app.get<{ Querystring: Record<string, unknown> }>(
         .header('X-Lod2-Ortho-Size', `${img.widthPx}x${img.heightPx}`)
         .send(img.image)
     } catch (err) {
+      if (err instanceof UpstreamBusyError) {
+        return reply.code(503).header('Retry-After', '5').send({ error: 'upstream busy' })
+      }
+      // The viewer falls back to a flat colour, so this is not fatal. The detail (the upstream
+      // host and its answer) is for the log, not the client.
       req.log.warn({ err }, 'orthophoto fetch failed')
-      // The viewer falls back to a flat colour, so this is not fatal.
-      return reply.code(502).send({ error: (err as Error).message })
+      return reply.code(502).send({ error: 'orthophoto unavailable' })
     }
   },
 )
@@ -376,9 +349,13 @@ app.get<{ Params: { z: string; x: string; y: string } }>(
   },
 )
 
-app.get('/health', async (_req, reply) => {
+app.get('/health', async (req, reply) => {
   const db = await checkDatabase(pool)
-  if (!db.ok) return reply.code(503).send({ ok: false, error: db.error })
+  if (!db.ok) {
+    // The detail can carry the database host or the driver's message: the log keeps it.
+    req.log.error({ detail: db.error }, 'health check failed')
+    return reply.code(503).send({ ok: false, error: 'database unavailable' })
+  }
   return reply.send({
     ok: true,
     states: adapterCodes,

@@ -34,12 +34,20 @@ const HARD_MAX_PX = 4096
  * closely, it is not.
  */
 const LOSSLESS_MAX_PX = 1_500_000
+/** A crop that would wait longer than this for its upstream slot is refused rather than queued. */
+const UPSTREAM_MAX_WAIT_MS = 10_000
+/**
+ * The cache keeps at most this many bytes of images, the newest. Crops are per building, so
+ * a crawler walking every building would otherwise grow it without end.
+ */
+const CACHE_MAX_BYTES = 2 * 1024 ** 3
+/** The cache is cut back on every this many inserts, so it overshoots by at most this many crops. */
+const PURGE_EVERY = 20
+/** Starts full, so the first insert after a start also cuts back what an older process left. */
+let insertsSincePurge = PURGE_EVERY
 
-export interface OrthoRequest {
-  state: string
-  bbox: [number, number, number, number]
-  px: number
-}
+/** The upstream pacer's queue is too long; the route answers 503 rather than hold the request. */
+export class UpstreamBusyError extends Error {}
 
 export interface OrthoImage {
   image: Buffer
@@ -128,29 +136,6 @@ export function getMapUrl(
 }
 
 /**
- * Whether a bbox in the state's own CRS touches any of that state's indexed tiles.
- *
- * Checked before a crop is fetched and cached, so a bbox far outside the state cannot fill
- * the cache with blank images.
- */
-export async function bboxInState(
-  pool: pg.Pool,
-  state: string,
-  epsg: number,
-  bbox: [number, number, number, number],
-): Promise<boolean> {
-  const { rows } = await pool.query<{ hit: boolean }>(
-    `SELECT EXISTS (
-       SELECT 1 FROM tile_index
-        WHERE state = $1
-          AND bbox && ST_Transform(ST_MakeEnvelope($2, $3, $4, $5, $6::integer), 4326)
-     ) AS hit`,
-    [state, bbox[0], bbox[1], bbox[2], bbox[3], epsg],
-  )
-  return rows[0]?.hit ?? false
-}
-
-/**
  * Fetch one DOP crop, serving from the cache when the exact same request has been made
  * before. `bbox` is in the adapter's own CRS.
  */
@@ -194,7 +179,7 @@ export async function fetchOrthophoto(
   }
 
   const url = getMapUrl(service, adapter.epsg, bbox, width, height, { lossless })
-  await upstreamPacer.wait(url)
+  if (!(await upstreamPacer.wait(url, UPSTREAM_MAX_WAIT_MS))) throw new UpstreamBusyError('upstream busy')
 
   const res = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) })
   if (!res.ok) throw new Error(`${adapter.code} DOP WMS returned ${res.status}`)
@@ -218,8 +203,28 @@ export async function fetchOrthophoto(
      bbox[0], bbox[1], bbox[2], bbox[3],
      width, height, contentType, image, image.length],
   )
+  if (++insertsSincePurge >= PURGE_EVERY) {
+    insertsSincePurge = 0
+    void purgeOrthophotoCache(pool).catch((err: Error) => {
+      console.warn(`orthophoto cache purge failed: ${err.message}`)
+    })
+  }
 
   return { image, contentType, widthPx: width, heightPx: height, cached: false }
+}
+
+/** Delete the oldest crops until the rest fit in maxBytes. Returns how many were deleted. */
+export async function purgeOrthophotoCache(pool: pg.Pool, maxBytes = CACHE_MAX_BYTES): Promise<number> {
+  const res = await pool.query(
+    `DELETE FROM orthophoto_cache WHERE key IN (
+       SELECT key FROM (
+         SELECT key, sum(bytes) OVER (ORDER BY fetched_at DESC, key) AS newer_bytes
+           FROM orthophoto_cache
+       ) s
+        WHERE newer_bytes > $1)`,
+    [maxBytes],
+  )
+  return res.rowCount ?? 0
 }
 
 /** Square bbox of the given half-width around a centre, in the adapter's CRS. */
