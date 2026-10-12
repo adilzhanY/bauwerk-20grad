@@ -15,12 +15,18 @@ const removed: string[] = [];
 let stored: { slot: string; width: number; height: number; updatedAt?: string }[] = [];
 /** Changes the URLs handed out, as a replaced picture gets a new one. */
 let urlTag = "";
+/** How many of the next saves the server refuses. */
+let refuse = 0;
 
 vi.mock("./projects", async (original) => {
   const real = await original<typeof Projects>();
   return {
     ...real,
     savePhoto: (ref: ProjectRef, slot: string) => {
+      if (refuse > 0) {
+        refuse -= 1;
+        return Promise.reject(new Error("refused"));
+      }
       saved.push({ ref, slot });
       return Promise.resolve();
     },
@@ -34,7 +40,7 @@ vi.mock("./projects", async (original) => {
   };
 });
 
-const { startPhotoSync } = await import("./photoSync");
+const { PHOTO_RETRY_MS, startPhotoSync } = await import("./photoSync");
 const { FILES_EVENT } = await import("./files");
 
 beforeEach(() => {
@@ -42,6 +48,7 @@ beforeEach(() => {
   removed.length = 0;
   stored = [];
   urlTag = "";
+  refuse = 0;
   vi.stubGlobal("fetch", () => Promise.resolve(jpegResponse()));
   URL.revokeObjectURL = () => undefined;
 });
@@ -64,6 +71,26 @@ describe("startPhotoSync", () => {
     await settle();
     expect(saved.map((s) => s.slot)).toEqual(["2", "thumbnail"]);
     expect(saved[0]?.ref).toEqual({ kind: "local", id: "p1" });
+  });
+
+  it("tries a refused photo again after a pause", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    vi.useFakeTimers({ toFake: ["setTimeout"] });
+    try {
+      const store = createEditorStore();
+      store.getState().loadBuilding(savedProject("p1"));
+      const stop = startPhotoSync(store);
+      refuse = 1;
+      store.getState().setFacadePhoto(2, { url: "blob:new", width: 800, height: 600 });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(saved).toEqual([]);
+      await vi.advanceTimersByTimeAsync(PHOTO_RETRY_MS);
+      expect(saved.map((s) => s.slot)).toEqual(["2", "thumbnail"]);
+      stop();
+    } finally {
+      vi.useRealTimers();
+      warn.mockRestore();
+    }
   });
 
   it("brings a project's photos and floor plans back and does not save them again", async () => {

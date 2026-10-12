@@ -792,7 +792,7 @@ function WallPhotoControls({ wallIndex }: { wallIndex: number }) {
           setFacadePhoto(wallIndex, null);
           // The project keeps its photos until the user removes one here.
           const ref = currentProjectRef();
-          if (ref) void removePhoto(ref, String(wallIndex));
+          if (ref) void removePhoto(ref, String(wallIndex)).catch(() => undefined);
         }}
       >
         {t("wallPhoto.removePhoto")}

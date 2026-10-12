@@ -38,7 +38,8 @@ export function ModelSnapshot() {
     const ref = currentProjectRef();
     if (!blob || !ref) return;
     void shrinkImage(blob, 480, "image/webp").then((small) => {
-      if (small) void savePhoto(ref, "model", small.blob, small.width, small.height);
+      if (small)
+        void savePhoto(ref, "model", small.blob, small.width, small.height).catch(() => undefined);
     });
   }, []);
 

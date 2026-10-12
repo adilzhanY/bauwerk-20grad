@@ -8,13 +8,12 @@
  * share nothing. Both look the same
  * to the page: a card with a summary, a time and a way to open it.
  */
-import { authHeaders } from "@/auth/api";
+import { apiBase, authHeaders } from "@/auth/api";
 import { projectSummary } from "@/geometry/project";
 import type { ProjectSummary as CardSummary } from "@/geometry/project";
 import type { Building, ProjectInfo } from "@/geometry/types";
 import { listProjectCopies, removeProjectCopy } from "@/lib/storage";
 import { useEditorStore } from "@/store/building";
-import { syncConfigFromEnv } from "@/sync/client";
 import { listProjects, syncEnabled } from "@/sync/useSync";
 import type { HereNow } from "@/sync/useSync";
 import { localPhotos } from "./localPhotos";
@@ -121,8 +120,8 @@ export interface PhotoSlot {
 }
 
 function serverUrl(path: string): string | null {
-  const cfg = syncConfigFromEnv();
-  return cfg ? `${cfg.apiUrl}${path}` : null;
+  const base = apiBase();
+  return base ? `${base}${path}` : null;
 }
 
 export async function savePhoto(
@@ -138,7 +137,7 @@ export async function savePhoto(
   }
   const url = serverUrl(`/projects/${ref.id}/photos/${slot}`);
   if (!url) return;
-  await fetch(url, {
+  const res = await fetch(url, {
     method: "PUT",
     headers: {
       "content-type": blob.type || "image/jpeg",
@@ -148,6 +147,7 @@ export async function savePhoto(
     },
     body: blob,
   });
+  if (!res.ok) throw new Error(`Saving picture ${slot} failed: ${res.status}`);
 }
 
 export async function removePhoto(ref: ProjectRef, slot: string): Promise<void> {
@@ -156,7 +156,9 @@ export async function removePhoto(ref: ProjectRef, slot: string): Promise<void> 
     return;
   }
   const url = serverUrl(`/projects/${ref.id}/photos/${slot}`);
-  if (url) await fetch(url, { method: "DELETE", headers: await authHeaders() });
+  if (!url) return;
+  const res = await fetch(url, { method: "DELETE", headers: await authHeaders() });
+  if (!res.ok) throw new Error(`Removing picture ${slot} failed: ${res.status}`);
 }
 
 export async function photoSlots(ref: ProjectRef): Promise<PhotoSlot[]> {

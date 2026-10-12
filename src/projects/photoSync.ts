@@ -26,6 +26,8 @@ import { FILES_EVENT } from "./files";
 type Store = ReturnType<typeof createEditorStore>;
 
 const PLAN_SLOT = "plan-";
+/** After a failed upload, the next try waits this long (offline, or the server restarting). */
+export const PHOTO_RETRY_MS = 30_000;
 
 export function startPhotoSync(store: Store): () => void {
   // Picture URLs that came from the project or went to it, with the slot they are stored in:
@@ -101,9 +103,11 @@ export function startPhotoSync(store: Store): () => void {
     })),
   ];
 
+  let retry: ReturnType<typeof setTimeout> | null = null;
+
   const uploadNew = (ref: ProjectRef, state: ReturnType<Store["getState"]>) => {
     const wanted = new Set<string>();
-    const moves: Promise<void>[] = [];
+    const moves: Promise<boolean>[] = [];
     const left: string[] = [];
     for (const { slot, photo, card } of pictures(state)) {
       wanted.add(slot);
@@ -111,18 +115,29 @@ export function startPhotoSync(store: Store): () => void {
       if (stored === slot) continue;
       if (stored !== undefined) left.push(stored);
       slotOf.set(photo.url, slot);
-      const sent = upload(ref, slot, photo, card).catch(() => {
-        // Offline or refused: the picture stays in this tab and goes up with the next change.
-        if (stored === undefined) slotOf.delete(photo.url);
-        else slotOf.set(photo.url, stored);
-      });
+      const sent = upload(ref, slot, photo, card).then(
+        () => true,
+        (error: unknown) => {
+          // Offline or refused: the picture stays in this tab and goes up with the next
+          // change, or on the next try after a pause.
+          if (stored === undefined) slotOf.delete(photo.url);
+          else slotOf.set(photo.url, stored);
+          console.warn("A picture was not saved, trying again:", error);
+          retry ??= setTimeout(() => {
+            retry = null;
+            if (sameRef(open, ref)) uploadNew(ref, store.getState());
+          }, PHOTO_RETRY_MS);
+          return false;
+        },
+      );
       if (stored !== undefined) moves.push(sent);
     }
     // Once every moved picture is stored again, the slots nothing holds any more go. A slot a
-    // moved picture took over is still wanted and stays.
+    // moved picture took over is still wanted and stays; a move that failed keeps its old one.
     const gone = left.filter((slot) => !wanted.has(slot));
     if (gone.length > 0) {
-      void Promise.all(moves).then(async () => {
+      void Promise.all(moves).then(async (done) => {
+        if (!done.every(Boolean)) return;
         for (const slot of gone) await removePhoto(ref, slot).catch(() => undefined);
       });
     }
@@ -155,6 +170,7 @@ export function startPhotoSync(store: Store): () => void {
   });
   return () => {
     unsubscribe();
+    if (retry) clearTimeout(retry);
     window.removeEventListener(FILES_EVENT, onFiles);
   };
 }
