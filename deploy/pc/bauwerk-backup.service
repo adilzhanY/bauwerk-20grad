@@ -1,0 +1,9 @@
+# Pulls the backups of the hosted site to this PC (backup.sh): the app database every night,
+# the LoD2 database once a week. Started by bauwerk-backup.timer; a failed dump fails the unit.
+[Unit]
+Description=Bauwerk backup from the server
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/dev/bauwerk/deploy/pc/backup.sh

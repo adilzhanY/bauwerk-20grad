@@ -54,7 +54,7 @@ variable.
    docker exec $C psql -U lod2 -d lod2 -tAc "select count(*) from building"   # same as on the PC
    docker compose -f deploy/docker-compose.yml --env-file deploy/.env restart lod2-api
    ```
-   Keep `lod2.dump`: it is the backup of this data.
+   Delete `lod2.dump` from the server afterwards; the backups below keep this data.
 7. **Check** from the phone on mobile data: `https://<domain>`, a building search, the building
    page, the editor, Share, and a second device opening the link and editing live.
 
@@ -105,12 +105,68 @@ DATABASE_CA_CERT=/path/to/prod-ca-2021.crt npm run dev
 ```bash
 cd /srv/bauwerk && git pull
 docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
+docker builder prune -f --filter until=168h && docker image prune -f
 ```
+
+The last line drops the build cache older than a week and the images the new build replaced;
+without it every deploy leaves a few hundred MB behind (5.8 GB after 11 days).
 
 This restarts the collaboration server whenever the app's code changed (its image carries the
 shared code), which takes about 15 seconds; saves in that time are tried again for about 17
 seconds. A change to the app only can keep the server running:
 `docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build --no-deps web`.
+
+## Backups
+
+This PC pulls them from the server every night, so a copy lives off the server
+(`deploy/pc/backup.sh`, run by `bauwerk-backup.timer`):
+
+- the app database (schema `app`: accounts, projects, their history) every night, with
+  `pg_dump -Fc -n app` from the postgis container against `BAUWERK_DATABASE_URL` of the server's
+  `deploy/.env` (or the local `bauwerk` database when that is empty). The address is never
+  printed. The last 7 are kept.
+- the LoD2 database (about 3.6 GB in Postgres) once its newest copy is a week old, with
+  `pg_dump -Fc` in the postgis container. The last 4 are kept.
+
+They land in `~/backups/bauwerk/` as `app-<date>-<time>.dump` and `lod2-<date>-<time>.dump`,
+readable by this user only. A dump is written to a `.part` name and renamed only when it
+succeeded; a failed one leaves the older copies alone and fails the unit
+(`systemctl --user status bauwerk-backup`, `journalctl --user -u bauwerk-backup`). It needs
+`ssh deploy@138.199.213.29` to work without a password prompt (the key `~/.ssh/id_ed25519`).
+
+Install once on this PC:
+
+```bash
+systemctl --user link ~/dev/bauwerk/deploy/pc/bauwerk-backup.service
+systemctl --user enable --now ~/dev/bauwerk/deploy/pc/bauwerk-backup.timer
+systemctl --user start bauwerk-backup     # the first run now: both dumps, a few minutes
+ls -lh ~/backups/bauwerk/
+```
+
+`deploy/pc/backup.sh app` or `deploy/pc/backup.sh lod2` makes one of them right away.
+
+Restore. Look inside a dump first with `pg_restore -l <file>`. The app database, into Supabase
+(or any Postgres; the server's own migrations are part of the dump):
+
+```bash
+pg_restore --no-owner --no-acl --clean --if-exists -n app -d "$BAUWERK_DATABASE_URL" app-<date>-<time>.dump
+```
+
+The LoD2 database, on the server, as in step 6 of "First time":
+
+```bash
+scp ~/backups/bauwerk/lod2-<date>-<time>.dump deploy@138.199.213.29:/srv/bauwerk/lod2.dump
+# on the server
+cd /srv/bauwerk
+C=$(docker compose -f deploy/docker-compose.yml --env-file deploy/.env ps -q postgis)
+docker cp lod2.dump $C:/tmp/lod2.dump
+docker exec $C pg_restore -U lod2 -d lod2 --no-owner --clean --if-exists /tmp/lod2.dump
+docker exec $C rm /tmp/lod2.dump && rm lod2.dump
+docker compose -f deploy/docker-compose.yml --env-file deploy/.env restart lod2-api
+```
+
+`/srv/bauwerk/lod2.dump` from the first load is still on the server and out of date; once the
+first LoD2 backup is here it can be deleted (`rm /srv/bauwerk/lod2.dump`).
 
 ## When something is wrong
 
