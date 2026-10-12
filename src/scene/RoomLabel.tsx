@@ -1,7 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useEffect, useMemo, useState } from "react";
 import { CanvasTexture, SRGBColorSpace } from "three";
-import type { Group } from "three";
 import type { Vec2 } from "@/geometry/types";
 import { noRaycast } from "./three";
 import { useSceneColors } from "./useSceneColors";
@@ -11,7 +9,7 @@ const PX_PER_M = 256;
 /** Height of the name in metres, the area below it is a little smaller. */
 const NAME_M = 0.32;
 const AREA_M = 0.26;
-/** Never wider than this share of the room, so the print stays inside its walls. */
+/** Never wider than this share of the room, so the card stays inside its walls. */
 const ROOM_SHARE = 0.8;
 
 /** Resolves when the page fonts are in, so the canvas draws in IBM Plex and Geist, not a fallback. */
@@ -23,11 +21,11 @@ function cssFont(token: string): string {
 }
 
 /**
- * The room's name and area printed on its floor: walls in front hide it and from a low angle
- * it lies flat, so it never covers the facade. It turns in quarter steps to read upright
- * from wherever the camera stands.
+ * The room's name and area on a small card standing on its floor. It always faces the camera,
+ * so it reads upright from every side, and it is part of the 3D scene: walls in front hide it
+ * and it never draws over the facade.
  */
-export function FloorLabel({
+export function RoomLabel({
   name,
   area,
   centre,
@@ -40,7 +38,7 @@ export function FloorLabel({
   polygon: readonly Vec2[];
   elevation: number;
 }) {
-  const { ink, muted } = useSceneColors();
+  const { ink, muted, paper } = useSceneColors();
   const [fontsIn, setFontsIn] = useState(false);
   useEffect(() => {
     let live = true;
@@ -66,6 +64,12 @@ export function FloorLabel({
     canvas.width = Math.ceil(Math.max(nameWidth, areaWidth) + 2 * pad);
     canvas.height = Math.ceil((NAME_M + AREA_M + 0.1) * PX_PER_M + 2 * pad);
     // Resizing the canvas resets its state, so the fonts are set again for drawing.
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = paper;
+    ctx.beginPath();
+    ctx.roundRect(0, 0, canvas.width, canvas.height, pad);
+    ctx.fill();
+    ctx.globalAlpha = 1;
     ctx.textAlign = "center";
     ctx.textBaseline = "alphabetic";
     ctx.font = nameFont;
@@ -80,7 +84,7 @@ export function FloorLabel({
     return { texture, width: canvas.width / PX_PER_M, height: canvas.height / PX_PER_M };
     // fontsIn redraws the label once the page fonts have loaded.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [name, area, ink, muted, fontsIn]);
+  }, [name, area, ink, muted, paper, fontsIn]);
   useEffect(
     () => () => {
       label?.texture.dispose();
@@ -88,7 +92,7 @@ export function FloorLabel({
     [label],
   );
 
-  // A label wider or deeper than the room shrinks to fit; it never grows past its print size.
+  // A card wider or deeper than the room shrinks to fit; it never grows past its own size.
   const scale = useMemo(() => {
     if (!label) return 1;
     const xs = polygon.map((p) => p.x);
@@ -97,30 +101,17 @@ export function FloorLabel({
     return Math.min(1, (ROOM_SHARE * span) / Math.max(label.width, label.height));
   }, [label, polygon]);
 
-  const turn = useRef<Group>(null);
-  useFrame(({ camera }) => {
-    const group = turn.current;
-    if (!group) return;
-    // The text's foot faces the camera, snapped to a quarter turn so it does not spin.
-    const angle = Math.atan2(camera.position.x - centre.x, camera.position.z - centre.y);
-    const snapped = Math.round(angle / (Math.PI / 2)) * (Math.PI / 2);
-    if (group.rotation.y !== snapped) group.rotation.y = snapped;
-  });
-
   if (!label) return null;
+  const width = label.width * scale;
+  const height = label.height * scale;
+  // Its foot just above the floor: walls in front hide it, as they hide the floor.
   return (
-    <group ref={turn} position={[centre.x, elevation + 0.02, centre.y]}>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} scale={scale} raycast={noRaycast}>
-        <planeGeometry args={[label.width, label.height]} />
-        <meshBasicMaterial
-          map={label.texture}
-          transparent
-          depthWrite={false}
-          toneMapped={false}
-          polygonOffset
-          polygonOffsetFactor={-2}
-        />
-      </mesh>
-    </group>
+    <sprite
+      position={[centre.x, elevation + 0.02 + height / 2, centre.y]}
+      scale={[width, height, 1]}
+      raycast={noRaycast}
+    >
+      <spriteMaterial map={label.texture} transparent depthWrite={false} toneMapped={false} />
+    </sprite>
   );
 }

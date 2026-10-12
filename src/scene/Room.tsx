@@ -7,7 +7,7 @@ import type { StoreyDisplay } from "./display";
 import { formatArea } from "@/lib/format";
 import { useEditorStore } from "@/store/building";
 import type { Selection } from "@/store/building";
-import { FloorLabel } from "./FloorLabel";
+import { RoomLabel } from "./RoomLabel";
 import { useHover, useMarked } from "./hover";
 import { flatGeometry, meshRaycast, noRaycast } from "./three";
 import { useDisposableGeometry } from "./useDisposableGeometry";
@@ -22,7 +22,7 @@ interface Props {
   ghostOpacity: number;
 }
 
-/** Flat fill on the floor, coloured by zone, with its name and area printed on it. */
+/** Flat fill on the floor, coloured by zone, with a card of its name and area. */
 export function Room({ storeyId, room, zone, elevation, active, display, ghostOpacity }: Props) {
   const target: Selection = useMemo(
     () => ({ kind: "room", storeyId, id: room.id }),
@@ -84,7 +84,7 @@ export function Room({ storeyId, room, zone, elevation, active, display, ghostOp
         />
       </mesh>
       {active && !planView && (
-        <FloorLabel
+        <RoomLabel
           name={room.name}
           area={formatArea(room.area, language)}
           centre={centre}
