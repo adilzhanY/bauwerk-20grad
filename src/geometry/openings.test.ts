@@ -7,12 +7,9 @@ import {
   openingsOverlap,
   snapOffset,
   validateOpening,
-  wallProfile,
-  exteriorOpenings,
   openingsOn,
   sameWall,
 } from "./openings";
-import { area } from "./polygon";
 import type { Opening } from "./types";
 
 const ctx = { wallLength: 10, storeyHeight: 3, siblings: [] as Opening[] };
@@ -122,32 +119,6 @@ describe("clampOpening and snapOffset", () => {
   });
 });
 
-describe("wallProfile", () => {
-  it("is the wall rectangle with one clockwise hole per valid opening", () => {
-    const profile = wallProfile(10, 3, [window(), door()]);
-    expect(area(profile.outer)).toBe(30);
-    expect(profile.holes).toHaveLength(2);
-    expect(profile.holes[0]).toEqual([
-      { x: 1, y: 0.9 },
-      { x: 1, y: 2.3 },
-      { x: 2.2, y: 2.3 },
-      { x: 2.2, y: 0.9 },
-    ]);
-    // Holes are wound opposite to the outer ring.
-    for (const hole of profile.holes) {
-      expect(area(hole)).toBeGreaterThan(0);
-    }
-    const solid = 30 - 1.2 * 1.4 - 1 * 2.1;
-    const holeArea = profile.holes.reduce((s, h) => s + area(h), 0);
-    expect(30 - holeArea).toBeCloseTo(solid);
-  });
-
-  it("skips invalid openings instead of cutting broken holes", () => {
-    const profile = wallProfile(10, 3, [window({ offset: 9.5 })]);
-    expect(profile.holes).toHaveLength(0);
-  });
-});
-
 describe("interior openings", () => {
   const base = {
     id: "a",
@@ -167,9 +138,8 @@ describe("interior openings", () => {
     expect(validateOpening(base, ctx)).toEqual([]);
     expect(validateOpening({ ...interior, id: "c" }, ctx)).toContain("overlaps");
   });
-  it("filters exterior and per wall openings", () => {
+  it("filters openings per wall", () => {
     const interior = { ...base, id: "b", interior: true };
-    expect(exteriorOpenings([base, interior])).toEqual([base]);
     expect(openingsOn([base, interior], 0)).toEqual([base]);
     expect(openingsOn([base, interior], 0, true)).toEqual([interior]);
   });

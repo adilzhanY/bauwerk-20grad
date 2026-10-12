@@ -104,6 +104,14 @@ describe("wallSolids", () => {
     expect(full - cut).toBeCloseTo(removed, 6);
   });
 
+  it("of two overlapping openings the one placed first is cut, as the energy balance counts it", () => {
+    const w = wall();
+    const full = volume(wallSolids(w, []));
+    const late = { ...windowOpening, id: "late", offset: 2.5 };
+    const cut = volume(wallSolids(w, [windowOpening, late]));
+    expect(full - cut).toBeCloseTo(1.2 * 1.4 * 0.3, 6);
+  });
+
   it("a window column has a part below and above, a door column only above", () => {
     const prisms = wallSolids(wall(), [windowOpening, doorOpening]);
     // left, below window, above window, between, above door, right

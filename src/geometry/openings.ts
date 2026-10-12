@@ -1,14 +1,10 @@
-import type { Opening, Vec2 } from "./types";
+import type { Opening } from "./types";
 
 /** Two openings share a wall when both the index and the interior flag agree. */
 export const sameWall = (
   a: Pick<Opening, "wallIndex" | "interior"> & Partial<Opening>,
   b: Pick<Opening, "wallIndex" | "interior"> & Partial<Opening>,
 ): boolean => a.wallIndex === b.wallIndex && (a.interior ?? false) === (b.interior ?? false);
-
-/** Openings in the building envelope, the ones that matter for energy and IFC. */
-export const exteriorOpenings = (openings: readonly Opening[]): Opening[] =>
-  openings.filter((o) => !o.interior);
 
 /** Openings on one wall, exterior by default. */
 export const openingsOn = (
@@ -94,9 +90,6 @@ export function countedOpenings(
   return counted;
 }
 
-export const isOpeningValid = (opening: Opening, ctx: OpeningContext): boolean =>
-  validateOpening(opening, ctx).length === 0;
-
 const snap = (v: number, step: number) => Math.round(v / step) * step;
 
 /**
@@ -128,46 +121,6 @@ export function snapOffset(offset: number, width: number, wallLength: number): n
 }
 
 const round = (v: number) => Math.round(v * 1e6) / 1e6;
-
-/**
- * The wall's 2D profile in wall-local coordinates: u runs along the wall from
- * its start, v runs up from the floor. The outer ring is the wall rectangle,
- * counter-clockwise; each hole is a rectangle, clockwise. Invalid openings are
- * skipped so a half-edited opening never produces broken geometry.
- */
-export interface WallProfile {
-  outer: Vec2[];
-  holes: Vec2[][];
-}
-
-export function wallProfile(
-  wallLength: number,
-  storeyHeight: number,
-  openings: readonly Opening[],
-): WallProfile {
-  const outer: Vec2[] = [
-    { x: 0, y: 0 },
-    { x: wallLength, y: 0 },
-    { x: wallLength, y: storeyHeight },
-    { x: 0, y: storeyHeight },
-  ];
-  const holes: Vec2[][] = [];
-  for (const o of openings) {
-    const valid = isOpeningValid(o, { wallLength, storeyHeight, siblings: openings });
-    if (!valid) continue;
-    const u0 = o.offset;
-    const u1 = o.offset + o.width;
-    const v0 = o.sill;
-    const v1 = o.sill + o.height;
-    holes.push([
-      { x: u0, y: v0 },
-      { x: u0, y: v1 },
-      { x: u1, y: v1 },
-      { x: u1, y: v0 },
-    ]);
-  }
-  return { outer, holes };
-}
 
 export function defaultOpening(
   kind: Opening["kind"],

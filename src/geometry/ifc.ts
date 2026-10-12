@@ -24,7 +24,7 @@ import { effectiveWallThickness } from "./layers";
 import { buildRoof } from "./roof";
 import { evaluateAll } from "./scenarios";
 import { epsgForZone, northInPlan, toUtm } from "./geo";
-import { openingsOn, validateOpening } from "./openings";
+import { countedOpenings, openingsOn } from "./openings";
 import { area, sub } from "./polygon";
 import { NULL, DERIVED, StepWriter, bool, enm, ifcGuid, list, real, ref, str, typed } from "./step";
 import type { Attr } from "./step";
@@ -255,14 +255,7 @@ export function toIfc(building: Building, options: IfcOptions = {}): string {
       );
 
       const onWall = openingsOn(storey.openings, wall.index);
-      for (const opening of onWall) {
-        const valid =
-          validateOpening(opening, {
-            wallLength: wall.length,
-            storeyHeight: storey.height,
-            siblings: onWall,
-          }).length === 0;
-        if (!valid) continue;
+      for (const opening of countedOpenings(onWall, wall.length, storey.height)) {
         const filled = addOpening(ctx, building, storeyPlacement, wall, opening, ifcWall);
         contained.push(filled);
       }
@@ -296,15 +289,7 @@ export function toIfc(building: Building, options: IfcOptions = {}): string {
         [["IsExternal", typed("IFCBOOLEAN", bool(false))]],
       );
       const onWall = openingsOn(storey.openings, i, true);
-      for (const opening of onWall) {
-        if (
-          validateOpening(opening, {
-            wallLength: wall.length,
-            storeyHeight: storey.height,
-            siblings: onWall,
-          }).length > 0
-        )
-          continue;
+      for (const opening of countedOpenings(onWall, wall.length, storey.height)) {
         contained.push(addOpening(ctx, building, storeyPlacement, wall, opening, ifcWall, false));
       }
     });

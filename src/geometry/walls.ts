@@ -1,6 +1,6 @@
 import { add, edges, lineIntersection, scale, sub } from "./polygon";
 import type { Edge } from "./polygon";
-import { isOpeningValid } from "./openings";
+import { countedOpenings } from "./openings";
 import type { Opening, Segment, Vec2 } from "./types";
 
 /**
@@ -140,9 +140,7 @@ export function wallSolids(
    */
   range: [number, number] = [0, wall.length],
 ): WallPrism[] {
-  const valid = openings.filter((o) =>
-    isOpeningValid(o, { wallLength: wall.length, storeyHeight: wall.height, siblings: openings }),
-  );
+  const valid = countedOpenings(openings, wall.length, wall.height);
   const sorted = [...valid].sort((a, b) => a.offset - b.offset);
   const columns: Column[] = [];
   let cursor = 0;

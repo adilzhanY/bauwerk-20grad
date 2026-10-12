@@ -1,4 +1,4 @@
-import { isOpeningValid } from "./openings";
+import { countedOpenings } from "./openings";
 import {
   add,
   centroid,
@@ -45,12 +45,9 @@ export function wallPoche(
   return solids;
 }
 
-/** Valid openings as [start, end] metres along the outer face, sorted. */
+/** The counted openings as [start, end] metres along the outer face, sorted. */
 export function openingSpans(wall: Wall, openings: readonly Opening[]): [number, number][] {
-  return openings
-    .filter((o) =>
-      isOpeningValid(o, { wallLength: wall.length, storeyHeight: wall.height, siblings: openings }),
-    )
+  return countedOpenings(openings, wall.length, wall.height)
     .map((o): [number, number] => [o.offset, o.offset + o.width])
     .sort((a, b) => a[0] - b[0]);
 }

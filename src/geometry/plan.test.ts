@@ -5,6 +5,7 @@ import {
   clearWallRange,
   dimension,
   openingChain,
+  openingSpans,
   openingSymbol,
   roomMeasures,
   span,
@@ -52,6 +53,23 @@ describe("wallPoche", () => {
   it("ignores an invalid opening instead of cutting the wall", () => {
     const solids = wallPoche(south, [opening({ offset: 9.5, width: 2 })]);
     expect(solids).toHaveLength(1);
+  });
+});
+
+describe("openingSpans", () => {
+  it("of two overlapping openings keeps the one placed first, as the energy balance does", () => {
+    const wall = buildWalls(rect, 0.3, 3)[0]!;
+    const first: Opening = {
+      id: "a",
+      wallIndex: 0,
+      kind: "window",
+      offset: 2,
+      width: 1.2,
+      height: 1.4,
+      sill: 0.9,
+      constructionId: "c_glazing_double",
+    };
+    expect(openingSpans(wall, [first, { ...first, id: "b", offset: 2.5 }])).toEqual([[2, 3.2]]);
   });
 });
 

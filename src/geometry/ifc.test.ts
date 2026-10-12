@@ -65,6 +65,16 @@ describe("STEP primitives", () => {
 });
 
 describe("toIfc", () => {
+  it("exports of two overlapping openings only the one the energy balance counts", () => {
+    const b = house();
+    const storey = b.storeys[0]!;
+    const first = storey.openings[0]!;
+    const before = parse(toIfc(b)).entities;
+    storey.openings.push({ ...first, id: "late", offset: first.offset + 0.1 });
+    const after = parse(toIfc(b)).entities;
+    expect(count(after, "IFCOPENINGELEMENT")).toBe(count(before, "IFCOPENINGELEMENT"));
+  });
+
   it("writes a valid header with the IFC4 schema", () => {
     const { header } = parse(
       toIfc(house(), { timestamp: "2026-09-05T12:00:00", fileName: "haus.ifc" }),
